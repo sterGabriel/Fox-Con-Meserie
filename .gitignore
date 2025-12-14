@@ -3,6 +3,10 @@
 /public/build
 /public/hot
 /public/storage
+/public/hls/**/*.ts
+/public/hls/**/*.m3u
+/public/hls/**/*.m3u8
+/public/encoded
 /storage/*.key
 /storage/pail
 /vendor
@@ -21,3 +25,5 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+*.ts.lock
+.DS_Store
