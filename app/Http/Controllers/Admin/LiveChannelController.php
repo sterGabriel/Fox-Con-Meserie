@@ -173,8 +173,8 @@ class LiveChannelController extends Controller
             return response()->file($path);
         }
 
-        // path relativ la storage/app
-        $abs = storage_path('app/' . ltrim($path, '/'));
+        // path relativ la storage/app/private (disk root)
+        $abs = storage_path('app/private/' . ltrim($path, '/'));
         if (!file_exists($abs)) abort(404);
 
         return response()->file($abs);
@@ -211,11 +211,11 @@ class LiveChannelController extends Controller
         ]);
 
         // Upload PNG -> storage/app/private/logos/vod_channels/{id}/...
-        // în DB salvăm path RELATIV: private/logos/...
+        // în DB salvăm path RELATIV: logos/... (relativ la disk root care e storage/app/private)
         if ($request->hasFile('logo_upload')) {
             $file = $request->file('logo_upload');
 
-            $dir  = 'private/logos/vod_channels/' . $channel->id;
+            $dir  = 'logos/vod_channels/' . $channel->id;
             $name = 'logo_' . date('Ymd_His') . '_' . uniqid() . '.png';
 
             $relative = Storage::disk('local')->putFileAs($dir, $file, $name);
