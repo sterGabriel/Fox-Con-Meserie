@@ -1,0 +1,49 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('live_channels', function (Blueprint $table) {
+            // LOGO
+            $table->string('logo_path')->nullable()->after('hls_output_path');
+            $table->integer('logo_width')->nullable()->after('logo_path'); // px
+            $table->string('logo_position', 20)->default('top-left')->after('logo_width'); // top-left, top-right, bottom-left, bottom-right
+            $table->integer('logo_offset_x')->default(20)->after('logo_position');
+            $table->integer('logo_offset_y')->default(20)->after('logo_offset_x');
+
+            // TITLE (movie name overlay)
+            $table->boolean('title_overlay_enabled')->default(true)->after('logo_offset_y');
+            $table->string('title_position', 20)->default('bottom-right')->after('title_overlay_enabled');
+            $table->integer('title_font_size')->default(22)->after('title_position');
+
+            // TIMER
+            $table->boolean('timer_overlay_enabled')->default(false)->after('title_font_size');
+            $table->string('timer_position', 20)->default('bottom-right')->after('timer_overlay_enabled');
+            $table->integer('timer_font_size')->default(18)->after('timer_position');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('live_channels', function (Blueprint $table) {
+            $table->dropColumn([
+                'logo_path',
+                'logo_width',
+                'logo_position',
+                'logo_offset_x',
+                'logo_offset_y',
+                'title_overlay_enabled',
+                'title_position',
+                'title_font_size',
+                'timer_overlay_enabled',
+                'timer_position',
+                'timer_font_size',
+            ]);
+        });
+    }
+};

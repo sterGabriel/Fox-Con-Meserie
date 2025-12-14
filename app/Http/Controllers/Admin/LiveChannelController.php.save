@@ -1,0 +1,280 @@
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use App\Http\Controllers\Controller;
+use App\Models\LiveChannel;
+use App\Models\PlaylistItem;
+use App\Models\Video;
+use App\Models\VideoCategory;
+use Illuminate\Http\Request;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
+
+class LiveChannelController extends Controller
+{
+    // LISTA VOD CHANNELS
+    public function index()
+    {
+        $channels = LiveChannel::orderBy('id', 'desc')->paginate(20);
+
+        return view('admin.vod_channels.index', [
+            'channels' => $channels,
+        ]);
+    }
+
+    // FORM: CREATE VOD CHANNEL
+    public function create()
+    {
+        return view('admin.vod_channels.create');
+    }
+
+    // SALVARE VOD CHANNEL
+    public function store(Request $request)
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+        ]);
+
+        $data['slug']            = Str::slug($data['name']) . '-' . uniqid();
+        $data['input_url']       = null;
+        $data['logo_path']       = null;
+        $data['encoder_profile'] = 'h264_1500k';
+        $data['enabled']         = true;
+        $data['status']          = 'idle';
+        $data['video_category']  = null;
+        $data['created_by']      = auth()->id();
+
+        // ───────── Default broadcast / encoding settings ─────────
+        $data['resolution']          = '1280x720';
+        $data['video_bitrate']       = 1500; // kbps
+        $data['audio_bitrate']       = 128;  // kbps
+        $data['fps']                 = 25;
+        $data['audio_codec']         = 'aac';
+
+        // Overlays ON by default
+        $data['overlay_title']       = true;
+        $data['overlay_timer']       = true;
+
+        // Output paths (pot rămâne NULL și le setezi din Settings)
+        $data['encoded_output_path'] = null;
+        $data['hls_output_path']     = null;
+
+        // ───────── Default overlay positions (logo / titlu / timer) ─────────
+        // Pozițiile sunt string-uri gen: top-left, top-right, bottom-left, bottom-right
+        $data['logo_position']       = 'top-left';
+        $data['logo_offset_x']       = 20;
+        $data['logo_offset_y']       = 20;
+
+        $data['title_position']      = 'bottom-right';
+        $data['title_offset_x']      = 30;
+        $data['title_offset_y']      = 50;
+
+        $data['timer_position']      = 'bottom-right';
+        $data['timer_offset_x']      = 30;
+        $data['timer_offset_y']      = 20;
+
+        $channel = LiveChannel::create($data);
+
+        return redirect()
+            ->route('vod-channels.playlist', $channel)
+            ->with('success', 'Vod channel created.');
+    }
+
+    // PAGINA PLAYLIST PENTRU UN CANAL VOD
+    public function playlist(LiveChannel $channel)
+    {
+        $playlistItems = PlaylistItem::where('vod_channel_id', $channel->id)
+            ->with('video')
+            ->orderBy('sort_order')
+            ->get();
+
+        $videos = Video::orderBy('title')->get();
+
+        return view('admin.vod_channels.playlist', [
+            'channel'       => $channel,
+            'playlistItems' => $playlistItems,
+            'videos'        => $videos,
+        ]);
+    }
+
+    // ADAUGĂ VIDEO ÎN PLAYLIST
+    public function addToPlaylist(Request $request, LiveChannel $channel)
+    {
+        $data = $request->validate([
+            'video_id' => ['required', 'exists:videos,id'],
+        ]);
+
+        $exists = PlaylistItem::where('vod_channel_id', $channel->id)
+            ->where('video_id', $data['video_id'])
+            ->exists();
+
+        if ($exists) {
+            return redirect()
+                ->route('vod-channels.playlist', $channel)
+                ->with('error', 'Video already in playlist for this channel.');
+        }
+
+        $maxOrder = PlaylistItem::where('vod_channel_id', $channel->id)->max('sort_order');
+
+        PlaylistItem::create([
+            'vod_channel_id' => $channel->id,
+            'video_id'       => $data['video_id'],
+            'sort_order'     => $maxOrder ? $maxOrder + 1 : 1,
+        ]);
+
+        return redirect()
+            ->route('vod-channels.playlist', $channel)
+            ->with('success', 'Video added to playlist.');
+    }
+
+    // ȘTERGE ITEM DIN PLAYLIST
+    public function removeFromPlaylist(LiveChannel $channel, PlaylistItem $item)
+    {
+        if ($item->vod_channel_id !== $channel->id) {
+            abort(404);
+        }
+
+        $item->delete();
+
+        return redirect()
+            ->route('vod-channels.playlist', $channel)
+            ->with('success', 'Item removed from playlist.');
+    }
+
+    // MUTĂ ÎN SUS
+    public function moveUp(LiveChannel $channel, PlaylistItem $item)
+    {
+        if ($item->vod_channel_id !== $channel->id) {
+            abort(404);
+        }
+
+        $previous = PlaylistItem::where('vod_channel_id', $channel->id)
+            ->where('sort_order', '<', $item->sort_order)
+            ->orderBy('sort_order', 'desc')
+            ->first();
+
+        if ($previous) {
+            [$item->sort_order, $previous->sort_order] = [$previous->sort_order, $item->sort_order];
+            $item->save();
+            $previous->save();
+        }
+
+        return redirect()->route('vod-channels.playlist', $channel);
+    }
+
+    // MUTĂ ÎN JOS
+    public function moveDown(LiveChannel $channel, PlaylistItem $item)
+    {
+        if ($item->vod_channel_id !== $channel->id) {
+            abort(404);
+        }
+
+        $next = PlaylistItem::where('vod_channel_id', $channel->id)
+            ->where('sort_order', '>', $item->sort_order)
+            ->orderBy('sort_order', 'asc')
+            ->first();
+
+        if ($next) {
+            [$item->sort_order, $next->sort_order] = [$next->sort_order, $item->sort_order];
+            $item->save();
+            $next->save();
+        }
+
+        return redirect()->route('vod-channels.playlist', $channel);
+    }
+
+    // SETTINGS – AFIȘARE FORM (categorii + broadcast)
+    public function settings(LiveChannel $channel)
+    {
+        $categories = VideoCategory::orderBy('name')->get();
+
+        return view('admin.vod_channels.settings', [
+            'channel'    => $channel,
+            'categories' => $categories,
+        ]);
+    }
+
+    // SETTINGS – SALVARE (categorie + broadcast + overlay)
+    public function updateSettings(Request $request, LiveChannel $channel)
+    {
+            // 1) Dacă user-ul a ales un PNG, îl salvăm pe server
+        if ($request->hasFile('logo_upload')) {
+            $request->validate([
+                'logo_upload' => ['file', 'mimes:png', 'max:5120'], // max 5MB
+            ]);
+
+            $dir = "logos/vod_channels/{$channel->id}";
+            $filename = 'logo_' . time() . '.png';
+
+            // salvează în: storage/app/public/logos/vod_channels/{id}/...
+            $relative = $request->file('logo_upload')->storeAs($dir, $filename, 'public');
+
+            // logo_path trebuie să fie absolut pentru ffmpeg
+            $absolute = storage_path('app/public/' . $relative);
+
+            // forțăm logo_path să fie noul fișier salvat
+            $request->merge(['logo_path' => $absolute]);
+        }
+
+    $data = $request->validate([
+            'video_category'      => ['nullable', 'integer', 'exists:video_categories,id'],
+            'resolution'          => ['required', 'string', 'max:50'],
+            'video_bitrate'       => ['required', 'integer', 'min:200', 'max:50000'],
+            'audio_bitrate'       => ['required', 'integer', 'min:32', 'max:1024'],
+            'fps'                 => ['required', 'integer', 'min:10', 'max:120'],
+            'audio_codec'         => ['required', 'string', 'max:50'],
+
+            'overlay_title'       => ['nullable', 'boolean'],
+            'overlay_timer'       => ['nullable', 'boolean'],
+
+            'encoded_output_path' => ['nullable', 'string', 'max:1024'],
+            'hls_output_path'     => ['nullable', 'string', 'max:1024'],
+
+            // NOILE câmpuri pentru poziționare
+            'logo_position'       => ['nullable', 'string', 'max:50'],
+            'logo_offset_x'       => ['nullable', 'integer', 'min:0', 'max:5000'],
+            'logo_offset_y'       => ['nullable', 'integer', 'min:0', 'max:5000'],
+
+            'title_position'      => ['nullable', 'string', 'max:50'],
+            'title_offset_x'      => ['nullable', 'integer', 'min:0', 'max:5000'],
+            'title_offset_y'      => ['nullable', 'integer', 'min:0', 'max:5000'],
+
+            'timer_position'      => ['nullable', 'string', 'max:50'],
+            'timer_offset_x'      => ['nullable', 'integer', 'min:0', 'max:5000'],
+            'timer_offset_y'      => ['nullable', 'integer', 'min:0', 'max:5000'],
+        ]);
+
+        $channel->update([
+            'video_category'      => $data['video_category'] ?? null,
+            'resolution'          => $data['resolution'],
+            'video_bitrate'       => $data['video_bitrate'],
+            'audio_bitrate'       => $data['audio_bitrate'],
+            'fps'                 => $data['fps'],
+            'audio_codec'         => $data['audio_codec'],
+
+            'overlay_title'       => $request->boolean('overlay_title'),
+            'overlay_timer'       => $request->boolean('overlay_timer'),
+
+            'encoded_output_path' => $data['encoded_output_path'] ?? null,
+            'hls_output_path'     => $data['hls_output_path'] ?? null,
+
+            'logo_position'       => $data['logo_position'] ?? $channel->logo_position,
+            'logo_offset_x'       => $data['logo_offset_x'] ?? $channel->logo_offset_x,
+            'logo_offset_y'       => $data['logo_offset_y'] ?? $channel->logo_offset_y,
+
+            'title_position'      => $data['title_position'] ?? $channel->title_position,
+            'title_offset_x'      => $data['title_offset_x'] ?? $channel->title_offset_x,
+            'title_offset_y'      => $data['title_offset_y'] ?? $channel->title_offset_y,
+
+            'timer_position'      => $data['timer_position'] ?? $channel->timer_position,
+            'timer_offset_x'      => $data['timer_offset_x'] ?? $channel->timer_offset_x,
+            'timer_offset_y'      => $data['timer_offset_y'] ?? $channel->timer_offset_y,
+        ]);
+
+        return redirect()
+            ->route('vod-channels.settings', $channel)
+            ->with('success', 'Settings saved.');
+    }
+}
+
