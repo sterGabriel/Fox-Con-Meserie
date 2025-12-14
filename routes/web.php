@@ -55,10 +55,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/vod-channels/{channel}/settings', [LiveChannelController::class, 'updateSettings'])
         ->name('vod-channels.settings.update');
 
-
-    Route::get('vod-channels/{channel}/logo-preview', [\App\Http\Controllers\Admin\LiveChannelController::class, 'logoPreview'])
-        ->name('vod-channels.logo.preview');
-
     // ───────────── VIDEO CATEGORIES ─────────────
     Route::get('/video-categories', [VideoCategoryController::class, 'index'])
         ->name('video-categories.index');
@@ -112,5 +108,10 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
+
+// 🔓 PUBLIC ROUTES (NO AUTH REQUIRED)
+
+Route::get('/vod-channels/{channel}/logo-preview', [LiveChannelController::class, 'logoPreview'])
+    ->name('vod-channels.logo.preview');
 
 require __DIR__.'/auth.php';
