@@ -1,3 +1,42 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* === Grafana-like theme tokens === */
+:root {
+    --g-bg: #0b1220;
+    --g-panel: #0f172a;
+    --g-panel-2: #0b1324;
+    --g-border: rgba(148, 163, 184, 0.14);
+    --g-text: #e5e7eb;
+    --g-muted: rgba(229, 231, 235, 0.65);
+    --g-blue: #3b82f6;
+    --g-green: #22c55e;
+    --g-amber: #f59e0b;
+    --g-red: #ef4444;
+}
+
+html,
+body {
+    background: var(--g-bg);
+    color: var(--g-text);
+}
+
+/* === Minimal dark scrollbar === */
+*::-webkit-scrollbar {
+    height: 10px;
+    width: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.22);
+    border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.35);
+}
+
+*::-webkit-scrollbar-track {
+    background: transparent;
+}

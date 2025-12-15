@@ -161,21 +161,38 @@ class LiveChannelController extends Controller
 
     public function logoPreview(LiveChannel $channel)
     {
-        $path = $channel->logo_path;
+        $path = (string) ($channel->logo_path ?? '');
 
-        if (!$path) {
+        if ($path === '') {
             abort(404);
         }
 
-        // acceptă și path absolut (legacy)
-        if (Str::startsWith($path, '/')) {
-            if (!file_exists($path)) abort(404);
+        // Legacy absolute path support (backward compatibility)
+        if (str_starts_with($path, '/')) {
+            if (!is_file($path)) {
+                abort(404);
+            }
             return response()->file($path);
         }
 
-        // path relativ la storage/app/private (disk root)
-        $abs = storage_path('app/private/' . ltrim($path, '/'));
-        if (!file_exists($abs)) abort(404);
+        // Normalize relative path
+        $path = ltrim($path, '/');
+
+        // Basic path traversal protection
+        if (str_contains($path, '..')) {
+            abort(404);
+        }
+
+        // Enforce private storage scope
+        if (!str_starts_with($path, 'private/logos/')) {
+            abort(404);
+        }
+
+        $abs = storage_path('app/' . $path);
+
+        if (!is_file($abs)) {
+            abort(404);
+        }
 
         return response()->file($abs);
     }
@@ -200,7 +217,6 @@ class LiveChannelController extends Controller
             'fps'                 => ['required', 'integer', 'min:10', 'max:120'],
             'audio_codec'         => ['required', 'string', 'max:50'],
 
-            'logo_path'           => ['nullable', 'string', 'max:1024'],
             'logo_upload'         => ['nullable', 'file', 'mimes:png', 'max:5120'],
 
             'overlay_title'       => ['nullable', 'boolean'],
@@ -212,15 +228,23 @@ class LiveChannelController extends Controller
 
         // Upload PNG -> storage/app/private/logos/vod_channels/{id}/...
         // în DB salvăm path RELATIV: logos/... (relativ la disk root care e storage/app/private)
+        \Log::info('UpdateSettings: hasFile check', [
+            'hasFile' => $request->hasFile('logo_upload'),
+            'allFiles' => array_keys($request->allFiles()),
+            'hasLogoUpload' => isset($_FILES['logo_upload']) ?? false,
+        ]);
+        
         if ($request->hasFile('logo_upload')) {
             $file = $request->file('logo_upload');
 
-            $dir  = 'logos/vod_channels/' . $channel->id;
+            $dir  = 'private/logos/vod_channels/' . $channel->id;
             $name = 'logo_' . date('Ymd_His') . '_' . uniqid() . '.png';
 
+            // Store under storage/app/private/logos/...
+            // Save the relative path (including "private/") into DB
             $relative = Storage::disk('local')->putFileAs($dir, $file, $name);
 
-            $data['logo_path'] = $relative; // RELATIV, nu absolut
+            $data['logo_path'] = $relative;
         }
 
         $channel->update([
@@ -231,7 +255,7 @@ class LiveChannelController extends Controller
             'fps'                 => $data['fps'],
             'audio_codec'         => $data['audio_codec'],
 
-            'logo_path'           => $data['logo_path'] ?? null,
+            'logo_path'           => $data['logo_path'] ?? $channel->logo_path,
 
             'overlay_title'       => $request->boolean('overlay_title'),
             'overlay_timer'       => $request->boolean('overlay_timer'),
@@ -241,7 +265,7 @@ class LiveChannelController extends Controller
         ]);
 
         return redirect()
-            ->route('vod-channels.settings', $channel)
+            ->route('vod-channels.settings-public', $channel)
             ->with('success', 'Settings saved.');
     }
 }

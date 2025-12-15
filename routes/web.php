@@ -10,10 +10,21 @@ use App\Http\Controllers\Admin\FileBrowserController;
 use App\Http\Controllers\Admin\VideoCategoryController;
 use App\Http\Controllers\Admin\EncodingJobController;
 
-// ROOT → redirect la dashboard
+// ROOT → redirect to dashboard
 Route::get('/', function () {
     return redirect()->route('dashboard');
 });
+
+// ═══════════════════════════════════════════════════════════════
+// 🔓 PUBLIC ROUTES (NO AUTH REQUIRED) - ONLY LOGO PREVIEW
+// ═══════════════════════════════════════════════════════════════
+
+Route::get('/vod-channels/{channel}/logo-preview', [LiveChannelController::class, 'logoPreview'])
+    ->name('vod-channels.logo.preview');
+
+// ═══════════════════════════════════════════════════════════════
+// 🔒 PROTECTED ROUTES (AUTH + VERIFIED REQUIRED)
+// ═══════════════════════════════════════════════════════════════
 
 Route::middleware(['auth', 'verified'])->group(function () {
 
@@ -32,7 +43,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/vod-channels', [LiveChannelController::class, 'store'])
         ->name('vod-channels.store');
 
-    // PLAYLIST
+    // PLAYLIST - PROTECTED
     Route::get('/vod-channels/{channel}/playlist', [LiveChannelController::class, 'playlist'])
         ->name('vod-channels.playlist');
 
@@ -48,7 +59,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/vod-channels/{channel}/playlist/{item}/move-down', [LiveChannelController::class, 'moveDown'])
         ->name('vod-channels.playlist.move-down');
 
-    // SETTINGS CANAL
+    // SETTINGS - PROTECTED (both view and update)
     Route::get('/vod-channels/{channel}/settings', [LiveChannelController::class, 'settings'])
         ->name('vod-channels.settings');
 
@@ -101,17 +112,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // FILE BROWSER
     Route::get('/file-browser', [FileBrowserController::class, 'index'])
         ->name('file-browser.index');
-});
 
-Route::middleware('auth')->group(function () {
+    // PROFILE
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
-
-// 🔓 PUBLIC ROUTES (NO AUTH REQUIRED)
-
-Route::get('/vod-channels/{channel}/logo-preview', [LiveChannelController::class, 'logoPreview'])
-    ->name('vod-channels.logo.preview');
 
 require __DIR__.'/auth.php';

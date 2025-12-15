@@ -104,7 +104,7 @@
                         (debug) channel->video_category = {{ $rawCatId ?? 'NULL' }}
                     </p>
 
-                    <a href="{{ route('vod-channels.settings', $channel) }}"
+                    <a href="{{ route('vod-channels.settings-public', $channel) }}"
                        class="btn btn-outline-primary btn-sm mb-2">
                         Open Settings
                     </a>
