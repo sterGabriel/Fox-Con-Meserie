@@ -318,6 +318,51 @@
         </div>
     </div>
 
+    <!-- VIDEO PREVIEW OVERLAY SECTION -->
+    <div class="p-5 bg-gradient-to-br from-emerald-800/20 to-slate-900/20 rounded-xl border border-emerald-600/30 shadow-lg">
+        <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+                <span class="text-lg">🎬</span>
+                <div>
+                    <h3 class="font-semibold text-slate-200">Preview Overlay on Video</h3>
+                    <p class="text-xs text-slate-400">Generate 10-second preview with current overlay settings</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="space-y-3">
+            <!-- Video Selection -->
+            <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-2">Select Video from Playlist</label>
+                <select id="preview-video-select" data-channel-id="{{ $channel->id }}" class="w-full px-3 py-2 text-xs bg-slate-950/50 border border-slate-600/40 rounded-lg text-slate-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500">
+                    <option value="">-- Select a video --</option>
+                    @if($channel->playlistItems)
+                        @foreach($channel->playlistItems as $item)
+                            <option value="{{ $item->id }}">{{ $item->title ?? 'Video ' . $item->id }}</option>
+                        @endforeach
+                    @endif
+                </select>
+            </div>
+
+            <!-- Preview Actions -->
+            <div class="flex gap-2">
+                <button type="button" id="btn-generate-preview" onclick="generateOverlayPreview()" class="flex-1 px-4 py-2 text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition">
+                    🎬 Generate Preview (10s)
+                </button>
+            </div>
+
+            <!-- Preview Message -->
+            <div id="preview-message" class="hidden p-3 rounded-lg text-xs text-center"></div>
+
+            <!-- Preview Download Link -->
+            <div id="preview-link-container" class="pt-2">
+                <a id="preview-link" href="#" download class="hidden inline-block w-full px-4 py-2 text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition text-center">
+                    📥 Download Preview (10s MP4)
+                </a>
+            </div>
+        </div>
+    </div>
+
     <!-- FFMPEG FILTER PREVIEW SECTION -->
     <div class="p-5 bg-gradient-to-br from-slate-800/40 to-slate-900/20 rounded-xl border border-slate-600/30 shadow-lg">
         <div class="flex items-center justify-between mb-4">
@@ -472,6 +517,58 @@ function copyFilterPreview() {
         alert('Filter command copied to clipboard!');
     }).catch(err => {
         console.error('Failed to copy:', err);
+    });
+}
+
+// Preview generation
+function generateOverlayPreview() {
+    const videoSelect = document.getElementById('preview-video-select');
+    if (!videoSelect.value) {
+        alert('Please select a video');
+        return;
+    }
+    
+    const itemId = videoSelect.value;
+    const channelId = document.querySelector('[data-channel-id]').getAttribute('data-channel-id');
+    const previewBtn = document.getElementById('btn-generate-preview');
+    
+    previewBtn.disabled = true;
+    previewBtn.innerHTML = '⏳ Generating...';
+    
+    fetch(`/vod-channels/${channelId}/engine/test-preview?item_id=${itemId}`, {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(r => r.json())
+    .then(data => {
+        previewBtn.disabled = false;
+        previewBtn.innerHTML = '🎬 Generate Preview (10s)';
+        
+        if (data.status === 'success') {
+            const previewLink = document.getElementById('preview-link');
+            previewLink.href = data.preview_url;
+            previewLink.textContent = '📥 Download Preview (10s MP4)';
+            previewLink.classList.remove('hidden');
+            
+            const msg = document.getElementById('preview-message');
+            msg.innerHTML = '✅ Preview generated with current overlay settings';
+            msg.classList.remove('hidden', 'text-red-400');
+            msg.classList.add('text-green-400');
+        } else {
+            const msg = document.getElementById('preview-message');
+            msg.innerHTML = '❌ ' + (data.message || 'Failed to generate preview');
+            msg.classList.remove('hidden', 'text-green-400');
+            msg.classList.add('text-red-400');
+        }
+    })
+    .catch(err => {
+        previewBtn.disabled = false;
+        previewBtn.innerHTML = '🎬 Generate Preview (10s)';
+        console.error('Error:', err);
+        alert('Error generating preview');
     });
 }
 </script>});

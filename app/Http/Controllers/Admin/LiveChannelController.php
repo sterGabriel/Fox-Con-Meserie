@@ -523,19 +523,32 @@ class LiveChannelController extends Controller
     public function testPreview(Request $request, LiveChannel $channel)
     {
         try {
-            // Get first video from playlist
-            $firstVideo = $channel->playlistItems()
-                ->orderBy('sort_order')
-                ->first();
+            // Get video from playlist (either specific or first)
+            $itemId = $request->query('item_id');
+            
+            if ($itemId) {
+                $playlistItem = $channel->playlistItems()->find($itemId);
+                if (!$playlistItem) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Playlist item not found'
+                    ], 404);
+                }
+            } else {
+                // Get first video from playlist
+                $playlistItem = $channel->playlistItems()
+                    ->orderBy('sort_order')
+                    ->first();
+            }
 
-            if (!$firstVideo) {
+            if (!$playlistItem) {
                 return response()->json([
                     'status' => 'error',
                     'message' => 'No videos in playlist'
                 ], 400);
             }
 
-            $video = $firstVideo->video;
+            $video = $playlistItem->video;
             $inputFile = $video->file_path;
 
             if (!file_exists($inputFile)) {
