@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\VideoCategoryController;
 use App\Http\Controllers\Admin\EncodingJobController;
 use App\Http\Controllers\Admin\EncodeProfileController;
 use App\Http\Controllers\Admin\MediaImportController;
+use App\Http\Controllers\Admin\CategoryScanController;
 
 // ROOT → redirect to dashboard
 Route::get('/', function () {
@@ -118,6 +119,22 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::delete('/video-categories/{category}', [VideoCategoryController::class, 'destroy'])
         ->name('video-categories.destroy');
+
+    // ───────────── CATEGORY SCANNING ─────────────
+    Route::get('/video-categories/{category}/scan', [CategoryScanController::class, 'showCategory'])
+        ->name('category-scan.show');
+
+    Route::post('/video-categories/{category}/scan', [CategoryScanController::class, 'scan'])
+        ->name('category-scan.scan');
+
+    Route::post('/video-categories/{category}/scan/import', [CategoryScanController::class, 'import'])
+        ->name('category-scan.import');
+
+    Route::post('/video-categories/{category}/scan/delete-file', [CategoryScanController::class, 'deleteFile'])
+        ->name('category-scan.delete-file');
+
+    Route::post('/video-categories/{category}/scan/file-info', [CategoryScanController::class, 'fileInfo'])
+        ->name('category-scan.file-info');
 
     // ───────────── VIDEO LIBRARY ─────────────
     Route::get('/videos', [VideoController::class, 'index'])
