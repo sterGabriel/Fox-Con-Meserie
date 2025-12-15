@@ -442,18 +442,36 @@ class LiveChannelController extends Controller
             $engine = new \App\Services\ChannelEngineService($channel);
 
             // Check if already running
-            if ($engine->isRunning()) {
+            if ($engine->isRunning($channel->encoder_pid)) {
                 return response()->json([
                     'status' => 'error',
                     'message' => 'Channel is already running'
                 ], 400);
             }
 
-            // Generate FFmpeg command
-            $ffmpegCommand = $engine->generateCommand(includeOverlay: true);
+            // Check if there are encoded TS files
+            $outputDir = storage_path("app/streams/{$channel->id}");
+            $encodedFiles = glob("{$outputDir}/video_*.ts");
+
+            // Determine which command to use
+            if (!empty($encodedFiles)) {
+                // PLAY MODE: Use pre-encoded TS files
+                $ffmpegCommand = $engine->generatePlayCommand(loop: true);
+                $mode = 'PLAY (from encoded)';
+            } else {
+                // DIRECT MODE: Encode on-the-fly from original videos
+                // This is fallback if user didn't encode first
+                $ffmpegCommand = $engine->generateCommand(includeOverlay: true);
+                $mode = 'DIRECT (real-time encode)';
+            }
 
             // Start the channel
             $result = $engine->start($ffmpegCommand);
+            
+            if ($result['status'] === 'success') {
+                $result['mode'] = $mode;
+                $result['encoded_count'] = count($encodedFiles ?? []);
+            }
 
             return response()->json($result);
 

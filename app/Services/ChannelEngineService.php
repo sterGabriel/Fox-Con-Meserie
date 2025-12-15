@@ -481,6 +481,75 @@ class ChannelEngineService
     }
 
     /**
+     * Generate command to PLAY from already-encoded TS files (not re-encode)
+     * Uses concat demuxer to play pre-encoded TS files directly
+     * This is the "PLAY" phase after "ENCODE" phase
+     */
+    public function generatePlayCommand(bool $loop = true): string
+    {
+        // Find all encoded TS files in output directory
+        $outputDir = $this->outputDir;
+        $encodedFiles = glob("{$outputDir}/video_*.ts");
+
+        if (empty($encodedFiles)) {
+            throw new \Exception('No encoded TS files found. Please encode videos first.');
+        }
+
+        // Sort by filename to play in order
+        sort($encodedFiles);
+
+        // Create concat playlist for the encoded files
+        $playlistPath = "{$outputDir}/play_playlist.txt";
+        $playlistContent = "# FFmpeg Concat Demuxer Playlist (Pre-Encoded TS Files)\n";
+
+        foreach ($encodedFiles as $file) {
+            // Escape path for concat demuxer
+            $escapedPath = str_replace("'", "'\\''", $file);
+            $playlistContent .= "file '{$escapedPath}'\n";
+        }
+
+        file_put_contents($playlistPath, $playlistContent);
+        
+        $this->appendLog("Generated play playlist: $playlistPath");
+        $this->appendLog("Encoded files: " . count($encodedFiles));
+
+        // Build command: play from concat playlist (no re-encoding, just muxing)
+        $tsOutput = "{$outputDir}/stream.ts";
+
+        $cmd = [
+            'ffmpeg',
+            '-f', 'concat',
+            '-safe', '0',
+            '-protocol_whitelist', 'file,http,https,tcp,tls,crypto',
+            '-i', escapeshellarg($playlistPath),
+            // NO re-encoding - just copy streams
+            '-c:v', 'copy',
+            '-c:a', 'copy',
+        ];
+
+        // Output 1: MPEGTS stream
+        $cmd = array_merge($cmd, [
+            '-f', 'mpegts',
+            '-muxdelay', '0.1',
+            '-muxpreload', '0.1',
+            escapeshellarg($tsOutput),
+        ]);
+
+        // Output 2: HLS
+        @mkdir("{$outputDir}/hls", 0755, true);
+        $cmd = array_merge($cmd, [
+            '-f', 'hls',
+            '-hls_time', '10',
+            '-hls_list_size', '6',
+            '-hls_flags', 'delete_segments',
+            '-start_number', '0',
+            escapeshellarg("{$outputDir}/hls/stream.m3u8"),
+        ]);
+
+        return implode(' ', $cmd);
+    }
+
+    /**
      * Build FFmpeg filter complex string for overlays
      */
     public function buildFilterComplex(bool $includeOverlay): string
