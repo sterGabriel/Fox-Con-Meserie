@@ -448,6 +448,78 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('closeVideoInfoBtn')?.addEventListener('click', () => {
     document.getElementById('videoInfoModal').classList.add('hidden');
   });
+
+  // ═══════════════════════════════════════════════════════════
+  // ENCODE ALL VIDEOS TO TS
+  // ═══════════════════════════════════════════════════════════
+  window.startEncodingAll = async function(channelId) {
+    const btn = document.getElementById('encodeAllBtn');
+    const progress = document.getElementById('encodingProgress');
+    const progressBar = document.getElementById('encodeProgressBar');
+    const status = document.getElementById('encodeStatus');
+    const message = document.getElementById('encodeMessage');
+
+    btn.disabled = true;
+    progress.classList.remove('hidden');
+    message.textContent = 'Starting encode jobs for all videos in playlist...';
+
+    try {
+      const response = await fetch(`/vod-channels/${channelId}/engine/start-encoding`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': '{{ csrf_token() }}',
+        },
+        body: JSON.stringify({}),
+      });
+
+      const data = await response.json();
+
+      if (data.status === 'success') {
+        message.textContent = `✅ ${data.message}. Encoding in background...`;
+        status.textContent = `${data.total_jobs} jobs queued`;
+        
+        // Poll for progress
+        let completed = 0;
+        const pollInterval = setInterval(async () => {
+          try {
+            const statusResp = await fetch(`/vod-channels/${channelId}/engine/encoding-jobs`);
+            const statusData = await statusResp.json();
+            
+            if (statusData.jobs) {
+              const total = statusData.jobs.length;
+              completed = statusData.jobs.filter(j => j.status === 'completed').length;
+              const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+              
+              progressBar.style.width = percent + '%';
+              status.textContent = `${completed}/${total} complete`;
+              
+              if (completed === total && total > 0) {
+                clearInterval(pollInterval);
+                message.textContent = `✅ All videos encoded successfully!`;
+                setTimeout(() => {
+                  progress.classList.add('hidden');
+                  btn.disabled = false;
+                  location.reload();
+                }, 2000);
+              }
+            }
+          } catch (err) {
+            console.error('Poll error:', err);
+          }
+        }, 2000);
+
+        // Stop polling after 5 minutes
+        setTimeout(() => clearInterval(pollInterval), 300000);
+      } else {
+        message.textContent = '❌ ' + (data.message || 'Failed to start encoding');
+        btn.disabled = false;
+      }
+    } catch (error) {
+      message.textContent = '❌ Error: ' + error.message;
+      btn.disabled = false;
+    }
+  };
 });
 </script>
 

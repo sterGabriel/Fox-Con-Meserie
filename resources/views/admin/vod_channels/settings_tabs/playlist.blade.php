@@ -60,8 +60,25 @@
     </div>
 
     <div class="mt-6 pt-6 border-t border-slate-500/20">
-        <button type="button" class="px-6 py-2 bg-blue-600/20 text-blue-300 rounded-lg hover:bg-blue-600/30 transition text-sm font-medium">
-            🎬 Queue Encode (All Pending)
+        <button 
+            type="button"
+            id="encodeAllBtn"
+            onclick="startEncodingAll({{ $channel->id }})"
+            class="px-6 py-2 bg-blue-600/20 text-blue-300 rounded-lg hover:bg-blue-600/30 transition text-sm font-medium flex items-center gap-2"
+        >
+            <span>🎬 Encode All to TS (Offline)</span>
         </button>
+
+        <!-- Encoding Progress -->
+        <div id="encodingProgress" class="hidden mt-4 p-4 bg-slate-700/20 rounded-lg border border-slate-600/30">
+            <div class="flex items-center justify-between mb-2">
+                <p class="text-sm font-medium text-slate-300">Encoding in progress...</p>
+                <p class="text-xs text-slate-400" id="encodeStatus">0/0 complete</p>
+            </div>
+            <div class="w-full bg-slate-700/50 rounded-full h-2 overflow-hidden">
+                <div id="encodeProgressBar" class="bg-blue-600 h-full transition-all" style="width: 0%"></div>
+            </div>
+            <p class="text-xs text-slate-500 mt-2" id="encodeMessage">Starting encode jobs...</p>
+        </div>
     </div>
 </div>
