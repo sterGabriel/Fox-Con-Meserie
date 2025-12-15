@@ -338,12 +338,28 @@ class ChannelEngineService
             '-ac', $profile->channels ?? 2,
         ]);
 
-        // Add LIVE specific flags
+        // Dual output: MPEGTS + HLS simultaneously
+        // Create HLS directory
+        @mkdir("{$this->outputDir}/hls", 0755, true);
+
+        // Add outputs: both TS and HLS from single encode
+        // First output: MPEGTS stream (for Xtream Codes/streaming)
         $cmd = array_merge($cmd, [
             '-f', 'mpegts',
             '-muxdelay', '0.1',
             '-muxpreload', '0.1',
             escapeshellarg($tsOutput),
+        ]);
+        
+        // Second output: HLS (for browser playback)
+        // Need to specify the same input streams again
+        $cmd = array_merge($cmd, [
+            '-f', 'hls',
+            '-hls_time', '10',
+            '-hls_list_size', '6',
+            '-hls_flags', 'delete_segments',
+            '-start_number', '0',
+            escapeshellarg("{$this->outputDir}/hls/stream.m3u8"),
         ]);
 
         return implode(' ', $cmd);

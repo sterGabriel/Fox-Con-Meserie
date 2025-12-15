@@ -600,4 +600,61 @@ class LiveChannelController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Get current stream output URLs and status
+     */
+    public function outputStreams(Request $request, LiveChannel $channel)
+    {
+        try {
+            // Get the streaming URLs based on channel configuration
+            $domain = config('app.streaming_domain', 'http://46.4.20.56:2082');
+            
+            // Check if channel is currently running
+            $engine = new \App\Services\ChannelEngineService($channel);
+            $isRunning = $engine->isRunning($channel->encoder_pid);
+            
+            // Get output paths
+            $tsUrl = "{$domain}/streams/{$channel->id}.ts";
+            $hlsUrl = "{$domain}/streams/{$channel->id}/index.m3u8";
+            
+            // Check if output files exist
+            $outputDir = storage_path("app/streams/{$channel->id}");
+            $tsFileExists = file_exists("{$outputDir}/stream.ts");
+            $hlsFileExists = file_exists("{$outputDir}/hls/stream.m3u8");
+            
+            return response()->json([
+                'status' => 'success',
+                'channel_id' => $channel->id,
+                'is_running' => $isRunning,
+                'streams' => [
+                    [
+                        'type' => 'TS (MPEG-TS)',
+                        'format' => 'mpegts',
+                        'url' => $tsUrl,
+                        'file_exists' => $tsFileExists,
+                        'use_case' => 'Xtream Codes, Streaming',
+                        'protocol' => 'HTTP',
+                        'curl_command' => "curl -o output.ts '{$tsUrl}'",
+                    ],
+                    [
+                        'type' => 'HLS (HTTP Live Streaming)',
+                        'format' => 'hls',
+                        'url' => $hlsUrl,
+                        'file_exists' => $hlsFileExists,
+                        'use_case' => 'Browsers, VLC, Web Playback',
+                        'protocol' => 'HTTP',
+                        'curl_command' => "curl -o playlist.m3u8 '{$hlsUrl}'",
+                    ],
+                ],
+                'note' => 'Streams are available only when channel is running. Use the URLs above in your player or Xtream Codes.',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
 }
+
