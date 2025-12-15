@@ -14,8 +14,33 @@
             </div>
         </div>
 
+        <!-- Encoding Jobs Section -->
+        <div class="p-4 bg-slate-800/30 border border-slate-600/30 rounded-lg">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-sm font-semibold text-slate-200">📼 Encoding Jobs</h3>
+                <button type="button" id="btn-encode-now" class="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition font-semibold">
+                    ⚙️ ENCODE NOW
+                </button>
+            </div>
+            <div class="space-y-2">
+                <div class="flex items-center justify-between text-sm">
+                    <span class="text-slate-400">Progress</span>
+                    <span id="progress-files" class="text-slate-200 font-semibold">0/0 files</span>
+                </div>
+                <div class="w-full bg-slate-900/50 rounded-full h-3">
+                    <div id="progress-bar-encode" class="bg-orange-500 h-3 rounded-full" style="width: 0%"></div>
+                </div>
+            </div>
+            <div id="jobs-list" class="mt-4 space-y-2 max-h-32 overflow-y-auto">
+                <div class="text-xs text-slate-500 text-center py-2">No encoding jobs yet. Click "ENCODE NOW" to start.</div>
+            </div>
+        </div>
+
         <!-- Control Buttons -->
         <div class="flex gap-3 flex-wrap">
+            <button type="button" id="btn-encode-now-alt" class="flex-1 min-w-[150px] px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition font-semibold">
+                ⚙️ ENCODE NOW
+            </button>
             <button type="button" id="btn-start" class="flex-1 min-w-[150px] px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold">
                 ▶ START CHANNEL
             </button>
@@ -71,6 +96,8 @@
 </div>
 
 <script>
+const btnEncodeNow = document.getElementById('btn-encode-now');
+const btnEncodeNowAlt = document.getElementById('btn-encode-now-alt');
 const btnStart = document.getElementById('btn-start');
 const btnStartLooping = document.getElementById('btn-start-looping');
 const btnStop = document.getElementById('btn-stop');
@@ -79,6 +106,9 @@ const statusEl = document.getElementById('channel-status');
 const logViewer = document.getElementById('log-viewer');
 const progressBar = document.getElementById('progress-bar');
 const progressText = document.getElementById('progress-text');
+const progressBarEncode = document.getElementById('progress-bar-encode');
+const progressFiles = document.getElementById('progress-files');
+const jobsList = document.getElementById('jobs-list');
 const currentEncodingEl = document.getElementById('current-encoding');
 const btnClearLog = document.getElementById('btn-clear-log');
 const btnDownloadLog = document.getElementById('btn-download-log');
@@ -87,6 +117,7 @@ const previewVideo = document.getElementById('preview-video');
 
 const channelId = {{ $channel->id }};
 let statusCheckInterval = null;
+let encodeCheckInterval = null;
 
 function addLog(message) {
     const timestamp = new Date().toLocaleTimeString();
@@ -269,6 +300,79 @@ btnTestPreview.addEventListener('click', function(e) {
             btnTestPreview.disabled = false;
         });
 });
+
+// Encode Now Handler
+function startEncoding() {
+    btnEncodeNow.disabled = true;
+    btnEncodeNowAlt.disabled = true;
+    addLog('⚙️ Starting offline encoding of playlist...');
+    addLog('📝 Creating encoding jobs for each video');
+    
+    fetch(`/vod-channels/${channelId}/engine/start-encoding`, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                addLog('✅ Encoding jobs created');
+                addLog(`📊 Total jobs: ${data.total_jobs}`);
+                jobsList.innerHTML = '';
+                
+                // Start polling for job updates
+                if (encodeCheckInterval) clearInterval(encodeCheckInterval);
+                encodeCheckInterval = setInterval(updateEncodingProgress, 2000);
+                updateEncodingProgress();
+            } else {
+                addLog('❌ Failed to start encoding: ' + data.message);
+                btnEncodeNow.disabled = false;
+                btnEncodeNowAlt.disabled = false;
+            }
+        })
+        .catch(err => {
+            addLog('❌ Error: ' + err.message);
+            btnEncodeNow.disabled = false;
+            btnEncodeNowAlt.disabled = false;
+        });
+}
+
+function updateEncodingProgress() {
+    fetch(`/vod-channels/${channelId}/engine/encoding-jobs`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const total = data.total_jobs;
+                const completed = data.completed_jobs;
+                const running = data.running_jobs;
+                
+                progressFiles.textContent = `${completed}/${total} files encoded`;
+                const percent = total > 0 ? (completed / total) * 100 : 0;
+                progressBarEncode.style.width = percent + '%';
+                
+                // Display job status
+                if (data.jobs && data.jobs.length > 0) {
+                    jobsList.innerHTML = data.jobs.map(job => `
+                        <div class="text-xs p-2 bg-slate-900/50 rounded border border-slate-700/30">
+                            <div class="flex justify-between items-start">
+                                <span class="text-slate-300">${job.video_title}</span>
+                                <span class="text-${job.status === 'done' ? 'green' : job.status === 'running' ? 'orange' : 'slate'}-400 font-semibold text-xs">
+                                    ${job.status === 'done' ? '✅' : job.status === 'running' ? '⏳' : '⏸️'} ${job.status}
+                                </span>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+                
+                // If all done, enable start button
+                if (completed === total && total > 0) {
+                    btnStart.disabled = false;
+                    addLog(`✅ All ${total} files encoded! Ready to start channel.`);
+                    if (encodeCheckInterval) clearInterval(encodeCheckInterval);
+                }
+            }
+        })
+        .catch(err => console.error('Encoding check error:', err));
+}
+
+btnEncodeNow.addEventListener('click', startEncoding);
+btnEncodeNowAlt.addEventListener('click', startEncoding);
 
 // Initialize
 addLog('🔧 Engine ready - configure and start channel');

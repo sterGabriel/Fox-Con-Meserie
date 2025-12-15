@@ -92,6 +92,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/vod-channels/{channel}/engine/start-looping', [LiveChannelController::class, 'startChannelWithLooping'])
         ->name('vod-channels.engine.start-looping');
 
+    Route::post('/vod-channels/{channel}/engine/start-encoding', [LiveChannelController::class, 'startEncoding'])
+        ->name('vod-channels.engine.start-encoding');
+
+    Route::get('/vod-channels/{channel}/engine/encoding-jobs', [LiveChannelController::class, 'getEncodingJobs'])
+        ->name('vod-channels.engine.encoding-jobs');
+
     // PREVIEW FFMPEG COMMAND
     Route::post('/vod-channels/{channel}/preview-ffmpeg', [LiveChannelController::class, 'previewFFmpeg'])
         ->name('vod-channels.preview-ffmpeg');

@@ -699,6 +699,110 @@ class LiveChannelController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Start encoding all playlist videos (offline)
+     * Creates EncodingJob for each video in playlist
+     */
+    public function startEncoding(Request $request, LiveChannel $channel)
+    {
+        try {
+            $playlistItems = $channel->playlistItems()
+                ->orderBy('sort_order')
+                ->get();
+
+            if ($playlistItems->isEmpty()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Channel has no videos in playlist'
+                ], 400);
+            }
+
+            $outputDir = storage_path("app/streams/{$channel->id}");
+            @mkdir($outputDir, 0755, true);
+
+            $createdJobs = 0;
+            
+            foreach ($playlistItems as $item) {
+                $video = $item->video;
+                
+                if (!file_exists($video->file_path)) {
+                    continue;
+                }
+
+                $outputPath = "{$outputDir}/video_{$item->id}.ts";
+                
+                // Create or update job
+                \App\Models\EncodingJob::updateOrCreate(
+                    [
+                        'channel_id' => $channel->id,
+                        'playlist_item_id' => $item->id,
+                    ],
+                    [
+                        'input_path' => $video->file_path,
+                        'output_path' => $outputPath,
+                        'status' => 'queued',
+                        'started_at' => null,
+                        'completed_at' => null,
+                        'progress' => 0,
+                    ]
+                );
+                
+                $createdJobs++;
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'message' => "Created {$createdJobs} encoding jobs",
+                'total_jobs' => $createdJobs,
+            ]);
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Failed to start encoding: {$e->getMessage()}");
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get encoding job progress
+     */
+    public function getEncodingJobs(Request $request, LiveChannel $channel)
+    {
+        try {
+            $jobs = \App\Models\EncodingJob::where('channel_id', $channel->id)
+                ->with('playlistItem.video')
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            $totalJobs = $jobs->count();
+            $completedJobs = $jobs->where('status', 'done')->count();
+            $runningJobs = $jobs->where('status', 'running')->count();
+
+            return response()->json([
+                'status' => 'success',
+                'total_jobs' => $totalJobs,
+                'completed_jobs' => $completedJobs,
+                'running_jobs' => $runningJobs,
+                'jobs' => $jobs->map(fn($job) => [
+                    'id' => $job->id,
+                    'video_title' => $job->playlistItem?->video?->name ?? 'Unknown',
+                    'status' => $job->status,
+                    'progress' => $job->progress ?? 0,
+                    'output_path' => $job->output_path,
+                ])->values(),
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
 }
+
 
 
