@@ -65,6 +65,49 @@ class DashboardController extends Controller
             // Keep dashboard resilient; do not fail if schema/table is missing
         }
 
+        // ===== ALERT SUMMARY (Severity Calculation) =====
+        $critical = [];
+        $warning = [];
+        $okCount = 0;
+
+        // Rule 1: Disk >= 90% → CRITICAL
+        if (is_numeric($diskUsedPct) && $diskUsedPct >= 90) {
+            $critical[] = "Disk usage at {$diskUsedPct}%";
+        } elseif (is_numeric($diskUsedPct) && $diskUsedPct >= 75) {
+            // Rule 2: Disk 75–89% → WARNING
+            $warning[] = "Disk usage at {$diskUsedPct}%";
+        }
+
+        // Rule 3: Missing outputs > 0 → CRITICAL
+        if ($channelsMissingOutput > 0) {
+            $critical[] = "{$channelsMissingOutput} channels missing outputs";
+        }
+
+        // Rule 4: Missing logo > 0 → WARNING
+        if ($channelsMissingLogo > 0) {
+            $warning[] = "{$channelsMissingLogo} channels missing logo";
+        }
+
+        // Rule 5: Running = 0 AND channels > 0 → WARNING
+        if ($runningChannels === 0 && $totalChannels > 0) {
+            $warning[] = "No channels running";
+        }
+
+        // Rule 6: Jobs failed > 0 → CRITICAL
+        $failedJobs = $jobsStats['failed'] ?? 0;
+        if ($failedJobs > 0) {
+            $critical[] = "{$failedJobs} failed encoding jobs";
+        }
+
+        // OK count: total alerts resolved
+        $okCount = max(0, 6 - count($critical) - count($warning));
+
+        $alertSummary = [
+            'critical' => $critical,
+            'warning'  => $warning,
+            'ok'       => $okCount,
+        ];
+
         return view('admin.dashboard', [
             'totalChannels'        => $totalChannels,
             'enabledChannels'      => $enabledChannels,
@@ -79,6 +122,7 @@ class DashboardController extends Controller
             'diskUsedPct'          => $diskUsedPct,
             'jobsStats'            => $jobsStats,
             'jobs'                 => $jobs,
+            'alertSummary'         => $alertSummary,
         ]);
     }
 }

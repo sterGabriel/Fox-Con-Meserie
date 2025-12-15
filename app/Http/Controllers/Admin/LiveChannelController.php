@@ -8,6 +8,7 @@ use App\Models\PlaylistItem;
 use App\Models\Video;
 use App\Models\VideoCategory;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -106,6 +107,41 @@ class LiveChannelController extends Controller
             ->with('success', 'Video added to playlist.');
     }
 
+    public function addToPlaylistBulk(Request $request, LiveChannel $channel)
+    {
+        $ids = array_filter(explode(',', (string)$request->input('video_ids')));
+
+        if (empty($ids)) {
+            return back()->with('error', 'No videos selected');
+        }
+
+        $maxOrder = (int)DB::table('playlist_items')
+            ->where('vod_channel_id', $channel->id)
+            ->max('sort_order');
+
+        foreach ($ids as $i => $videoId) {
+            // Avoid duplicates
+            $exists = DB::table('playlist_items')
+                ->where('vod_channel_id', $channel->id)
+                ->where('video_id', (int)$videoId)
+                ->exists();
+
+            if ($exists) {
+                continue;
+            }
+
+            DB::table('playlist_items')->insert([
+                'vod_channel_id' => $channel->id,
+                'video_id'       => (int)$videoId,
+                'sort_order'     => $maxOrder + 1 + $i,
+                'created_at'     => now(),
+                'updated_at'     => now(),
+            ]);
+        }
+
+        return back()->with('success', 'Added selected videos to playlist.');
+    }
+
     public function removeFromPlaylist(LiveChannel $channel, PlaylistItem $item)
     {
         if ($item->vod_channel_id !== $channel->id) {
@@ -157,6 +193,25 @@ class LiveChannelController extends Controller
         }
 
         return redirect()->route('vod-channels.playlist', $channel);
+    }
+
+    public function reorderPlaylist(Request $request, LiveChannel $channel)
+    {
+        $ids = $request->input('ids', []);
+        if (!is_array($ids) || empty($ids)) {
+            return response()->json(['ok' => false], 422);
+        }
+
+        DB::transaction(function () use ($ids, $channel) {
+            foreach ($ids as $index => $id) {
+                DB::table('playlist_items')
+                    ->where('id', $id)
+                    ->where('vod_channel_id', $channel->id)
+                    ->update(['sort_order' => $index + 1]);
+            }
+        });
+
+        return response()->json(['ok' => true]);
     }
 
     public function logoPreview(LiveChannel $channel)
@@ -265,7 +320,7 @@ class LiveChannelController extends Controller
         ]);
 
         return redirect()
-            ->route('vod-channels.settings-public', $channel)
+            ->route('vod-channels.settings', $channel)
             ->with('success', 'Settings saved.');
     }
 }

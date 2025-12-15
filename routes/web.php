@@ -50,6 +50,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/vod-channels/{channel}/playlist', [LiveChannelController::class, 'addToPlaylist'])
         ->name('vod-channels.playlist.add');
 
+    Route::post('/vod-channels/{channel}/playlist/add-bulk', [LiveChannelController::class, 'addToPlaylistBulk'])
+        ->name('vod-channels.playlist.add-bulk');
+
     Route::delete('/vod-channels/{channel}/playlist/{item}', [LiveChannelController::class, 'removeFromPlaylist'])
         ->name('vod-channels.playlist.remove');
 
@@ -58,6 +61,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::post('/vod-channels/{channel}/playlist/{item}/move-down', [LiveChannelController::class, 'moveDown'])
         ->name('vod-channels.playlist.move-down');
+
+    Route::post('/vod-channels/{channel}/playlist/reorder', [LiveChannelController::class, 'reorderPlaylist'])
+        ->name('vod-channels.playlist.reorder');
 
     // SETTINGS - PROTECTED (both view and update)
     Route::get('/vod-channels/{channel}/settings', [LiveChannelController::class, 'settings'])

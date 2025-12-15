@@ -58,14 +58,6 @@
                     <span class="text-lg">⚙️</span> Encoding Jobs
                 </a>
             </div>
-
-            {{-- User Profile Bottom --}}
-            <div class="absolute bottom-6 left-3 right-3">
-                <div class="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50 hover:border-orange-500/30 transition-all">
-                    <div class="text-xs text-slate-400">👤 Logged in as</div>
-                    <div class="text-sm font-bold text-orange-400 mt-1">{{ Auth::user()->name ?? 'Admin' }}</div>
-                </div>
-            </div>
         </nav>
     </aside>
 
@@ -83,10 +75,23 @@
                     <div class="text-lg font-bold text-slate-200">{{ ucfirst(str_replace('-', ' ', Route::currentRouteName())) }}</div>
                 </div>
             </div>
-            <div class="flex items-center gap-4">
+            <div class="flex items-center gap-6">
                 <div class="px-4 py-2 rounded-lg bg-slate-800/50 border border-slate-700">
                     <span class="text-xs text-slate-400">🕐 Last updated:</span>
                     <span class="text-sm font-semibold text-slate-200 ml-2">{{ now()->format('H:i') }}</span>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <div class="text-right leading-tight">
+                        <div class="text-[11px] text-slate-400">Logged in</div>
+                        <div class="text-sm font-semibold text-slate-200">
+                            {{ auth()->user()->name }}
+                        </div>
+                    </div>
+
+                    <div class="h-9 w-9 rounded-full bg-slate-700 flex items-center justify-center text-sm font-bold text-orange-400">
+                        {{ strtoupper(substr(auth()->user()->name, 0, 1)) }}
+                    </div>
                 </div>
             </div>
         </header>

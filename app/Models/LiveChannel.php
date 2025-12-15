@@ -15,13 +15,19 @@ class LiveChannel extends Model
     // Relație cu playlist items (dacă o folosești)
     public function playlistItems()
     {
-        return $this->hasMany(PlaylistItem::class);
+        return $this->hasMany(PlaylistItem::class, 'vod_channel_id');
     }
 
     // Relație cu encoding jobs (coada de encodare)
     public function encodingJobs()
     {
         return $this->hasMany(EncodingJob::class);
+    }
+
+    // Relație cu encode profile
+    public function encodeProfile()
+    {
+        return $this->belongsTo(EncodeProfile::class, 'encode_profile_id');
     }
 
     /**

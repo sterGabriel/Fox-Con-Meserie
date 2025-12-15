@@ -32,7 +32,7 @@
                                 Playlist
                             </a>
 
-                            <a href="{{ route('vod-channels.settings-public', $channel) }}"
+                            <a href="{{ route('vod-channels.settings', $channel) }}"
                                class="px-3 py-1 rounded bg-yellow-600 hover:bg-yellow-700 text-white text-xs">
                                 Settings
                             </a>
