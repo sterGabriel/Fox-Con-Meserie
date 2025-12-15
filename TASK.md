@@ -447,39 +447,160 @@ GET    /channels/{id}/status
 
 ---
 
-### ✅ TASK 4 — STREAM EXPORT
+### ✅ TASK 4 — STREAM EXPORT (HLS + TS for Xtream)
 
-**Duration**: 1-2 days  
-**Difficulty**: ⭐⭐ (Easy - mostly routing)
+**Duration**: 2-3 days  
+**Difficulty**: ⭐⭐⭐ (Medium - infrastructure + routing)
 
 **What to do:**
-1. Create `StreamExportController`
-2. Add routes:
-   - `GET /channels/{id}/live.ts` → Pipe ffmpeg output
-   - `GET /channels/{id}/index.m3u8` → HLS playlist
-   - `GET /channels/{id}/index.m3u` → M3U format
-   - `GET /api/channels/{id}/info` → JSON metadata
-3. TS endpoint streams directly from ffmpeg
-4. HLS endpoint generates `.m3u8` + segments
-5. M3U endpoint returns channel info for player
+
+#### A) Setup Disk Output (HLS Segments)
+
+**1. Create streams folder:**
+```bash
+mkdir -p /var/www/iptv-panel/public/streams
+chown -R www-data:www-data /var/www/iptv-panel/public/streams
+```
+
+**2. HLS Output Path per Channel:**
+```
+/var/www/iptv-panel/public/streams/{channel_id}/index.m3u8
+/var/www/iptv-panel/public/streams/{channel_id}/seg_00001.ts
+/var/www/iptv-panel/public/streams/{channel_id}/seg_00002.ts
+...
+```
+
+**3. FFmpeg Command for HLS:**
+```bash
+ffmpeg -re -i INPUT \
+  -r 25 -vsync cfr \
+  -vf "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,format=yuv420p" \
+  -c:v libx264 -preset veryfast -profile:v high \
+  -b:v 2500k -maxrate 2500k -bufsize 5000k \
+  -g 50 -keyint_min 50 -sc_threshold 0 \
+  -c:a aac -b:a 128k -ac 2 -ar 48000 \
+  -f hls -hls_time 4 -hls_list_size 8 \
+  -hls_flags delete_segments+append_list+independent_segments \
+  -hls_segment_filename "/var/www/iptv-panel/public/streams/{id}/seg_%05d.ts" \
+  "/var/www/iptv-panel/public/streams/{id}/index.m3u8"
+```
+
+**URL for Xtream Codes:**
+```
+http://46.4.20.56:2082/streams/{id}/index.m3u8
+```
+
+---
+
+#### B) Setup TS Output (Single Stream via HTTP)
+
+**1. Port mapping:**
+```
+TS_PORT = 9100 + channel_id
+
+Example:
+  channel_id 1 → port 9101
+  channel_id 2 → port 9102
+  channel_id 3 → port 9103
+```
+
+**2. FFmpeg TS as HTTP Server:**
+```bash
+ffmpeg -re -i INPUT \
+  -r 25 -vsync cfr \
+  -vf "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,format=yuv420p" \
+  -c:v libx264 -preset veryfast -profile:v high \
+  -b:v 2500k -maxrate 2500k -bufsize 5000k \
+  -g 50 -keyint_min 50 -sc_threshold 0 \
+  -c:a aac -b:a 128k -ac 2 -ar 48000 \
+  -mpegts_flags +resend_headers \
+  -pcr_period 0.02 -pat_period 0.1 -pmt_period 0.1 \
+  -f mpegts -listen 1 "http://127.0.0.1:9103/stream.ts"
+```
+
+**3. Nginx Reverse Proxy:**
+
+Create `/etc/nginx/snippets/iptv_ts_map.conf`:
+```nginx
+location = /streams/1.ts { proxy_pass http://127.0.0.1:9101/stream.ts; }
+location = /streams/2.ts { proxy_pass http://127.0.0.1:9102/stream.ts; }
+location = /streams/3.ts { proxy_pass http://127.0.0.1:9103/stream.ts; }
+# Auto-generate for each channel
+```
+
+In nginx vhost:
+```nginx
+include /etc/nginx/snippets/iptv_ts_map.conf;
+```
+
+Reload:
+```bash
+nginx -t && systemctl reload nginx
+```
+
+**URL for Xtream Codes:**
+```
+http://46.4.20.56:2082/streams/{id}.ts
+```
+
+---
+
+#### C) UI Display (Settings Page)
+
+In channel settings, add section:
+
+**Export URLs:**
+```
+HLS:  http://46.4.20.56:2082/streams/{id}/index.m3u8  [Copy]
+TS:   http://46.4.20.56:2082/streams/{id}.ts           [Copy]
+
+Status:
+  HLS: 🟢 OK (index.m3u8 exists, segments recent)
+  TS:  🟢 OK (port 9100+{id} responding)
+```
+
+---
+
+#### D) Testing
+
+**Command line:**
+```bash
+# Check HLS exists
+curl -I http://46.4.20.56:2082/streams/3/index.m3u8
+
+# Check TS responds
+curl -I http://46.4.20.56:2082/streams/3.ts
+```
+
+**VLC Test:**
+```
+Media → Open Network Stream
+
+HLS: http://46.4.20.56:2082/streams/3/index.m3u8
+TS:  http://46.4.20.56:2082/streams/3.ts
+```
+
+---
 
 **Acceptance Criteria:**
-- ✅ TS stream plays in VLC
-- ✅ HLS playlist valid + segments created
-- ✅ M3U readable in all players
-- ✅ Xtream Codes compatible API
-- ✅ No transcoding (stream copy only)
+- ✅ HLS folder structure created
+- ✅ HLS segments generated in real-time
+- ✅ TS port mapped correctly (9100 + channel_id)
+- ✅ Nginx proxy rules generated auto
+- ✅ Both streams playable in VLC
+- ✅ URLs display in settings with copy button
+- ✅ Status badges show real state
+- ✅ Xtream Codes compatible format
 
 **Files to create:**
 - `app/Http/Controllers/StreamExportController.php`
+- `app/Services/HLSGenerator.php` (manage segments)
+- `app/Services/TSStreamManager.php` (manage TS ports)
+- `app/Console/Commands/GenerateNginxConfig.php` (auto-generate proxy rules)
 
-**Routes:**
-```
-GET    /channels/{id}/live.ts
-GET    /channels/{id}/index.m3u8
-GET    /channels/{id}/index.m3u
-GET    /api/channels/{id}/info
-```
+**Files to modify:**
+- `resources/views/admin/vod_channels/settings.blade.php` (add export section)
+- Nginx vhost config (add snippet include)
 
 ---
 
