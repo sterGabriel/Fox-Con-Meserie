@@ -1,5 +1,73 @@
 <p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
+# 📡 IPTV Dashboard - Professional Streaming Management
+
+**IPTV Panel** is a comprehensive Laravel-based dashboard for managing 24/7 TV channels, VOD playlists, and LIVE streaming with professional-grade encoding profiles.
+
+## ✨ Features
+
+### 🎬 LIVE Streaming
+- **Pre-configured Encoding Profiles** (576p, 720p, 1080p, Low CPU)
+- **24/7 Playlist Looping** with concat demuxer
+- **MPEGTS Container Format** for TV streaming
+- **Constant Bitrate (CBR)** for stream stability
+- **Manual Override** for advanced users
+
+### 📺 Channel Management
+- VOD playlist management with drag-drop reordering
+- Video library with auto-sync from file system
+- Stream metadata probing (ffprobe integration)
+- Logo uploads and channel branding
+- Overlay support (title, timer)
+
+### ⚙️ Encoding System
+- FFmpeg command preview and customization
+- Encoding job queue with status tracking
+- Profile-based command generation
+- Manual bitrate and preset override
+- Stored ffmpeg commands in database
+
+### 🎯 Dashboard & Monitoring
+- Operational status dashboard with alerts
+- Alert severity system (CRITICAL/WARNING/OK)
+- KPI metrics (channels, videos, jobs)
+- Quick action buttons
+- Dark theme (Grafana-inspired)
+
+## 🚀 Quick Start
+
+1. **Settings**: Select LIVE profile for channel
+2. **Playlist**: Add and order videos
+3. **Preview**: See FFmpeg command
+4. **Queue**: Create encoding jobs
+5. **Stream**: Videos play infinitely (24/7)
+
+## 📖 Documentation
+
+- **[LIVE Streaming Guide](./LIVE_STREAMING_GUIDE.md)** - Complete feature documentation
+- **[Task 3B Report](./TASK_3B_COMPLETION_REPORT.md)** - Implementation details
+- **[API Endpoints](#api-endpoints)** - Route documentation
+
+## 🛠️ Tech Stack
+
+- **Framework**: Laravel 11.31
+- **PHP**: 8.4.15
+- **Database**: MySQL
+- **CSS**: Tailwind CSS (dark theme)
+- **JavaScript**: Vanilla JS + SortableJS (drag-drop)
+- **Encoding**: FFmpeg + ffprobe integration
+
+## 📋 Project Status
+
+- ✅ Security & Authentication
+- ✅ Dashboard & Monitoring
+- ✅ VOD Playlist Management
+- ✅ Encoding Infrastructure (11 profiles)
+- ✅ **LIVE Streaming UI Integration** (3B - COMPLETE)
+- ⏳ Job Execution & Background Processing
+
+---
+
 <p align="center">
 <a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
