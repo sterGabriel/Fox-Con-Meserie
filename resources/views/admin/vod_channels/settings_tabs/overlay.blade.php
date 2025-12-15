@@ -11,6 +11,58 @@
         </div>
     </div>
 
+    <!-- PREVIEW TEST SECTION -->
+    <div class="p-5 bg-gradient-to-br from-emerald-800/40 to-slate-900/20 rounded-xl border border-emerald-600/30 shadow-lg">
+        <div class="flex items-center justify-between mb-4">
+            <label class="font-semibold text-slate-200">🎬 Test Preview Overlay (10s)</label>
+            <span class="text-xs px-2 py-1 bg-emerald-500/20 text-emerald-300 rounded-full">Fast Test</span>
+        </div>
+
+        <div class="space-y-3">
+            <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-2">Select Video for Preview</label>
+                <select id="previewVideoSelect" class="w-full px-4 py-2 bg-slate-950/50 border border-slate-600/40 rounded-lg text-slate-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500">
+                    <option value="">-- Select video to test --</option>
+                    @forelse($allVideos ?? [] as $video)
+                        <option value="{{ $video->id }}">{{ $video->title }} ({{ $video->duration ?? '--:--:--' }})</option>
+                    @empty
+                        <option disabled>No videos available</option>
+                    @endforelse
+                </select>
+            </div>
+
+            <button 
+                type="button"
+                id="testOverlayBtn"
+                onclick="testOverlay({{ $channel->id }})"
+                class="w-full px-4 py-2 bg-emerald-600/20 text-emerald-300 rounded-lg hover:bg-emerald-600/30 transition font-medium text-sm flex items-center justify-center gap-2"
+            >
+                <span>▶️ Test Overlay (10s)</span>
+            </button>
+
+            <p class="text-xs text-slate-400">Creates a 10-second preview with your overlay settings. Check back in 30-60 seconds.</p>
+        </div>
+
+        <!-- Preview Player -->
+        <div id="previewContainer" class="hidden mt-4 p-4 bg-slate-950/50 rounded-lg border border-slate-700/50">
+            <p class="text-xs text-slate-400 mb-2">📺 Preview (10s test encode):</p>
+            <video 
+                id="previewPlayer"
+                controls 
+                class="w-full bg-black rounded"
+                style="max-height: 300px"
+            ></video>
+            <p class="text-xs text-slate-500 mt-2">Preview ready. Download link: <a id="previewLink" href="#" target="_blank" class="text-emerald-400 hover:text-emerald-300">preview.mp4</a></p>
+        </div>
+
+        <div id="previewLoading" class="hidden mt-4 p-4 text-center">
+            <div class="inline-block">
+                <div class="w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+            <p class="text-emerald-300 mt-2 text-sm">Encoding preview (max 60s)...</p>
+        </div>
+    </div>
+
     <!-- LOGO OVERLAY SECTION -->
     <div class="p-5 bg-gradient-to-br from-slate-800/40 to-slate-900/20 rounded-xl border border-slate-600/30 shadow-lg">
         <div class="flex items-center justify-between mb-4">
@@ -571,5 +623,57 @@ function generateOverlayPreview() {
         alert('Error generating preview');
     });
 }
-</script>});
+
+// ═══════════════════════════════════════════════════════════
+// TEST OVERLAY - Generate 10s preview from playlist video
+// ═══════════════════════════════════════════════════════════
+async function testOverlay(channelId) {
+    const videoSelect = document.getElementById('previewVideoSelect');
+    const videoId = videoSelect.value;
+
+    if (!videoId) {
+        alert('Please select a video for preview');
+        return;
+    }
+
+    const btn = document.getElementById('testOverlayBtn');
+    const loading = document.getElementById('previewLoading');
+    const container = document.getElementById('previewContainer');
+
+    btn.disabled = true;
+    loading.classList.remove('hidden');
+    container.classList.add('hidden');
+
+    try {
+        const response = await fetch(`/vod-channels/${channelId}/engine/test-preview`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+            },
+            body: JSON.stringify({ video_id: videoId }),
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            const player = document.getElementById('previewPlayer');
+            const link = document.getElementById('previewLink');
+
+            player.src = data.preview_url;
+            link.href = data.preview_url;
+            link.download = 'preview.mp4';
+
+            container.classList.remove('hidden');
+            alert('✅ Preview ready! Playing below...');
+        } else {
+            alert('❌ ' + (data.message || 'Failed to generate preview'));
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        loading.classList.add('hidden');
+    }
+}
 </script>

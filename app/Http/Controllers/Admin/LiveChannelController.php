@@ -259,12 +259,14 @@ class LiveChannelController extends Controller
         $categories = VideoCategory::orderBy('name')->get();
         $profiles = EncodeProfile::orderBy('name')->get();
         $liveProfiles = EncodeProfile::where('container', 'mpegts')->orderBy('name')->get();
+        $allVideos = Video::orderBy('title')->get();
 
         return view('admin.vod_channels.settings_new', [
             'channel'      => $channel,
             'categories'   => $categories,
             'profiles'     => $profiles,
             'liveProfiles' => $liveProfiles,
+            'allVideos'    => $allVideos,
         ]);
     }
 
@@ -523,43 +525,57 @@ class LiveChannelController extends Controller
     public function testPreview(Request $request, LiveChannel $channel)
     {
         try {
-            // Get video from playlist (either specific or first)
-            $itemId = $request->query('item_id');
+            // Get video from request (for overlay test) or from playlist
+            $videoId = $request->input('video_id') ?? $request->query('video_id');
             
-            if ($itemId) {
-                $playlistItem = $channel->playlistItems()->find($itemId);
-                if (!$playlistItem) {
+            if ($videoId) {
+                // Load specific video for preview
+                $video = Video::find($videoId);
+                if (!$video) {
                     return response()->json([
                         'status' => 'error',
-                        'message' => 'Playlist item not found'
+                        'message' => 'Video not found'
                     ], 404);
                 }
             } else {
                 // Get first video from playlist
-                $playlistItem = $channel->playlistItems()
-                    ->orderBy('sort_order')
-                    ->first();
+                $itemId = $request->query('item_id');
+                
+                if ($itemId) {
+                    $playlistItem = $channel->playlistItems()->find($itemId);
+                    if (!$playlistItem) {
+                        return response()->json([
+                            'status' => 'error',
+                            'message' => 'Playlist item not found'
+                        ], 404);
+                    }
+                } else {
+                    $playlistItem = $channel->playlistItems()
+                        ->orderBy('sort_order')
+                        ->first();
+                }
+
+                if (!$playlistItem) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'No videos in playlist'
+                    ], 400);
+                }
+
+                $video = $playlistItem->video;
             }
 
-            if (!$playlistItem) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'No videos in playlist'
-                ], 400);
-            }
-
-            $video = $playlistItem->video;
             $inputFile = $video->file_path;
 
             if (!file_exists($inputFile)) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Video file not found'
+                    'message' => 'Video file not found: ' . $inputFile
                 ], 400);
             }
 
             // Create preview output path
-            $previewDir = storage_path("app/previews/{$channel->id}");
+            $previewDir = storage_path("app/public/previews/{$channel->id}");
             @mkdir($previewDir, 0755, true);
             $outputFile = "{$previewDir}/preview_" . time() . ".mp4";
 
@@ -600,7 +616,7 @@ class LiveChannelController extends Controller
             $process = new \Symfony\Component\Process\Process(
                 explode(' ', str_replace("'", '', $shellCmd))
             );
-            $process->setTimeout(30);
+            $process->setTimeout(60);
             $process->run();
 
             if (!$process->isSuccessful()) {
@@ -617,10 +633,12 @@ class LiveChannelController extends Controller
                 ], 500);
             }
 
-            // Return preview URL
+            // Return preview URL (public path)
+            $relativeUrl = "storage/previews/{$channel->id}/" . basename($outputFile);
+            
             return response()->json([
                 'status' => 'success',
-                'preview_url' => "/storage/previews/{$channel->id}/" . basename($outputFile),
+                'preview_url' => "/" . $relativeUrl,
                 'preview_file' => basename($outputFile),
             ]);
 
