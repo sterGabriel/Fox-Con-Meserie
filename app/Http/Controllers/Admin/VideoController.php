@@ -139,4 +139,85 @@ class VideoController extends Controller
             ->route('videos.index')
             ->with('success', 'Category updated for selected videos.');
     }
+
+    /**
+     * FFPROBE - Get video metadata (codec, bitrate, resolution, duration, etc)
+     */
+    public function probe(Video $video)
+    {
+        if (!$video->file_path || !file_exists($video->file_path)) {
+            return response()->json([
+                'error' => 'Video file not found',
+            ], 404);
+        }
+
+        try {
+            // Build ffprobe command to get JSON output
+            $cmd = 'ffprobe -v quiet -print_format json -show_format -show_streams ' . escapeshellarg($video->file_path);
+            
+            $output = shell_exec($cmd);
+            if (!$output) {
+                return response()->json([
+                    'error' => 'ffprobe failed to analyze video',
+                ], 500);
+            }
+
+            $data = json_decode($output, true);
+
+            // Extract relevant stream info
+            $videoStream = null;
+            $audioStream = null;
+            
+            foreach ($data['streams'] ?? [] as $stream) {
+                if ($stream['codec_type'] === 'video' && !$videoStream) {
+                    $videoStream = $stream;
+                } elseif ($stream['codec_type'] === 'audio' && !$audioStream) {
+                    $audioStream = $stream;
+                }
+            }
+
+            // Build response
+            $response = [
+                'title' => $video->title,
+                'file' => basename($video->file_path),
+                'duration' => isset($data['format']['duration']) ? (float)$data['format']['duration'] : null,
+                'bit_rate' => isset($data['format']['bit_rate']) ? (int)$data['format']['bit_rate'] / 1000 . ' kbps' : null,
+                'video' => null,
+                'audio' => null,
+            ];
+
+            if ($videoStream) {
+                $response['video'] = [
+                    'codec' => $videoStream['codec_name'] ?? 'unknown',
+                    'codec_long' => $videoStream['codec_long_name'] ?? 'unknown',
+                    'width' => $videoStream['width'] ?? null,
+                    'height' => $videoStream['height'] ?? null,
+                    'fps' => isset($videoStream['r_frame_rate']) 
+                        ? round(eval('return ' . str_replace('/', '.0/', $videoStream['r_frame_rate']) . ';'), 2)
+                        : null,
+                    'bitrate' => isset($videoStream['bit_rate']) ? ((int)$videoStream['bit_rate'] / 1000) . ' kbps' : 'N/A',
+                    'duration' => $videoStream['duration'] ?? null,
+                    'pix_fmt' => $videoStream['pix_fmt'] ?? 'unknown',
+                ];
+            }
+
+            if ($audioStream) {
+                $response['audio'] = [
+                    'codec' => $audioStream['codec_name'] ?? 'unknown',
+                    'codec_long' => $audioStream['codec_long_name'] ?? 'unknown',
+                    'channels' => $audioStream['channels'] ?? 0,
+                    'sample_rate' => isset($audioStream['sample_rate']) ? ((int)$audioStream['sample_rate'] / 1000) . ' kHz' : 'unknown',
+                    'bitrate' => isset($audioStream['bit_rate']) ? ((int)$audioStream['bit_rate'] / 1000) . ' kbps' : 'N/A',
+                    'duration' => $audioStream['duration'] ?? null,
+                ];
+            }
+
+            return response()->json($response);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Probe error: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
 }
+

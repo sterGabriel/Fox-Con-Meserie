@@ -148,15 +148,23 @@
                                 </td>
                                 <td class="px-4 py-3 text-slate-400">{{ $video->id }}</td>
                                 <td class="px-4 py-3 text-slate-200">{{ $video->title }}</td>
-                                <td class="px-4 py-3">
+                                <td class="px-4 py-3 space-x-1">
+                                    {{-- STREAM INFO / FFPROBE --}}
+                                    <button type="button" 
+                                            class="video-probe-btn inline-flex items-center rounded-lg bg-purple-500/15 px-2 py-1.5 text-xs font-medium text-purple-300 ring-1 ring-inset ring-purple-400/25 hover:bg-purple-500/20 transition"
+                                            data-video-id="{{ $video->id }}"
+                                            data-video-title="{{ $video->title }}">
+                                        📊 Info
+                                    </button>
+
                                     {{-- SELECT → adaugă în playlist --}}
                                     <form method="POST"
                                           action="{{ route('vod-channels.playlist.add', $channel) }}"
                                           class="inline">
                                         @csrf
                                         <input type="hidden" name="video_id" value="{{ $video->id }}">
-                                        <button type="submit" class="inline-flex items-center rounded-lg bg-green-500/15 px-3 py-1.5 text-xs font-medium text-green-300 ring-1 ring-inset ring-green-400/25 hover:bg-green-500/20 transition">
-                                            Select
+                                        <button type="submit" class="inline-flex items-center rounded-lg bg-green-500/15 px-2 py-1.5 text-xs font-medium text-green-300 ring-1 ring-inset ring-green-400/25 hover:bg-green-500/20 transition">
+                                            ➕ Select
                                         </button>
                                     </form>
                                 </td>
@@ -183,11 +191,109 @@
             </div>
         </div>
     </div>
+
+    {{-- STREAM INFO MODAL --}}
+    <div id="probe-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+        <div class="bg-slate-900 rounded-2xl border border-slate-500/20 p-6 max-w-2xl w-full mx-4 max-h-96 overflow-y-auto shadow-2xl">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-slate-100" id="probe-title">Stream Info</h2>
+                <button type="button" id="probe-close" class="text-slate-400 hover:text-slate-200 transition">✕</button>
+            </div>
+            <div id="probe-content" class="space-y-4 text-sm text-slate-300">
+                <p class="text-slate-400">Loading...</p>
+            </div>
+        </div>
+    </div>
 @endsection
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+  // STREAM INFO / FFPROBE
+  const modal = document.getElementById('probe-modal');
+  const closeBtn = document.getElementById('probe-close');
+  const content = document.getElementById('probe-content');
+  const titleEl = document.getElementById('probe-title');
+
+  document.querySelectorAll('.video-probe-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const videoId = btn.getAttribute('data-video-id');
+      const videoTitle = btn.getAttribute('data-video-title');
+      
+      titleEl.textContent = '📊 Stream Info: ' + videoTitle;
+      content.innerHTML = '<p class="text-slate-400">⏳ Probing video...</p>';
+      modal.classList.remove('hidden');
+
+      try {
+        const response = await fetch(`/videos/${videoId}/probe`);
+        const data = await response.json();
+
+        if (data.error) {
+          content.innerHTML = `<p class="text-red-400">❌ ${data.error}</p>`;
+          return;
+        }
+
+        let html = '<div class="space-y-3">';
+        
+        if (data.duration) {
+          const mins = Math.floor(data.duration / 60);
+          const secs = Math.floor(data.duration % 60);
+          html += `<div><span class="text-slate-400">⏱️ Duration:</span> <span class="font-mono text-blue-300">${mins}m ${secs}s</span></div>`;
+        }
+        
+        if (data.bit_rate) {
+          html += `<div><span class="text-slate-400">📊 Bitrate:</span> <span class="font-mono text-blue-300">${data.bit_rate}</span></div>`;
+        }
+
+        if (data.video) {
+          html += '<div class="border-t border-slate-600 pt-3 mt-3"><p class="font-semibold text-slate-200 mb-2">📹 Video Stream</p>';
+          html += `<div><span class="text-slate-400">Codec:</span> <span class="font-mono">${data.video.codec}</span></div>`;
+          if (data.video.width && data.video.height) {
+            html += `<div><span class="text-slate-400">Resolution:</span> <span class="font-mono text-green-300">${data.video.width}x${data.video.height}</span></div>`;
+          }
+          if (data.video.fps) {
+            html += `<div><span class="text-slate-400">FPS:</span> <span class="font-mono text-green-300">${data.video.fps}</span></div>`;
+          }
+          if (data.video.bitrate) {
+            html += `<div><span class="text-slate-400">Bitrate:</span> <span class="font-mono text-green-300">${data.video.bitrate}</span></div>`;
+          }
+          html += '</div>';
+        }
+
+        if (data.audio) {
+          html += '<div class="border-t border-slate-600 pt-3 mt-3"><p class="font-semibold text-slate-200 mb-2">🎵 Audio Stream</p>';
+          html += `<div><span class="text-slate-400">Codec:</span> <span class="font-mono">${data.audio.codec}</span></div>`;
+          if (data.audio.channels) {
+            html += `<div><span class="text-slate-400">Channels:</span> <span class="font-mono text-amber-300">${data.audio.channels}</span></div>`;
+          }
+          if (data.audio.sample_rate) {
+            html += `<div><span class="text-slate-400">Sample Rate:</span> <span class="font-mono text-amber-300">${data.audio.sample_rate}</span></div>`;
+          }
+          if (data.audio.bitrate) {
+            html += `<div><span class="text-slate-400">Bitrate:</span> <span class="font-mono text-amber-300">${data.audio.bitrate}</span></div>`;
+          }
+          html += '</div>';
+        }
+
+        html += '</div>';
+        content.innerHTML = html;
+      } catch (err) {
+        content.innerHTML = `<p class="text-red-400">❌ Request failed: ${err.message}</p>`;
+      }
+    });
+  });
+
+  closeBtn.addEventListener('click', () => {
+    modal.classList.add('hidden');
+  });
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      modal.classList.add('hidden');
+    }
+  });
+
   // DRAG & DROP REORDERING
   const tbody = document.getElementById('playlist-body');
   const btn = document.getElementById('save-order');

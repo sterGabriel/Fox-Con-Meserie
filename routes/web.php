@@ -111,6 +111,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/videos/bulk-category', [VideoController::class, 'bulkCategory'])
         ->name('videos.bulk-category');
 
+    // FFPROBE - Get video metadata
+    Route::get('/videos/{video}/probe', [VideoController::class, 'probe'])
+        ->name('videos.probe');
+
     // ───────────── ENCODING QUEUE ─────────────
 
     Route::get('/encoding-jobs', [EncodingJobController::class, 'index'])

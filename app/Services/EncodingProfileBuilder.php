@@ -251,4 +251,139 @@ class EncodingProfileBuilder
 
         return $errors;
     }
+
+    /**
+     * Generate concat demuxer playlist for 24/7 looping
+     * Creates a playlist file that loops through all videos infinitely
+     */
+    public static function generateConcatPlaylist($channel, $videoFilePaths = []): string
+    {
+        if (empty($videoFilePaths)) {
+            // Get from channel's playlist items
+            $playlistItems = $channel->playlistItems()
+                ->with('video')
+                ->orderBy('sort_order')
+                ->get();
+            
+            $videoFilePaths = [];
+            foreach ($playlistItems as $item) {
+                if ($item->video && $item->video->file_path) {
+                    $videoFilePaths[] = $item->video->file_path;
+                }
+            }
+        }
+
+        if (empty($videoFilePaths)) {
+            return '';
+        }
+
+        // Build concat playlist in format expected by ffmpeg concat demuxer
+        $lines = [];
+        
+        // Loop the playlist multiple times for "infinite" streaming (24/7)
+        // Using 1000 iterations (if avg video is 2 hours = 83 days of content)
+        for ($loop = 0; $loop < 1000; $loop++) {
+            foreach ($videoFilePaths as $filePath) {
+                // Ensure absolute path
+                if (!str_starts_with($filePath, '/')) {
+                    $filePath = storage_path('app/' . $filePath);
+                }
+                
+                // ffmpeg concat demuxer format: file '/path/to/file'
+                $lines[] = "file '" . str_replace("'", "'\\''", $filePath) . "'";
+            }
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Build FFmpeg command for 24/7 playlist looping
+     * Uses concat demuxer to create infinite playlist stream
+     */
+    public static function buildLoopingCommand($channel, $profile, $outputUrl): string
+    {
+        // Generate concat playlist content
+        $playlistContent = self::generateConcatPlaylist($channel);
+        
+        if (empty($playlistContent)) {
+            throw new \Exception('No videos in playlist for looping');
+        }
+
+        // Save playlist to temp file
+        $playlistPath = storage_path('app/temp/playlist_' . $channel->slug . '.txt');
+        @mkdir(dirname($playlistPath), 0755, true);
+        file_put_contents($playlistPath, $playlistContent);
+
+        // Build config
+        $config = self::profileToConfig($profile);
+
+        // Start with concat demuxer input
+        $cmd = 'ffmpeg -stream_loop -1 -f concat -safe 0 -i ' . escapeshellarg($playlistPath);
+
+        // Rest is same as normal LIVE encoding
+        // Video codec
+        $codec = $config['video_codec'] ?? 'libx264';
+        $cmd .= ' -c:v ' . $codec;
+
+        // Resolution with scale filter
+        if ($config['width'] && $config['height']) {
+            $w = $config['width'];
+            $h = $config['height'];
+            if ($w % 2 !== 0) $w++;
+            if ($h % 2 !== 0) $h++;
+            $cmd .= ' -vf "scale=' . $w . ':' . $h . ':force_original_aspect_ratio=decrease,pad=' . $w . ':' . $h . ':(ow-iw)/2:(oh-ih)/2,format=yuv420p"';
+        } else {
+            $cmd .= ' -vf "format=yuv420p"';
+        }
+
+        // FPS (constant frame rate for LIVE)
+        $fps = $config['fps'] ?? 25;
+        $cmd .= ' -r ' . $fps;
+        $cmd .= ' -vsync cfr';
+        $cmd .= ' -g ' . (int)($fps * 2); // GOP = 2 seconds
+
+        // Bitrate (CBR for stability)
+        $cmd .= ' -b:v ' . $config['bitrate'];
+        $cmd .= ' -maxrate ' . $config['bitrate'];
+        $cmd .= ' -bufsize ' . ($config['bufsize'] ?? (2 * (int)str_replace('k', '', $config['bitrate'])) . 'k');
+
+        // Preset
+        if ($config['preset'] && in_array($codec, ['libx264', 'libx265'])) {
+            $cmd .= ' -preset ' . $config['preset'];
+        }
+
+        // Profile
+        if ($config['profile']) {
+            $cmd .= ' -profile:v ' . $config['profile'];
+        }
+
+        // Audio (48kHz for TV streaming)
+        if ($config['audio_codec'] === 'copy') {
+            $cmd .= ' -c:a copy';
+        } else {
+            $cmd .= ' -c:a ' . $config['audio_codec'];
+            $cmd .= ' -b:a ' . $config['audio_bitrate'];
+            $cmd .= ' -ar 48000';
+            $cmd .= ' -ac ' . $config['audio_channels'];
+        }
+
+        // MPEGTS with proper headers
+        $cmd .= ' -f mpegts';
+        $cmd .= ' -mpegts_flags +resend_headers';
+        $cmd .= ' -mpegts_service_name ' . escapeshellarg($config['ts_service_name'] ?? $channel->name);
+        $cmd .= ' -mpegts_service_provider ' . escapeshellarg($config['ts_service_provider'] ?? 'IPTV');
+        $cmd .= ' -pat_period ' . (int)$config['pat_period_ms'];
+        $cmd .= ' -pmt_period ' . (int)$config['pmt_period_ms'];
+        $cmd .= ' -pcr_period ' . (int)$config['pcr_period_ms'];
+        
+        if ($config['muxrate_k']) {
+            $cmd .= ' -muxrate ' . ((int)$config['muxrate_k'] * 1000);
+        }
+
+        // Output
+        $cmd .= ' ' . escapeshellarg($outputUrl);
+
+        return $cmd;
+    }
 }
