@@ -257,11 +257,13 @@ class LiveChannelController extends Controller
     public function settings(LiveChannel $channel)
     {
         $categories = VideoCategory::orderBy('name')->get();
-        $liveProfiles = EncodeProfile::where('mode', 'live')->orderBy('name')->get();
+        $profiles = EncodeProfile::orderBy('name')->get();
+        $liveProfiles = EncodeProfile::where('container', 'mpegts')->orderBy('name')->get();
 
-        return view('admin.vod_channels.settings', [
+        return view('admin.vod_channels.settings_new', [
             'channel'      => $channel,
             'categories'   => $categories,
+            'profiles'     => $profiles,
             'liveProfiles' => $liveProfiles,
         ]);
     }
@@ -269,71 +271,97 @@ class LiveChannelController extends Controller
     public function updateSettings(Request $request, LiveChannel $channel)
     {
         $data = $request->validate([
-            'video_category'        => ['nullable', 'integer', 'exists:video_categories,id'],
-            'resolution'            => ['required', 'string', 'max:50'],
-            'video_bitrate'         => ['required', 'integer', 'min:200', 'max:50000'],
-            'audio_bitrate'         => ['required', 'integer', 'min:32', 'max:1024'],
-            'fps'                   => ['required', 'integer', 'min:10', 'max:120'],
-            'audio_codec'           => ['required', 'string', 'max:50'],
+            'video_category'                => ['nullable', 'integer', 'exists:video_categories,id'],
+            'is_24_7_channel'               => ['nullable', 'boolean'],
+            'description'                   => ['nullable', 'string', 'max:500'],
+            
+            'encode_profile_id'             => ['nullable', 'integer', 'exists:encode_profiles,id'],
+            'manual_override_encoding'      => ['nullable', 'boolean'],
+            'manual_width'                  => ['nullable', 'integer'],
+            'manual_height'                 => ['nullable', 'integer'],
+            'manual_fps'                    => ['nullable', 'integer'],
+            'manual_codec'                  => ['nullable', 'string'],
+            'manual_preset'                 => ['nullable', 'string'],
+            'manual_bitrate'                => ['nullable', 'integer'],
+            'manual_audio_bitrate'          => ['nullable', 'integer'],
+            'manual_audio_codec'            => ['nullable', 'string'],
 
-            'encode_profile_id'     => ['nullable', 'integer', 'exists:encode_profiles,id'],
-            'manual_encode_enabled' => ['nullable', 'boolean'],
-            'manual_bitrate'        => ['nullable', 'integer', 'min:500', 'max:20000'],
-            'manual_preset'         => ['nullable', 'string', 'max:50'],
+            'overlay_logo_enabled'          => ['nullable', 'boolean'],
+            'overlay_logo_file'             => ['nullable', 'file', 'mimes:png,svg'],
+            'overlay_logo_position'         => ['nullable', 'string', 'in:TL,TR,BL,BR'],
+            'overlay_logo_x'                => ['nullable', 'integer'],
+            'overlay_logo_y'                => ['nullable', 'integer'],
+            'overlay_logo_width'            => ['nullable', 'integer'],
+            'overlay_logo_opacity'          => ['nullable', 'numeric', 'min:0', 'max:100'],
 
-            'logo_upload'           => ['nullable', 'file', 'mimes:png', 'max:5120'],
+            'overlay_text_enabled'          => ['nullable', 'boolean'],
+            'overlay_text_content'          => ['nullable', 'string', 'in:channel_name,title,custom'],
+            'overlay_text_custom'           => ['nullable', 'string', 'max:255'],
+            'overlay_text_font_size'        => ['nullable', 'integer'],
+            'overlay_text_bg_opacity'       => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'overlay_text_bg_color'         => ['nullable', 'string'],
 
-            'overlay_title'         => ['nullable', 'boolean'],
-            'overlay_timer'         => ['nullable', 'boolean'],
+            'overlay_timer_enabled'         => ['nullable', 'boolean'],
+            'overlay_timer_format'          => ['nullable', 'string', 'in:HH:mm,HH:mm:ss'],
+            'overlay_timer_position'        => ['nullable', 'string', 'in:TL,TR,BL,BR'],
+            'overlay_timer_x'               => ['nullable', 'integer'],
+            'overlay_timer_y'               => ['nullable', 'integer'],
 
-            'encoded_output_path'   => ['nullable', 'string', 'max:1024'],
-            'hls_output_path'       => ['nullable', 'string', 'max:1024'],
+            'overlay_safe_margin'           => ['nullable', 'integer', 'min:0', 'max:50'],
         ]);
 
-        // Upload PNG -> storage/app/private/logos/vod_channels/{id}/...
-        // în DB salvăm path RELATIV: logos/... (relativ la disk root care e storage/app/private)
-        \Log::info('UpdateSettings: hasFile check', [
-            'hasFile' => $request->hasFile('logo_upload'),
-            'allFiles' => array_keys($request->allFiles()),
-            'hasLogoUpload' => isset($_FILES['logo_upload']) ?? false,
-        ]);
-        
-        if ($request->hasFile('logo_upload')) {
-            $file = $request->file('logo_upload');
-
-            $dir  = 'private/logos/vod_channels/' . $channel->id;
-            $name = 'logo_' . date('Ymd_His') . '_' . uniqid() . '.png';
-
-            // Store under storage/app/private/logos/...
-            // Save the relative path (including "private/") into DB
-            $relative = Storage::disk('local')->putFileAs($dir, $file, $name);
-
-            $data['logo_path'] = $relative;
+        // Handle logo upload
+        if ($request->hasFile('overlay_logo_file')) {
+            $file = $request->file('overlay_logo_file');
+            $dir = 'private/logos/channels/' . $channel->id;
+            $name = 'logo_' . date('Ymd_His') . '.' . $file->getClientOriginalExtension();
+            $relative = \Illuminate\Support\Facades\Storage::disk('local')->putFileAs($dir, $file, $name);
+            $data['overlay_logo_path'] = $relative;
         }
 
         $channel->update([
-            'video_category'        => $data['video_category'] ?? null,
-            'resolution'            => $data['resolution'],
-            'video_bitrate'         => $data['video_bitrate'],
-            'audio_bitrate'         => $data['audio_bitrate'],
-            'fps'                   => $data['fps'],
-            'audio_codec'           => $data['audio_codec'],
+            'video_category'                => $data['video_category'] ?? null,
+            'is_24_7_channel'               => $request->boolean('is_24_7_channel'),
+            'description'                   => $data['description'] ?? null,
+            
+            'encode_profile_id'             => $data['encode_profile_id'] ?? null,
+            'manual_override_encoding'      => $request->boolean('manual_override_encoding'),
+            'manual_width'                  => $data['manual_width'] ?? null,
+            'manual_height'                 => $data['manual_height'] ?? null,
+            'manual_fps'                    => $data['manual_fps'] ?? null,
+            'manual_codec'                  => $data['manual_codec'] ?? null,
+            'manual_preset'                 => $data['manual_preset'] ?? null,
+            'manual_bitrate'                => $data['manual_bitrate'] ?? null,
+            'manual_audio_bitrate'          => $data['manual_audio_bitrate'] ?? null,
+            'manual_audio_codec'            => $data['manual_audio_codec'] ?? null,
 
-            'encode_profile_id'     => $data['encode_profile_id'] ?? null,
-            'manual_encode_enabled' => $request->boolean('manual_encode_enabled'),
+            'overlay_logo_enabled'          => $request->boolean('overlay_logo_enabled'),
+            'overlay_logo_path'             => $data['overlay_logo_path'] ?? $channel->overlay_logo_path,
+            'overlay_logo_position'         => $data['overlay_logo_position'] ?? 'TL',
+            'overlay_logo_x'                => $data['overlay_logo_x'] ?? 20,
+            'overlay_logo_y'                => $data['overlay_logo_y'] ?? 20,
+            'overlay_logo_width'            => $data['overlay_logo_width'] ?? 100,
+            'overlay_logo_opacity'          => $data['overlay_logo_opacity'] ?? 80,
 
-            'logo_path'             => $data['logo_path'] ?? $channel->logo_path,
+            'overlay_text_enabled'          => $request->boolean('overlay_text_enabled'),
+            'overlay_text_content'          => $data['overlay_text_content'] ?? 'channel_name',
+            'overlay_text_custom'           => $data['overlay_text_custom'] ?? null,
+            'overlay_text_font_size'        => $data['overlay_text_font_size'] ?? 24,
+            'overlay_text_bg_opacity'       => $data['overlay_text_bg_opacity'] ?? 50,
+            'overlay_text_bg_color'         => $data['overlay_text_bg_color'] ?? '#000000',
 
-            'overlay_title'         => $request->boolean('overlay_title'),
-            'overlay_timer'         => $request->boolean('overlay_timer'),
+            'overlay_timer_enabled'         => $request->boolean('overlay_timer_enabled'),
+            'overlay_timer_format'          => $data['overlay_timer_format'] ?? 'HH:mm',
+            'overlay_timer_position'        => $data['overlay_timer_position'] ?? 'TR',
+            'overlay_timer_x'               => $data['overlay_timer_x'] ?? 20,
+            'overlay_timer_y'               => $data['overlay_timer_y'] ?? 20,
 
-            'encoded_output_path' => $data['encoded_output_path'] ?? null,
-            'hls_output_path'     => $data['hls_output_path'] ?? null,
+            'overlay_safe_margin'           => $data['overlay_safe_margin'] ?? 20,
         ]);
 
         return redirect()
             ->route('vod-channels.settings', $channel)
-            ->with('success', 'Settings saved.');
+            ->with('success', 'Settings saved successfully!');
     }
 
     public function previewFFmpeg(Request $request, LiveChannel $channel)
