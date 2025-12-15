@@ -49,6 +49,9 @@
     <button type="button" class="tab-btn px-6 py-3 font-semibold text-slate-400 border-b-2 border-transparent hover:text-slate-200 transition" data-tab="outputs">
         📤 Outputs
     </button>
+    <button type="button" class="tab-btn px-6 py-3 font-semibold text-slate-400 border-b-2 border-transparent hover:text-slate-200 transition" data-tab="engine">
+        🎬 Engine
+    </button>
 </div>
 
 <form method="POST" action="{{ route('vod-channels.settings.update', $channel) }}" enctype="multipart/form-data" class="space-y-6 pb-32">
@@ -82,6 +85,11 @@
     <!-- TAB: OUTPUTS -->
     <div id="tab-outputs" class="tab-content hidden">
         @include('admin.vod_channels.settings_tabs.outputs')
+    </div>
+
+    <!-- TAB: ENGINE -->
+    <div id="tab-engine" class="tab-content hidden">
+        @include('admin.vod_channels.settings_tabs.engine')
     </div>
 
     <!-- Save Button -->
