@@ -733,7 +733,7 @@ class LiveChannelController extends Controller
                 $outputPath = "{$outputDir}/video_{$item->id}.ts";
                 
                 // Create or update job
-                \App\Models\EncodingJob::updateOrCreate(
+                $job = \App\Models\EncodingJob::updateOrCreate(
                     [
                         'channel_id' => $channel->id,
                         'playlist_item_id' => $item->id,
@@ -749,6 +749,10 @@ class LiveChannelController extends Controller
                 );
                 
                 $createdJobs++;
+
+                // Kick off encoding in background for this job
+                // Use PHP to execute encoding asynchronously
+                $this->startEncodingProcess($job, $channel);
             }
 
             return response()->json([
@@ -764,6 +768,44 @@ class LiveChannelController extends Controller
                 'message' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Start encoding for a specific job in background
+     */
+    protected function startEncodingProcess(\App\Models\EncodingJob $job, LiveChannel $channel)
+    {
+        // Create a simple PHP script to run encoding in background
+        $scriptPath = storage_path("app/encode_job_{$job->id}.php");
+        
+        $script = <<<'PHP'
+<?php
+require __DIR__ . '/../../../vendor/autoload.php';
+$app = require __DIR__ . '/../../../bootstrap/app.php';
+$app->boot();
+
+$job = \App\Models\EncodingJob::find(JOBID);
+if (!$job) exit(1);
+
+$channel = \App\Models\LiveChannel::find(CHANNELID);
+if (!$channel) exit(1);
+
+$encoding = new \App\Services\EncodingService($job, $channel);
+$result = $encoding->encode();
+exit($result['status'] === 'success' ? 0 : 1);
+PHP;
+
+        $script = str_replace('JOBID', $job->id, $script);
+        $script = str_replace('CHANNELID', $channel->id, $script);
+        
+        file_put_contents($scriptPath, $script);
+        
+        // Execute in background (nohup + disown)
+        $logFile = storage_path("logs/encode_bg_{$job->id}.log");
+        shell_exec("nohup php {$scriptPath} > {$logFile} 2>&1 &");
+        
+        // Clean up script after 10 seconds
+        @unlink($scriptPath);
     }
 
     /**
