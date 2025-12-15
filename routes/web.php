@@ -123,21 +123,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/video-categories/{category}', [VideoCategoryController::class, 'destroy'])
         ->name('video-categories.destroy');
 
-    // ───────────── CATEGORY SCANNING ─────────────
-    Route::get('/video-categories/{category}/scan', [CategoryScanController::class, 'showCategory'])
-        ->name('category-scan.show');
+    // ───────────── FILE BROWSER & IMPORT ─────────────
+    Route::get('/video-categories/{category}/browse', [FileBrowserController::class, 'browse'])
+        ->name('admin.video_categories.browse');
 
-    Route::post('/video-categories/{category}/scan', [CategoryScanController::class, 'scan'])
-        ->name('category-scan.scan');
-
-    Route::post('/video-categories/{category}/scan/import', [CategoryScanController::class, 'import'])
-        ->name('category-scan.import');
-
-    Route::post('/video-categories/{category}/scan/delete-file', [CategoryScanController::class, 'deleteFile'])
-        ->name('category-scan.delete-file');
-
-    Route::post('/video-categories/{category}/scan/file-info', [CategoryScanController::class, 'fileInfo'])
-        ->name('category-scan.file-info');
+    Route::post('/video-categories/{category}/import', [FileBrowserController::class, 'import'])
+        ->name('admin.video_categories.import');
 
     // ───────────── VIDEO LIBRARY ─────────────
     Route::get('/videos', [VideoController::class, 'index'])

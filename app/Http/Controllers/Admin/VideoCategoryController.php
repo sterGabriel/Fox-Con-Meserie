@@ -66,4 +66,12 @@ class VideoCategoryController extends Controller
             ->route('video-categories.index')
             ->with('success', 'Category deleted.');
     }
+
+    /**
+     * Redirect to file browser for importing
+     */
+    public function browse(VideoCategory $category)
+    {
+        return redirect()->route('admin.video_categories.browse', $category);
+    }
 }

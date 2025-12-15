@@ -96,9 +96,9 @@
                                         Edit
                                     </a>
 
-                                    <a href="{{ route('category-scan.show', $category) }}"
+                                    <a href="{{ route('admin.video_categories.browse', $category) }}"
                                        class="px-3 py-1 text-xs text-green-400 hover:text-green-300 transition">
-                                        Import
+                                        📁 Browse & Import
                                     </a>
 
                                     <form action="{{ route('video-categories.destroy', $category) }}"
