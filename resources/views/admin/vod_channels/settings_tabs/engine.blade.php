@@ -77,6 +77,38 @@
             <p id="current-encoding" class="text-xs text-slate-500 mt-2">Idle</p>
         </div>
 
+        <!-- Streaming Outputs -->
+        <div class="p-4 bg-slate-800/20 border border-slate-600/20 rounded-lg">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-sm font-semibold text-slate-200">📡 Streaming Outputs</h3>
+                <span id="output-status" class="text-xs px-2 py-1 bg-slate-700/50 text-slate-400 rounded">⚫ Channel Offline</span>
+            </div>
+
+            <div class="space-y-3">
+                <!-- TS Stream URL -->
+                <div class="bg-slate-900/30 rounded p-3 border border-slate-700/30">
+                    <p class="text-xs text-slate-400 mb-2">📊 TS Stream (Raw MPEG-TS)</p>
+                    <div class="flex gap-2 items-center">
+                        <input type="text" id="ts-url" value="" readonly class="flex-1 bg-slate-800 border border-slate-600 rounded px-3 py-2 text-xs text-slate-300 font-mono" placeholder="ts://...">
+                        <button type="button" onclick="copyToClipboard('ts-url')" class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold">📋 Copy</button>
+                        <button type="button" id="test-ts-btn" onclick="testVLC('ts')" class="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-xs font-semibold" disabled>🎬 Test VLC</button>
+                    </div>
+                </div>
+
+                <!-- HLS Playlist URL -->
+                <div class="bg-slate-900/30 rounded p-3 border border-slate-700/30">
+                    <p class="text-xs text-slate-400 mb-2">📹 HLS Playlist (HTTP Live Streaming)</p>
+                    <div class="flex gap-2 items-center">
+                        <input type="text" id="hls-url" value="" readonly class="flex-1 bg-slate-800 border border-slate-600 rounded px-3 py-2 text-xs text-slate-300 font-mono" placeholder="http://...">
+                        <button type="button" onclick="copyToClipboard('hls-url')" class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold">📋 Copy</button>
+                        <button type="button" id="test-hls-btn" onclick="testVLC('hls')" class="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-xs font-semibold" disabled>🎬 Test VLC</button>
+                    </div>
+                </div>
+
+                <p class="text-xs text-slate-500 mt-2">💡 URLs are active only when channel is running. Both are available in VLC: Media → Open Network Stream</p>
+            </div>
+        </div>
+
         <!-- Log Viewer -->
         <div class="p-4 bg-slate-950/50 border border-slate-600/20 rounded-lg">
             <div class="flex justify-between items-center mb-2">
@@ -378,8 +410,105 @@ btnEncodeNowAlt.addEventListener('click', startEncoding);
 addLog('🔧 Engine ready - configure and start channel');
 updateStatus();
 
-// Cleanup on page unload
-window.addEventListener('beforeunload', () => {
-    if (statusCheckInterval) clearInterval(statusCheckInterval);
-});
+// ═══════════════════════════════════════════════════════════════
+// 📡 STREAMING OUTPUTS (TASK 7)
+// ═══════════════════════════════════════════════════════════════
+
+const channelId = {{ $channel->id }};
+const tsUrlField = document.getElementById('ts-url');
+const hlsUrlField = document.getElementById('hls-url');
+const outputStatus = document.getElementById('output-status');
+const testTsBtn = document.getElementById('test-ts-btn');
+const testHlsBtn = document.getElementById('test-hls-btn');
+
+// Function to copy URL to clipboard
+function copyToClipboard(elementId) {
+    const field = document.getElementById(elementId);
+    const url = field.value;
+    if (!url) {
+        alert('URL not available - start the channel first');
+        return;
+    }
+    navigator.clipboard.writeText(url).then(() => {
+        const btn = event.target;
+        const originalText = btn.textContent;
+        btn.textContent = '✓ Copied!';
+        btn.classList.add('bg-green-600');
+        btn.classList.remove('bg-blue-600');
+        setTimeout(() => {
+            btn.textContent = originalText;
+            btn.classList.remove('bg-green-600');
+            btn.classList.add('bg-blue-600');
+        }, 2000);
+    }).catch(() => {
+        alert('Failed to copy - please copy manually');
+    });
+}
+
+// Function to test in VLC
+function testVLC(type) {
+    const urlField = type === 'ts' ? tsUrlField : hlsUrlField;
+    const url = urlField.value;
+    if (!url) {
+        alert('URL not available');
+        return;
+    }
+    
+    // Open in VLC (vlc:// protocol)
+    window.location.href = 'vlc://' + url;
+    
+    // Also open HTTP stream for fallback
+    setTimeout(() => {
+        if (url.includes('http')) {
+            window.open(url);
+        }
+    }, 500);
+}
+
+// Function to update output URLs based on channel status
+function updateOutputURLs() {
+    fetch(`/vod-channels/${channelId}/engine/status`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.running) {
+                outputStatus.innerHTML = '🟢 Channel Online';
+                outputStatus.className = 'text-xs px-2 py-1 bg-green-600/30 text-green-300 rounded';
+                
+                // Generate URLs
+                const protocol = window.location.protocol.replace(':', '');
+                const host = window.location.host;
+                
+                // TS URL
+                const tsUrl = `http://${host}/streams/${channelId}/live.ts`;
+                tsUrlField.value = tsUrl;
+                testTsBtn.disabled = false;
+                
+                // HLS URL
+                const hlsUrl = `http://${host}/streams/${channelId}/index.m3u8`;
+                hlsUrlField.value = hlsUrl;
+                testHlsBtn.disabled = false;
+            } else {
+                outputStatus.innerHTML = '⚫ Channel Offline';
+                outputStatus.className = 'text-xs px-2 py-1 bg-slate-700/50 text-slate-400 rounded';
+                tsUrlField.value = '';
+                hlsUrlField.value = '';
+                testTsBtn.disabled = true;
+                testHlsBtn.disabled = true;
+            }
+        })
+        .catch(err => {
+            console.error('Error updating output URLs:', err);
+        });
+}
+
+// Update URLs every 2 seconds when status check runs
+const originalUpdateStatus = updateStatus;
+function updateStatusWithOutputs() {
+    originalUpdateStatus();
+    updateOutputURLs();
+}
+
+// Override updateStatus
+updateStatus = updateStatusWithOutputs;
+
 </script>

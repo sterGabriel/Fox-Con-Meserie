@@ -10,7 +10,7 @@ use Illuminate\Http\Request;
 class FileBrowserController extends Controller
 {
     // Schimbă dacă videourile sunt în alt folder:
-    private string $basePath = '/home/videos';
+    private string $basePath = '/home/movies';
     private array $allowedExtensions = ['mp4', 'mkv', 'avi', 'mov', 'webm', 'flv', 'wmv', 'ts'];
 
     public function browse(VideoCategory $category, Request $request)
