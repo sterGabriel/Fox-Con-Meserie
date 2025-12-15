@@ -118,6 +118,71 @@
             </div>
         </div>
 
+        {{-- LIVE ENCODING PROFILE CARD (NEW) --}}
+        <div class="rounded-2xl border border-slate-500/20 bg-slate-900/40 p-6 backdrop-blur-sm">
+            <h2 class="text-lg font-semibold mb-6 text-slate-100">
+                📡 LIVE Streaming Profile
+            </h2>
+
+            <div class="space-y-5">
+                <div>
+                    <label class="block text-sm font-semibold text-slate-300 mb-2">🎬 Select Preset Profile</label>
+                    <select name="encode_profile_id" class="w-full px-4 py-3 rounded-xl border border-slate-500/20 bg-slate-950/30 focus:border-blue-400 text-slate-200 focus:outline-none transition-all focus:ring-2 focus:ring-blue-500/20">
+                        <option value="">-- Use Default (LIVE 720p) --</option>
+                        @foreach($liveProfiles as $profile)
+                            <option value="{{ $profile->id }}" 
+                                {{ (int)old('encode_profile_id', $channel->encode_profile_id ?? 0) === (int)$profile->id ? 'selected' : '' }}>
+                                {{ $profile->name }} ({{ $profile->video_bitrate_k }}kbps {{ $profile->width }}x{{ $profile->height }})
+                            </option>
+                        @endforeach
+                    </select>
+                    <p class="text-xs text-slate-400 mt-2">💡 Presets optimized for 24/7 streaming (MPEGTS TS format, CBR bitrate, 48kHz audio)</p>
+                </div>
+
+                <div id="manual-mode-section" style="display: none;">
+                    <h3 class="text-sm font-semibold text-amber-300 mb-3">⚠️ Manual Override (Advanced)</h3>
+                    <div class="space-y-3 p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="text-xs text-slate-300">Manual Bitrate (kbps)</label>
+                                <input type="number" name="manual_bitrate" min="500" max="20000"
+                                       value="{{ old('manual_bitrate', 2500) }}"
+                                       class="w-full px-3 py-2 rounded text-xs bg-slate-950/30 border border-slate-500/20 text-slate-200">
+                            </div>
+                            <div>
+                                <label class="text-xs text-slate-300">Manual Preset</label>
+                                <select name="manual_preset" class="w-full px-3 py-2 rounded text-xs bg-slate-950/30 border border-slate-500/20 text-slate-200">
+                                    <option>superfast</option>
+                                    <option selected>veryfast</option>
+                                    <option>fast</option>
+                                    <option>medium</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <label class="flex items-center p-3 border border-slate-500/20 rounded-xl hover:bg-slate-800/40 hover:border-amber-400/30 cursor-pointer transition-all">
+                    <input type="checkbox" id="manual-override-toggle" name="manual_encode_enabled" value="1"
+                           {{ old('manual_encode_enabled', $channel->manual_encode_enabled) ? 'checked' : '' }}
+                           class="w-5 h-5 rounded text-amber-500 focus:ring-amber-500/40">
+                    <span class="ml-3 text-sm font-semibold text-slate-200">🔧 Manual Override (Advanced)</span>
+                </label>
+
+                <div id="preview-section" class="p-4 bg-slate-800/30 border border-slate-500/30 rounded-xl">
+                    <div class="flex justify-between items-center mb-3">
+                        <span class="text-sm font-semibold text-slate-300">📜 FFmpeg Command Preview</span>
+                        <button type="button" id="preview-btn" class="text-xs px-3 py-1 rounded bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 transition">
+                            🔄 Refresh
+                        </button>
+                    </div>
+                    <pre id="preview-output" class="text-xs bg-slate-900/50 border border-slate-600/50 rounded p-3 text-green-300 font-mono overflow-auto max-h-40" style="line-height: 1.4;">
+ffmpeg -re -i input.mp4 ... (loading)
+                    </pre>
+                </div>
+            </div>
+        </div>
+
         {{-- LOGO & OVERLAYS CARD --}}
         <div class="rounded-2xl border border-slate-500/20 bg-slate-900/40 p-6 backdrop-blur-sm">
             <h2 class="text-lg font-semibold mb-6 text-slate-100">
@@ -196,5 +261,75 @@
             </button>
         </div>
     </form>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const manualToggle = document.getElementById('manual-override-toggle');
+        const manualSection = document.getElementById('manual-mode-section');
+        const profileSelect = document.querySelector('select[name="encode_profile_id"]');
+        const previewBtn = document.getElementById('preview-btn');
+        const previewOutput = document.getElementById('preview-output');
+        const channelId = '{{ $channel->id }}';
+
+        // Toggle manual section visibility
+        if (manualToggle) {
+            manualToggle.addEventListener('change', function() {
+                manualSection.style.display = this.checked ? 'block' : 'none';
+            });
+            // Initial state
+            manualSection.style.display = manualToggle.checked ? 'block' : 'none';
+        }
+
+        // Preview ffmpeg command
+        if (previewBtn) {
+            previewBtn.addEventListener('click', async function(e) {
+                e.preventDefault();
+                previewBtn.disabled = true;
+                previewBtn.textContent = '⏳ Loading...';
+                
+                const formData = new FormData();
+                formData.append('profile_id', profileSelect.value);
+                formData.append('manual_enabled', manualToggle.checked ? 1 : 0);
+                if (manualToggle.checked) {
+                    formData.append('manual_bitrate', document.querySelector('input[name="manual_bitrate"]').value);
+                    formData.append('manual_preset', document.querySelector('select[name="manual_preset"]').value);
+                }
+
+                try {
+                    const response = await fetch(`/vod-channels/${channelId}/preview-ffmpeg`, {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
+                        },
+                        body: formData
+                    });
+
+                    const data = await response.json();
+                    if (data.command) {
+                        // Format command with wrapping
+                        const formatted = data.command
+                            .split(' -')
+                            .join(' \\\n    -');
+                        previewOutput.textContent = 'ffmpeg ' + formatted;
+                    } else {
+                        previewOutput.textContent = '❌ Error: ' + (data.error || 'Unknown error');
+                    }
+                } catch (err) {
+                    previewOutput.textContent = '❌ Request failed: ' + err.message;
+                } finally {
+                    previewBtn.disabled = false;
+                    previewBtn.textContent = '🔄 Refresh';
+                }
+            });
+
+            // Auto-preview on profile change
+            if (profileSelect) {
+                profileSelect.addEventListener('change', () => {
+                    previewBtn.click();
+                });
+            }
+        }
+    });
+    </script>
 @endsection
 

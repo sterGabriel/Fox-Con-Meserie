@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\EncodingJob;
 use App\Models\LiveChannel;
+use App\Models\EncodeProfile;
+use App\Services\EncodingProfileBuilder;
 use Illuminate\Http\Request;
 
 class EncodingJobController extends Controller
@@ -40,6 +42,20 @@ class EncodingJobController extends Controller
                 ->with('error', 'Playlist is empty. Nothing to encode.');
         }
 
+        // Get encoding profile (use selected or default)
+        $profile = null;
+        if ($channel->encode_profile_id) {
+            $profile = EncodeProfile::find($channel->encode_profile_id);
+        }
+        
+        if (!$profile) {
+            // Default to LIVE 720p profile
+            $profile = EncodeProfile::where('mode', 'live')
+                ->where('height', 720)
+                ->first();
+        }
+
+        $builder = new EncodingProfileBuilder();
         $created = 0;
 
         foreach ($playlistItems as $item) {
@@ -57,12 +73,23 @@ class EncodingJobController extends Controller
                 continue;
             }
 
+            // Generate ffmpeg command for this job
+            $inputPath = $item->video->file_path ?? '/path/to/video.mp4';
+            $outputUrl = 'rtmp://localhost/live/' . $channel->slug;
+            
+            try {
+                $ffmpegCommand = $profile ? $builder->buildCommand($profile, $inputPath, $outputUrl) : '';
+            } catch (\Exception $e) {
+                $ffmpegCommand = '';
+            }
+
             EncodingJob::create([
                 'live_channel_id' => $channel->id,
                 'video_id'        => $item->video_id,
                 'status'          => 'pending',
                 'progress'        => 0,
                 'error_message'   => null,
+                'ffmpeg_command'  => $ffmpegCommand,
             ]);
 
             $created++;

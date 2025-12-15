@@ -14,6 +14,7 @@ class EncodingJob extends Model
         'started_at',
         'finished_at',
         'error_message',
+        'ffmpeg_command',
     ];
 
     protected $casts = [

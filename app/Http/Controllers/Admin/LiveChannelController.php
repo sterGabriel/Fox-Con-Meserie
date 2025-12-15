@@ -7,6 +7,8 @@ use App\Models\LiveChannel;
 use App\Models\PlaylistItem;
 use App\Models\Video;
 use App\Models\VideoCategory;
+use App\Models\EncodeProfile;
+use App\Services\EncodingProfileBuilder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -255,30 +257,37 @@ class LiveChannelController extends Controller
     public function settings(LiveChannel $channel)
     {
         $categories = VideoCategory::orderBy('name')->get();
+        $liveProfiles = EncodeProfile::where('mode', 'live')->orderBy('name')->get();
 
         return view('admin.vod_channels.settings', [
-            'channel'    => $channel,
-            'categories' => $categories,
+            'channel'      => $channel,
+            'categories'   => $categories,
+            'liveProfiles' => $liveProfiles,
         ]);
     }
 
     public function updateSettings(Request $request, LiveChannel $channel)
     {
         $data = $request->validate([
-            'video_category'      => ['nullable', 'integer', 'exists:video_categories,id'],
-            'resolution'          => ['required', 'string', 'max:50'],
-            'video_bitrate'       => ['required', 'integer', 'min:200', 'max:50000'],
-            'audio_bitrate'       => ['required', 'integer', 'min:32', 'max:1024'],
-            'fps'                 => ['required', 'integer', 'min:10', 'max:120'],
-            'audio_codec'         => ['required', 'string', 'max:50'],
+            'video_category'        => ['nullable', 'integer', 'exists:video_categories,id'],
+            'resolution'            => ['required', 'string', 'max:50'],
+            'video_bitrate'         => ['required', 'integer', 'min:200', 'max:50000'],
+            'audio_bitrate'         => ['required', 'integer', 'min:32', 'max:1024'],
+            'fps'                   => ['required', 'integer', 'min:10', 'max:120'],
+            'audio_codec'           => ['required', 'string', 'max:50'],
 
-            'logo_upload'         => ['nullable', 'file', 'mimes:png', 'max:5120'],
+            'encode_profile_id'     => ['nullable', 'integer', 'exists:encode_profiles,id'],
+            'manual_encode_enabled' => ['nullable', 'boolean'],
+            'manual_bitrate'        => ['nullable', 'integer', 'min:500', 'max:20000'],
+            'manual_preset'         => ['nullable', 'string', 'max:50'],
 
-            'overlay_title'       => ['nullable', 'boolean'],
-            'overlay_timer'       => ['nullable', 'boolean'],
+            'logo_upload'           => ['nullable', 'file', 'mimes:png', 'max:5120'],
 
-            'encoded_output_path' => ['nullable', 'string', 'max:1024'],
-            'hls_output_path'     => ['nullable', 'string', 'max:1024'],
+            'overlay_title'         => ['nullable', 'boolean'],
+            'overlay_timer'         => ['nullable', 'boolean'],
+
+            'encoded_output_path'   => ['nullable', 'string', 'max:1024'],
+            'hls_output_path'       => ['nullable', 'string', 'max:1024'],
         ]);
 
         // Upload PNG -> storage/app/private/logos/vod_channels/{id}/...
@@ -303,17 +312,20 @@ class LiveChannelController extends Controller
         }
 
         $channel->update([
-            'video_category'      => $data['video_category'] ?? null,
-            'resolution'          => $data['resolution'],
-            'video_bitrate'       => $data['video_bitrate'],
-            'audio_bitrate'       => $data['audio_bitrate'],
-            'fps'                 => $data['fps'],
-            'audio_codec'         => $data['audio_codec'],
+            'video_category'        => $data['video_category'] ?? null,
+            'resolution'            => $data['resolution'],
+            'video_bitrate'         => $data['video_bitrate'],
+            'audio_bitrate'         => $data['audio_bitrate'],
+            'fps'                   => $data['fps'],
+            'audio_codec'           => $data['audio_codec'],
 
-            'logo_path'           => $data['logo_path'] ?? $channel->logo_path,
+            'encode_profile_id'     => $data['encode_profile_id'] ?? null,
+            'manual_encode_enabled' => $request->boolean('manual_encode_enabled'),
 
-            'overlay_title'       => $request->boolean('overlay_title'),
-            'overlay_timer'       => $request->boolean('overlay_timer'),
+            'logo_path'             => $data['logo_path'] ?? $channel->logo_path,
+
+            'overlay_title'         => $request->boolean('overlay_title'),
+            'overlay_timer'         => $request->boolean('overlay_timer'),
 
             'encoded_output_path' => $data['encoded_output_path'] ?? null,
             'hls_output_path'     => $data['hls_output_path'] ?? null,
@@ -322,5 +334,49 @@ class LiveChannelController extends Controller
         return redirect()
             ->route('vod-channels.settings', $channel)
             ->with('success', 'Settings saved.');
+    }
+
+    public function previewFFmpeg(Request $request, LiveChannel $channel)
+    {
+        $profileId = $request->input('profile_id');
+        $manualEnabled = $request->boolean('manual_enabled');
+        
+        try {
+            $profile = null;
+            
+            if ($profileId) {
+                $profile = EncodeProfile::find($profileId);
+                if (!$profile) {
+                    return response()->json(['error' => 'Profile not found'], 404);
+                }
+            } else {
+                // Use default LIVE profile (720p)
+                $profile = EncodeProfile::where('mode', 'live')
+                    ->where('height', 720)
+                    ->first();
+                
+                if (!$profile) {
+                    return response()->json(['error' => 'No default profile found'], 404);
+                }
+            }
+
+            // Build the ffmpeg command
+            $builder = new EncodingProfileBuilder();
+            
+            // Mock input/output for preview
+            $inputUrl = 'input.mp4';
+            $outputUrl = 'rtmp://localhost/live/' . $channel->slug;
+            
+            $command = $builder->buildCommand($profile, $inputUrl, $outputUrl);
+
+            return response()->json([
+                'command' => $command,
+                'profile_name' => $profile->name,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

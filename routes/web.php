@@ -72,6 +72,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/vod-channels/{channel}/settings', [LiveChannelController::class, 'updateSettings'])
         ->name('vod-channels.settings.update');
 
+    // PREVIEW FFMPEG COMMAND
+    Route::post('/vod-channels/{channel}/preview-ffmpeg', [LiveChannelController::class, 'previewFFmpeg'])
+        ->name('vod-channels.preview-ffmpeg');
+
     // ───────────── VIDEO CATEGORIES ─────────────
     Route::get('/video-categories', [VideoCategoryController::class, 'index'])
         ->name('video-categories.index');
