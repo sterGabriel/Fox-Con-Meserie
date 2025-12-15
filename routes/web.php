@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\FileBrowserController;
 use App\Http\Controllers\Admin\VideoCategoryController;
 use App\Http\Controllers\Admin\EncodingJobController;
 use App\Http\Controllers\Admin\EncodeProfileController;
+use App\Http\Controllers\Admin\MediaImportController;
 
 // ROOT → redirect to dashboard
 Route::get('/', function () {
@@ -174,6 +175,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::delete('/encode-profiles/{profile}', [EncodeProfileController::class, 'destroy'])
         ->name('encode-profiles.destroy');
+
+    // MEDIA IMPORT
+    Route::get('/media/import', [MediaImportController::class, 'index'])
+        ->name('media.import');
+
+    Route::post('/media/import', [MediaImportController::class, 'import'])
+        ->name('media.import.store');
 
     // PROFILE
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
