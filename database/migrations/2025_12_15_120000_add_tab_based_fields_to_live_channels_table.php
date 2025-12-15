@@ -91,6 +91,27 @@ return new class extends Migration
             if (!Schema::hasColumn('live_channels', 'overlay_text_bg_color')) {
                 $table->string('overlay_text_bg_color')->default('#000000');
             }
+            if (!Schema::hasColumn('live_channels', 'overlay_text_font_family')) {
+                $table->string('overlay_text_font_family')->default('Arial');
+            }
+            if (!Schema::hasColumn('live_channels', 'overlay_text_color')) {
+                $table->string('overlay_text_color')->default('#FFFFFF');
+            }
+            if (!Schema::hasColumn('live_channels', 'overlay_text_padding')) {
+                $table->integer('overlay_text_padding')->default(6);
+            }
+            if (!Schema::hasColumn('live_channels', 'overlay_text_position')) {
+                $table->string('overlay_text_position')->nullable();
+            }
+            if (!Schema::hasColumn('live_channels', 'overlay_text_x')) {
+                $table->integer('overlay_text_x')->default(20);
+            }
+            if (!Schema::hasColumn('live_channels', 'overlay_text_y')) {
+                $table->integer('overlay_text_y')->default(20);
+            }
+            if (!Schema::hasColumn('live_channels', 'overlay_text_opacity')) {
+                $table->float('overlay_text_opacity')->default(100);
+            }
 
             // Overlay: Timer
             if (!Schema::hasColumn('live_channels', 'overlay_timer_enabled')) {
@@ -107,6 +128,27 @@ return new class extends Migration
             }
             if (!Schema::hasColumn('live_channels', 'overlay_timer_y')) {
                 $table->integer('overlay_timer_y')->default(20);
+            }
+            if (!Schema::hasColumn('live_channels', 'overlay_timer_mode')) {
+                $table->string('overlay_timer_mode')->default('realtime');
+            }
+            if (!Schema::hasColumn('live_channels', 'overlay_timer_font_size')) {
+                $table->integer('overlay_timer_font_size')->default(24);
+            }
+            if (!Schema::hasColumn('live_channels', 'overlay_timer_color')) {
+                $table->string('overlay_timer_color')->default('#FFFFFF');
+            }
+            if (!Schema::hasColumn('live_channels', 'overlay_timer_style')) {
+                $table->string('overlay_timer_style')->default('normal');
+            }
+            if (!Schema::hasColumn('live_channels', 'overlay_timer_bg')) {
+                $table->string('overlay_timer_bg')->default('none');
+            }
+            if (!Schema::hasColumn('live_channels', 'overlay_timer_opacity')) {
+                $table->float('overlay_timer_opacity')->default(100);
+            }
+            if (!Schema::hasColumn('live_channels', 'overlay_logo_height')) {
+                $table->integer('overlay_logo_height')->default(100);
             }
 
             // Overlay: Safe margin
@@ -140,11 +182,19 @@ return new class extends Migration
                 'overlay_logo_x',
                 'overlay_logo_y',
                 'overlay_logo_width',
+                'overlay_logo_height',
                 'overlay_logo_opacity',
                 'overlay_text_enabled',
                 'overlay_text_content',
                 'overlay_text_custom',
                 'overlay_text_font_size',
+                'overlay_text_font_family',
+                'overlay_text_color',
+                'overlay_text_padding',
+                'overlay_text_position',
+                'overlay_text_x',
+                'overlay_text_y',
+                'overlay_text_opacity',
                 'overlay_text_bg_opacity',
                 'overlay_text_bg_color',
                 'overlay_timer_enabled',
@@ -152,6 +202,12 @@ return new class extends Migration
                 'overlay_timer_position',
                 'overlay_timer_x',
                 'overlay_timer_y',
+                'overlay_timer_mode',
+                'overlay_timer_font_size',
+                'overlay_timer_color',
+                'overlay_timer_style',
+                'overlay_timer_bg',
+                'overlay_timer_opacity',
                 'overlay_safe_margin',
             ]);
         });
