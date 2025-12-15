@@ -453,16 +453,15 @@ class LiveChannelController extends Controller
 
             // Check if there are encoded TS files
             $outputDir = storage_path("app/streams/{$channel->id}");
-            $encodedFiles = glob("{$outputDir}/video_*.ts");
+            $encodedFiles = glob("{$outputDir}/video_*.ts") ?? [];
 
             // Determine which command to use
             if (!empty($encodedFiles)) {
                 // PLAY MODE: Use pre-encoded TS files
-                $ffmpegCommand = $engine->generatePlayCommand(loop: true);
-                $mode = 'PLAY (from encoded)';
+                $ffmpegCommand = $engine->generatePlayCommand(loop: false);  // Not looping for single start
+                $mode = 'PLAY (from ' . count($encodedFiles) . ' encoded TS files)';
             } else {
-                // DIRECT MODE: Encode on-the-fly from original videos
-                // This is fallback if user didn't encode first
+                // FALLBACK MODE: Encode on-the-fly from original videos
                 $ffmpegCommand = $engine->generateCommand(includeOverlay: true);
                 $mode = 'DIRECT (real-time encode)';
             }
@@ -893,7 +892,39 @@ PHP;
             ], 500);
         }
     }
-}
 
+    /**
+     * Check if encoded TS files exist for channel
+     */
+    public function checkEncodedFiles(LiveChannel $channel)
+    {
+        try {
+            $outputDir = storage_path("app/streams/{$channel->id}");
+            $encodedFiles = [];
+
+            if (is_dir($outputDir)) {
+                $encodedFiles = glob("{$outputDir}/video_*.ts") ?? [];
+            }
+
+            $hasEncoded = count($encodedFiles) > 0;
+
+            return response()->json([
+                'status' => 'success',
+                'has_encoded' => $hasEncoded,
+                'encoded_count' => count($encodedFiles),
+                'files' => array_map('basename', $encodedFiles),
+                'message' => $hasEncoded 
+                    ? count($encodedFiles) . ' encoded TS files ready' 
+                    : 'No encoded files. Click "Encode All to TS" first.',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'has_encoded' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+}
 
 

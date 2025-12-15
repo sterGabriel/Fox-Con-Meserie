@@ -100,6 +100,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/vod-channels/{channel}/engine/encoding-jobs', [LiveChannelController::class, 'getEncodingJobs'])
         ->name('vod-channels.engine.encoding-jobs');
 
+    Route::get('/vod-channels/{channel}/engine/check-encoded', [LiveChannelController::class, 'checkEncodedFiles'])
+        ->name('vod-channels.engine.check-encoded');
+
     // PREVIEW FFMPEG COMMAND
     Route::post('/vod-channels/{channel}/preview-ffmpeg', [LiveChannelController::class, 'previewFFmpeg'])
         ->name('vod-channels.preview-ffmpeg');
