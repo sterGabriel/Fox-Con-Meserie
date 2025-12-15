@@ -22,6 +22,19 @@
             <button type="button" id="btn-stop" disabled class="flex-1 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition font-semibold">
                 ❚❚ STOP CHANNEL
             </button>
+            <button type="button" id="btn-test-preview" class="flex-1 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-semibold">
+                🎥 TEST OVERLAY (10s)
+            </button>
+        </div>
+
+        <!-- Preview Video Player -->
+        <div id="preview-container" class="hidden p-4 bg-slate-800/20 border border-slate-600/20 rounded-lg">
+            <p class="text-sm text-slate-400 mb-3">Preview (10 seconds with overlay)</p>
+            <video id="preview-video" width="100%" controls class="rounded-lg bg-slate-900">
+                <source src="" type="video/mp4">
+                Your browser does not support video playback.
+            </video>
+            <p class="text-xs text-slate-500 mt-2">This 10-second preview shows how your overlay will look on the stream.</p>
         </div>
 
         <!-- Encoding Progress -->
@@ -57,6 +70,7 @@
 <script>
 const btnStart = document.getElementById('btn-start');
 const btnStop = document.getElementById('btn-stop');
+const btnTestPreview = document.getElementById('btn-test-preview');
 const statusEl = document.getElementById('channel-status');
 const logViewer = document.getElementById('log-viewer');
 const progressBar = document.getElementById('progress-bar');
@@ -64,57 +78,165 @@ const progressText = document.getElementById('progress-text');
 const currentEncodingEl = document.getElementById('current-encoding');
 const btnClearLog = document.getElementById('btn-clear-log');
 const btnDownloadLog = document.getElementById('btn-download-log');
+const previewContainer = document.getElementById('preview-container');
+const previewVideo = document.getElementById('preview-video');
 
-let isRunning = false;
-let logLines = [];
+const channelId = {{ $channel->id }};
+let statusCheckInterval = null;
 
 function addLog(message) {
     const timestamp = new Date().toLocaleTimeString();
-    logLines.push(`[${timestamp}] ${message}`);
-    if (logLines.length > 100) logLines.shift();
+    const line = `[${timestamp}] ${message}`;
+    const newDiv = document.createElement('div');
+    newDiv.textContent = line;
+    logViewer.appendChild(newDiv);
     
-    logViewer.innerHTML = logLines.map(l => `<div>${l}</div>`).join('');
+    // Keep only last 100 lines
+    const lines = logViewer.querySelectorAll('div');
+    if (lines.length > 100) {
+        lines[0].remove();
+    }
+    
     logViewer.scrollTop = logViewer.scrollHeight;
+}
+
+function updateStatus() {
+    fetch(`/vod-channels/${channelId}/engine/status`, { method: 'GET' })
+        .then(r => r.json())
+        .then(data => {
+            const status = data.status;
+            
+            if (status.is_running) {
+                statusEl.innerHTML = '🟢 LIVE STREAMING';
+                statusEl.className = 'text-2xl font-bold text-green-400 mt-1';
+                btnStart.disabled = true;
+                btnStop.disabled = false;
+            } else {
+                statusEl.innerHTML = '⚫ IDLE';
+                statusEl.className = 'text-2xl font-bold text-slate-100 mt-1';
+                btnStart.disabled = false;
+                btnStop.disabled = true;
+            }
+            
+            // Update logs
+            if (data.logs) {
+                logViewer.innerHTML = '';
+                data.logs.split('\n').forEach(line => {
+                    if (line.trim()) {
+                        const div = document.createElement('div');
+                        div.textContent = line;
+                        logViewer.appendChild(div);
+                    }
+                });
+                logViewer.scrollTop = logViewer.scrollHeight;
+            }
+        })
+        .catch(err => {
+            console.error('Status check failed:', err);
+        });
 }
 
 btnStart.addEventListener('click', function(e) {
     e.preventDefault();
-    isRunning = true;
     btnStart.disabled = true;
-    btnStop.disabled = false;
-    statusEl.innerHTML = '🟢 LIVE STREAMING';
-    statusEl.className = 'text-2xl font-bold text-green-400 mt-1';
-    addLog('Channel started successfully');
-    addLog('FFmpeg process launched');
-    addLog('Stream available at both HLS and TS outputs');
+    
+    fetch(`/vod-channels/${channelId}/engine/start`, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                addLog('✅ Channel started successfully (PID: ' + data.pid + ')');
+                addLog('FFmpeg process is now encoding');
+                statusEl.innerHTML = '🟢 LIVE STREAMING';
+                statusEl.className = 'text-2xl font-bold text-green-400 mt-1';
+                btnStop.disabled = false;
+                
+                // Start status updates
+                if (statusCheckInterval) clearInterval(statusCheckInterval);
+                statusCheckInterval = setInterval(updateStatus, 2000);
+            } else {
+                addLog('❌ Failed to start: ' + data.message);
+                btnStart.disabled = false;
+            }
+        })
+        .catch(err => {
+            addLog('❌ Error: ' + err.message);
+            btnStart.disabled = false;
+        });
 });
 
 btnStop.addEventListener('click', function(e) {
     e.preventDefault();
-    isRunning = false;
-    btnStart.disabled = false;
     btnStop.disabled = true;
-    statusEl.innerHTML = '⚫ IDLE';
-    statusEl.className = 'text-2xl font-bold text-slate-100 mt-1';
-    addLog('Channel stopped');
+    
+    fetch(`/vod-channels/${channelId}/engine/stop`, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                addLog('✅ Channel stopped gracefully');
+                statusEl.innerHTML = '⚫ IDLE';
+                statusEl.className = 'text-2xl font-bold text-slate-100 mt-1';
+                btnStart.disabled = false;
+                
+                // Stop status updates
+                if (statusCheckInterval) clearInterval(statusCheckInterval);
+            } else {
+                addLog('❌ Failed to stop: ' + data.message);
+                btnStop.disabled = false;
+            }
+        })
+        .catch(err => {
+            addLog('❌ Error: ' + err.message);
+            btnStop.disabled = false;
+        });
 });
 
 btnClearLog.addEventListener('click', function() {
-    logLines = [];
     logViewer.innerHTML = '<div class="text-slate-600">[System] Log cleared</div>';
-    logLines.push('[System] Log cleared');
+    addLog('Log cleared by user');
 });
 
 btnDownloadLog.addEventListener('click', function() {
-    const text = logLines.join('\n');
+    const text = Array.from(logViewer.querySelectorAll('div'))
+        .map(el => el.textContent)
+        .join('\n');
     const blob = new Blob([text], { type: 'text/plain' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `channel-{{ $channel->id }}-log-${Date.now()}.txt`;
+    a.download = `channel-${channelId}-log-${Date.now()}.txt`;
     a.click();
+    window.URL.revokeObjectURL(url);
+});
+
+btnTestPreview.addEventListener('click', function(e) {
+    e.preventDefault();
+    btnTestPreview.disabled = true;
+    addLog('🎥 Generating 10-second preview with overlay...');
+    
+    fetch(`/vod-channels/${channelId}/engine/test-preview`, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                addLog('✅ Preview generated successfully');
+                previewVideo.src = data.preview_url;
+                previewContainer.classList.remove('hidden');
+            } else {
+                addLog('❌ Preview failed: ' + data.message);
+            }
+            btnTestPreview.disabled = false;
+        })
+        .catch(err => {
+            addLog('❌ Error generating preview: ' + err.message);
+            btnTestPreview.disabled = false;
+        });
 });
 
 // Initialize
-addLog('Engine ready');
+addLog('🔧 Engine ready - configure and start channel');
+updateStatus();
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+    if (statusCheckInterval) clearInterval(statusCheckInterval);
+});
 </script>

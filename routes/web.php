@@ -73,6 +73,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/vod-channels/{channel}/settings', [LiveChannelController::class, 'updateSettings'])
         ->name('vod-channels.settings.update');
 
+    // ENGINE CONTROL - START / STOP / STATUS
+    Route::post('/vod-channels/{channel}/engine/start', [LiveChannelController::class, 'startChannel'])
+        ->name('vod-channels.engine.start');
+
+    Route::post('/vod-channels/{channel}/engine/stop', [LiveChannelController::class, 'stopChannel'])
+        ->name('vod-channels.engine.stop');
+
+    Route::get('/vod-channels/{channel}/engine/status', [LiveChannelController::class, 'channelStatus'])
+        ->name('vod-channels.engine.status');
+
+    Route::post('/vod-channels/{channel}/engine/test-preview', [LiveChannelController::class, 'testPreview'])
+        ->name('vod-channels.engine.test-preview');
+
     // PREVIEW FFMPEG COMMAND
     Route::post('/vod-channels/{channel}/preview-ffmpeg', [LiveChannelController::class, 'previewFFmpeg'])
         ->name('vod-channels.preview-ffmpeg');

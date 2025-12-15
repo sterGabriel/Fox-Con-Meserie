@@ -1,0 +1,416 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\LiveChannel;
+use App\Models\EncodingJob;
+use Illuminate\Support\Facades\Log;
+use Symfony\Component\Process\Process;
+use Symfony\Component\Process\Exception\ProcessFailedException;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Storage;
+
+/**
+ * ChannelEngineService
+ * 
+ * Manages ffmpeg process lifecycle for live streaming:
+ * - Start/Stop channel encoding
+ * - Monitor process status and health
+ * - Write logs and manage output files
+ * - Handle errors and cleanup
+ */
+class ChannelEngineService
+{
+    protected LiveChannel $channel;
+    protected ?Process $process = null;
+    protected string $logPath;
+    protected string $pidFile;
+    protected string $outputDir;
+
+    public function __construct(LiveChannel $channel)
+    {
+        $this->channel = $channel;
+        $this->outputDir = storage_path("app/streams/{$channel->id}");
+        $this->logPath = storage_path("logs/channel_{$channel->id}.log");
+        $this->pidFile = storage_path("app/pids/{$channel->id}.pid");
+        
+        // Ensure directories exist
+        @mkdir($this->outputDir, 0755, true);
+        @mkdir(dirname($this->pidFile), 0755, true);
+    }
+
+    /**
+     * Start channel encoding
+     * Builds and executes ffmpeg command with proper output handling
+     */
+    public function start(string $ffmpegCommand): array
+    {
+        try {
+            // Check if already running
+            if ($this->isRunning()) {
+                return ['status' => 'error', 'message' => 'Channel already running'];
+            }
+
+            // Create encoding job record
+            $job = EncodingJob::create([
+                'channel_id' => $this->channel->id,
+                'ffmpeg_command' => $ffmpegCommand,
+                'status' => 'queued',
+                'log_path' => $this->logPath,
+                'started_at' => Carbon::now(),
+            ]);
+
+            // Prepare process
+            $process = Process::fromShellCommandline($ffmpegCommand);
+            $process->setTimeout(null); // No timeout for streaming
+            $process->setIdleTimeout(null);
+
+            // Start process in background
+            $process->start(function($type, $buffer) {
+                $this->appendLog($buffer);
+            });
+
+            // Save PID
+            $this->savePid($process->getPid());
+
+            // Update job
+            $job->update([
+                'status' => 'running',
+                'pid' => $process->getPid(),
+            ]);
+
+            // Update channel
+            $this->channel->update([
+                'status' => 'live',
+                'encoder_pid' => $process->getPid(),
+                'started_at' => Carbon::now(),
+            ]);
+
+            Log::info("Channel {$this->channel->id} started with PID {$process->getPid()}");
+
+            return [
+                'status' => 'success',
+                'message' => 'Channel started',
+                'pid' => $process->getPid(),
+                'job_id' => $job->id,
+            ];
+
+        } catch (\Exception $e) {
+            Log::error("Failed to start channel {$this->channel->id}: {$e->getMessage()}");
+            
+            $this->channel->update(['status' => 'error']);
+            
+            return [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Stop channel encoding
+     * Graceful shutdown with SIGTERM, then SIGKILL if needed
+     */
+    public function stop(): array
+    {
+        try {
+            $pid = $this->readPid();
+
+            if (!$pid || !$this->isRunning($pid)) {
+                $this->channel->update(['status' => 'idle']);
+                return ['status' => 'success', 'message' => 'Channel already stopped'];
+            }
+
+            // Send SIGTERM (graceful shutdown)
+            posix_kill($pid, SIGTERM);
+            
+            // Wait up to 5 seconds for graceful shutdown
+            $waited = 0;
+            while ($this->isRunning($pid) && $waited < 5) {
+                usleep(500000); // 0.5 seconds
+                $waited++;
+            }
+
+            // Force kill if still running
+            if ($this->isRunning($pid)) {
+                posix_kill($pid, SIGKILL);
+                usleep(500000);
+                Log::warning("Force killed channel {$this->channel->id} (PID $pid)");
+            }
+
+            // Clean up
+            $this->deletePid();
+            
+            // Update channel
+            $this->channel->update([
+                'status' => 'idle',
+                'encoder_pid' => null,
+                'started_at' => null,
+            ]);
+
+            // Update job
+            EncodingJob::where('pid', $pid)
+                ->where('status', 'running')
+                ->update([
+                    'status' => 'done',
+                    'ended_at' => Carbon::now(),
+                    'exit_code' => 0,
+                ]);
+
+            Log::info("Channel {$this->channel->id} stopped");
+
+            return [
+                'status' => 'success',
+                'message' => 'Channel stopped',
+            ];
+
+        } catch (\Exception $e) {
+            Log::error("Failed to stop channel {$this->channel->id}: {$e->getMessage()}");
+            
+            return [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Check if channel is currently running
+     */
+    public function isRunning(?int $pid = null): bool
+    {
+        $pid = $pid ?? $this->readPid();
+
+        if (!$pid) {
+            return false;
+        }
+
+        // Check if process exists
+        return posix_getpid() === $pid || posix_kill($pid, 0);
+    }
+
+    /**
+     * Get current status
+     */
+    public function getStatus(): array
+    {
+        $pid = $this->readPid();
+        $isRunning = $this->isRunning($pid);
+
+        return [
+            'status' => $isRunning ? 'live' : 'idle',
+            'pid' => $isRunning ? $pid : null,
+            'is_running' => $isRunning,
+            'started_at' => $this->channel->started_at,
+            'log_path' => $this->logPath,
+        ];
+    }
+
+    /**
+     * Get recent log lines
+     */
+    public function getLogTail(int $lines = 100): string
+    {
+        if (!file_exists($this->logPath)) {
+            return "[System] Log file not created yet";
+        }
+
+        $file = file_get_contents($this->logPath);
+        $logLines = array_filter(explode("\n", $file));
+        $tail = array_slice($logLines, -$lines);
+
+        return implode("\n", $tail);
+    }
+
+    /**
+     * Clear log file
+     */
+    public function clearLog(): bool
+    {
+        return file_put_contents($this->logPath, '') !== false;
+    }
+
+    /**
+     * Download log file
+     */
+    public function downloadLog(): string
+    {
+        return $this->logPath;
+    }
+
+    /**
+     * Append to log file
+     */
+    protected function appendLog(string $message): void
+    {
+        $timestamp = date('Y-m-d H:i:s');
+        $logMessage = "[$timestamp] $message\n";
+        file_put_contents($this->logPath, $logMessage, FILE_APPEND);
+    }
+
+    /**
+     * Save process PID to file
+     */
+    protected function savePid(int $pid): void
+    {
+        file_put_contents($this->pidFile, $pid);
+    }
+
+    /**
+     * Read process PID from file
+     */
+    protected function readPid(): ?int
+    {
+        if (!file_exists($this->pidFile)) {
+            return null;
+        }
+
+        $pid = (int) file_get_contents($this->pidFile);
+        return $pid > 0 ? $pid : null;
+    }
+
+    /**
+     * Delete PID file
+     */
+    protected function deletePid(): void
+    {
+        @unlink($this->pidFile);
+    }
+
+    /**
+     * Generate FFmpeg command for channel
+     */
+    public function generateCommand(bool $includeOverlay = true): string
+    {
+        $playlist = $this->channel->playlistItems()
+            ->orderBy('sort_order')
+            ->get();
+
+        if ($playlist->isEmpty()) {
+            throw new \Exception('Channel has no videos');
+        }
+
+        // Get first video for input
+        $firstVideo = $playlist->first()->video;
+        $inputFile = $firstVideo->file_path;
+
+        if (!file_exists($inputFile)) {
+            throw new \Exception("Video file not found: $inputFile");
+        }
+
+        // Get encoding profile
+        $profile = $this->channel->encodeProfile;
+        if (!$profile) {
+            // Use default LIVE profile
+            $profile = \App\Models\EncodeProfile::where('mode', 'LIVE')
+                ->where('container', 'mpegts')
+                ->first();
+        }
+
+        // Base input and output paths
+        $tsOutput = "{$this->outputDir}/stream.ts";
+        $hlsOutput = "{$this->outputDir}/stream.m3u8";
+
+        // Build filter complex for overlay
+        $filterComplex = $this->buildFilterComplex($includeOverlay);
+
+        // Build FFmpeg command
+        $cmd = [
+            'ffmpeg',
+            '-re', // Read at input rate (for streaming)
+            '-i', escapeshellarg($inputFile),
+        ];
+
+        if (!empty($filterComplex)) {
+            $cmd = array_merge($cmd, ['-filter_complex', escapeshellarg($filterComplex)]);
+        }
+
+        // Codec and encoding settings
+        $cmd = array_merge($cmd, [
+            '-c:v', $profile->codec ?? 'libx264',
+            '-preset', $profile->preset ?? 'medium',
+            '-b:v', ($profile->video_bitrate ?? 1500) . 'k',
+            '-maxrate', ($profile->maxrate ?? 1875) . 'k',
+            '-bufsize', ($profile->bufsize ?? 3750) . 'k',
+            '-c:a', $profile->audio_codec ?? 'aac',
+            '-b:a', ($profile->audio_bitrate ?? 128) . 'k',
+            '-ar', $profile->audio_rate ?? 48000,
+            '-ac', $profile->channels ?? 2,
+        ]);
+
+        // Add LIVE specific flags
+        $cmd = array_merge($cmd, [
+            '-f', 'mpegts',
+            '-muxdelay', '0.1',
+            '-muxpreload', '0.1',
+            escapeshellarg($tsOutput),
+        ]);
+
+        return implode(' ', $cmd);
+    }
+
+    /**
+     * Build FFmpeg filter complex string for overlays
+     */
+    public function buildFilterComplex(bool $includeOverlay): string
+    {
+        if (!$includeOverlay || (!$this->channel->overlay_logo_enabled && !$this->channel->overlay_text_enabled && !$this->channel->overlay_timer_enabled)) {
+            return '';
+        }
+
+        $filters = [];
+
+        // Start with scale/pad to ensure consistent output
+        $filters[] = "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease:force_divisible_by=2[scaled]";
+        $filters[] = "[scaled]pad=1920:1080:(ow-iw)/2:(oh-ih)/2[padded]";
+
+        $lastLabel = '[padded]';
+        $filterNum = 0;
+
+        // Add logo
+        if ($this->channel->overlay_logo_enabled && $this->channel->overlay_logo_path) {
+            // Logo overlay (complex, requires image overlay)
+            // For now, simplified version
+            $filterNum++;
+            $lastLabel = "[padded]"; // Skip for now, too complex
+        }
+
+        // Add text
+        if ($this->channel->overlay_text_enabled) {
+            $text = match ($this->channel->overlay_text_content) {
+                'channel_name' => $this->channel->name,
+                'title' => '{metadata\\:comment}', // Placeholder
+                default => $this->channel->overlay_text_custom ?? 'LIVE',
+            };
+
+            $x = $this->channel->overlay_text_x ?? 20;
+            $y = $this->channel->overlay_text_y ?? 20;
+            $fontSize = $this->channel->overlay_text_font_size ?? 24;
+            $color = $this->channel->overlay_text_color ?? 'white';
+
+            $filterNum++;
+            $newLabel = "[txt{$filterNum}]";
+            $filters[] = "{$lastLabel}drawtext=text='{$text}':fontsize={$fontSize}:fontcolor={$color}:x={$x}:y={$y}{$newLabel}";
+            $lastLabel = $newLabel;
+        }
+
+        // Add timer
+        if ($this->channel->overlay_timer_enabled) {
+            $x = $this->channel->overlay_timer_x ?? 1920 - 100;
+            $y = $this->channel->overlay_timer_y ?? 20;
+            $fontSize = $this->channel->overlay_timer_font_size ?? 24;
+            $color = $this->channel->overlay_timer_color ?? 'white';
+
+            $filterNum++;
+            $newLabel = "[timer{$filterNum}]";
+            // Use timecode for elapsed time
+            $filters[] = "{$lastLabel}drawtext=text='%{pts\\:hms}':fontsize={$fontSize}:fontcolor={$color}:x={$x}:y={$y}{$newLabel}";
+            $lastLabel = $newLabel;
+        }
+
+        // Format output
+        $filters[] = "{$lastLabel}format=yuv420p[out]";
+
+        return implode(';', $filters);
+    }
+}

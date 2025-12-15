@@ -435,4 +435,169 @@ class LiveChannelController extends Controller
             ], 500);
         }
     }
+
+    public function startChannel(Request $request, LiveChannel $channel)
+    {
+        try {
+            $engine = new \App\Services\ChannelEngineService($channel);
+
+            // Check if already running
+            if ($engine->isRunning()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Channel is already running'
+                ], 400);
+            }
+
+            // Generate FFmpeg command
+            $ffmpegCommand = $engine->generateCommand(includeOverlay: true);
+
+            // Start the channel
+            $result = $engine->start($ffmpegCommand);
+
+            return response()->json($result);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function stopChannel(Request $request, LiveChannel $channel)
+    {
+        try {
+            $engine = new \App\Services\ChannelEngineService($channel);
+
+            $result = $engine->stop();
+
+            return response()->json($result);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function channelStatus(Request $request, LiveChannel $channel)
+    {
+        try {
+            $engine = new \App\Services\ChannelEngineService($channel);
+            $status = $engine->getStatus();
+            $logs = $engine->getLogTail(50);
+
+            return response()->json([
+                'status' => $status,
+                'logs' => $logs,
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function testPreview(Request $request, LiveChannel $channel)
+    {
+        try {
+            // Get first video from playlist
+            $firstVideo = $channel->playlistItems()
+                ->orderBy('sort_order')
+                ->first();
+
+            if (!$firstVideo) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'No videos in playlist'
+                ], 400);
+            }
+
+            $video = $firstVideo->video;
+            $inputFile = $video->file_path;
+
+            if (!file_exists($inputFile)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Video file not found'
+                ], 400);
+            }
+
+            // Create preview output path
+            $previewDir = storage_path("app/previews/{$channel->id}");
+            @mkdir($previewDir, 0755, true);
+            $outputFile = "{$previewDir}/preview_" . time() . ".mp4";
+
+            // Generate FFmpeg command for 10s preview with overlay
+            $engine = new \App\Services\ChannelEngineService($channel);
+            $filterComplex = $engine->buildFilterComplex(includeOverlay: true);
+
+            // Build command: 10 seconds only, with overlay
+            $cmd = [
+                'ffmpeg',
+                '-i', escapeshellarg($inputFile),
+                '-t', '10',  // Only 10 seconds
+            ];
+
+            if (!empty($filterComplex)) {
+                $cmd = array_merge($cmd, [
+                    '-filter_complex', escapeshellarg($filterComplex),
+                    '-map', '[out]',  // Use filter output
+                ]);
+            } else {
+                $cmd = array_merge($cmd, ['-map', '0:v']);
+            }
+
+            // Add audio and encoding settings
+            $cmd = array_merge($cmd, [
+                '-c:a', 'aac',
+                '-b:a', '128k',
+                '-c:v', 'libx264',
+                '-preset', 'medium',
+                '-b:v', '1500k',
+                '-y', // Overwrite output
+                escapeshellarg($outputFile),
+            ]);
+
+            $shellCmd = implode(' ', $cmd);
+
+            // Execute synchronously (not in background)
+            $process = new \Symfony\Component\Process\Process(
+                explode(' ', str_replace("'", '', $shellCmd))
+            );
+            $process->setTimeout(30);
+            $process->run();
+
+            if (!$process->isSuccessful()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'FFmpeg error: ' . $process->getErrorOutput()
+                ], 500);
+            }
+
+            if (!file_exists($outputFile)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Preview file not created'
+                ], 500);
+            }
+
+            // Return preview URL
+            return response()->json([
+                'status' => 'success',
+                'preview_url' => "/storage/previews/{$channel->id}/" . basename($outputFile),
+                'preview_file' => basename($outputFile),
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
 }
