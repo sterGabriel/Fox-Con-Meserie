@@ -34,11 +34,20 @@
                             @endif
                         </td>
                         <td class="py-3 px-4">
-                            <form action="{{ route('vod-channels.playlist.remove', [$channel, $item]) }}" method="POST" style="display: inline;" onsubmit="return confirm('Remove from playlist?');">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="text-red-400 hover:text-red-300 text-xs font-medium transition">Remove</button>
-                            </form>
+                            <div class="flex gap-2 items-center">
+                                <button 
+                                    type="button"
+                                    class="text-blue-400 hover:text-blue-300 text-xs font-medium transition"
+                                    onclick="showVideoInfo({{ $item->video->id }})"
+                                >
+                                    ℹ️ Info
+                                </button>
+                                <form action="{{ route('vod-channels.playlist.remove', [$channel, $item]) }}" method="POST" style="display: inline;" onsubmit="return confirm('Remove from playlist?');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="text-red-400 hover:text-red-300 text-xs font-medium transition">Remove</button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                 @empty

@@ -140,6 +140,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/videos', [VideoController::class, 'index'])
         ->name('videos.index');
 
+    Route::get('/videos/{video}/info', [VideoController::class, 'getInfo'])
+        ->name('videos.info');
+
     Route::get('/videos/create', [VideoController::class, 'create'])
         ->name('videos.create');
 

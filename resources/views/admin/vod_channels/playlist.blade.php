@@ -42,6 +42,13 @@
                                 <td class="px-4 py-3 text-slate-400">{{ $item->sort_order }}</td>
                                 <td>
                                     <div class="flex gap-1">
+                                        {{-- INFO --}}
+                                        <button
+                                            type="button"
+                                            class="inline-flex items-center rounded px-2 py-1 text-xs font-medium text-blue-300 hover:bg-blue-500/20 transition"
+                                            onclick="showVideoInfo({{ optional($item->video)->id ?? 0 }})"
+                                        >ℹ️</button>
+
                                         {{-- UP --}}
                                         <form method="POST"
                                               action="{{ route('vod-channels.playlist.move-up', [$channel, $item]) }}">
@@ -345,5 +352,118 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     hidden.value = ids.join(',');
   });
+
+  // ═══════════════════════════════════════════════════════════
+  // VIDEO INFO MODAL
+  // ═══════════════════════════════════════════════════════════
+  window.showVideoInfo = async function(videoId) {
+    if (!videoId) {
+      alert('Invalid video ID');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/videos/${videoId}/info`);
+      const data = await response.json();
+
+      if (!data.success) {
+        alert('Error loading video info: ' + data.error);
+        return;
+      }
+
+      const video = data.video;
+      const modal = document.getElementById('videoInfoModal');
+      const content = document.getElementById('videoInfoContent');
+
+      let videoHtml = '';
+      let audioHtml = '';
+
+      if (video.metadata && video.metadata.video) {
+        const v = video.metadata.video;
+        videoHtml = `
+          <div class="mt-4">
+            <h4 class="font-semibold text-slate-300 mb-2">🎬 Video Stream</h4>
+            <dl class="grid grid-cols-2 gap-2 text-sm">
+              <dt class="text-slate-400">Codec:</dt>
+              <dd class="text-white font-mono">${v.codec || 'unknown'}</dd>
+              <dt class="text-slate-400">Resolution:</dt>
+              <dd class="text-white font-mono">${v.width || 0}×${v.height || 0}</dd>
+              <dt class="text-slate-400">FPS:</dt>
+              <dd class="text-white font-mono">${v.fps || 0}</dd>
+              <dt class="text-slate-400">Bitrate:</dt>
+              <dd class="text-white font-mono">${v.bitrate ? Math.round(v.bitrate/1000) + ' kbps' : 'N/A'}</dd>
+            </dl>
+          </div>
+        `;
+      }
+
+      if (video.metadata && video.metadata.audio) {
+        const a = video.metadata.audio;
+        audioHtml = `
+          <div class="mt-4">
+            <h4 class="font-semibold text-slate-300 mb-2">🔊 Audio Stream</h4>
+            <dl class="grid grid-cols-2 gap-2 text-sm">
+              <dt class="text-slate-400">Codec:</dt>
+              <dd class="text-white font-mono">${a.codec || 'unknown'}</dd>
+              <dt class="text-slate-400">Channels:</dt>
+              <dd class="text-white font-mono">${a.channels || 0}</dd>
+              <dt class="text-slate-400">Sample Rate:</dt>
+              <dd class="text-white font-mono">${a.sample_rate || 'unknown'}</dd>
+              <dt class="text-slate-400">Bitrate:</dt>
+              <dd class="text-white font-mono">${a.bitrate || 'N/A'}</dd>
+            </dl>
+          </div>
+        `;
+      }
+
+      content.innerHTML = `
+        <div class="space-y-4">
+          <div>
+            <h3 class="text-lg font-bold text-white mb-2">${video.title}</h3>
+            <p class="text-xs text-slate-500 mb-2">ID: ${video.id}</p>
+            <p class="text-sm text-slate-400">Duration: <span class="text-white font-mono">${video.duration || '--:--:--'}</span></p>
+            <p class="text-sm text-slate-400">Category: <span class="text-white font-mono">${video.category}</span></p>
+          </div>
+          <div class="border-t border-slate-700/50 pt-4">
+            <p class="text-xs text-slate-500 mb-2">File path:</p>
+            <p class="text-xs text-slate-300 font-mono bg-slate-900/50 p-2 rounded overflow-x-auto">${video.file_path}</p>
+          </div>
+          ${videoHtml}
+          ${audioHtml}
+        </div>
+      `;
+
+      modal.classList.remove('hidden');
+    } catch (error) {
+      alert('Error fetching video info: ' + error.message);
+    }
+  };
+
+  document.getElementById('videoInfoModal')?.addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) {
+      e.currentTarget.classList.add('hidden');
+    }
+  });
+
+  document.getElementById('closeVideoInfoBtn')?.addEventListener('click', () => {
+    document.getElementById('videoInfoModal').classList.add('hidden');
+  });
 });
 </script>
+
+<!-- Video Info Modal -->
+<div id="videoInfoModal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 overflow-y-auto">
+  <div class="bg-slate-800 border border-slate-700 rounded-lg max-w-2xl w-full my-6">
+    <div class="sticky top-0 bg-slate-800 border-b border-slate-700 px-6 py-4 flex items-center justify-between">
+      <h3 class="text-lg font-semibold text-white">📊 Video Information</h3>
+      <button 
+        id="closeVideoInfoBtn"
+        type="button"
+        class="text-slate-400 hover:text-white text-2xl transition"
+      >×</button>
+    </div>
+    <div id="videoInfoContent" class="p-6 max-h-96 overflow-y-auto">
+      <!-- Content loaded by JS -->
+    </div>
+  </div>
+</div>

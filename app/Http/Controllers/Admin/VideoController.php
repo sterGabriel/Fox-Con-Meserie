@@ -219,5 +219,35 @@ class VideoController extends Controller
             ], 500);
         }
     }
-}
 
+    /**
+     * Get video metadata for modal display
+     */
+    public function getInfo(Video $video)
+    {
+        try {
+            $metadata = [];
+
+            if ($video->metadata) {
+                $metadata = is_string($video->metadata) ? json_decode($video->metadata, true) : $video->metadata;
+            }
+
+            return response()->json([
+                'success' => true,
+                'video' => [
+                    'id' => $video->id,
+                    'title' => $video->title,
+                    'file_path' => $video->file_path,
+                    'duration' => $video->duration,
+                    'category' => $video->category?->name ?? 'Uncategorized',
+                    'metadata' => $metadata,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+}
