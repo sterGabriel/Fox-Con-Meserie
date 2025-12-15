@@ -656,5 +656,49 @@ class LiveChannelController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Start channel with 24/7 looping (concat demuxer)
+     */
+    public function startChannelWithLooping(Request $request, LiveChannel $channel)
+    {
+        try {
+            $engine = new \App\Services\ChannelEngineService($channel);
+
+            // Check if already running
+            if ($engine->isRunning($channel->encoder_pid)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Channel already running',
+                ], 409);
+            }
+
+            // Generate looping command (uses concat demuxer)
+            $ffmpegCommand = $engine->generateLoopingCommand(includeOverlay: true);
+
+            // Start the channel with looping
+            $result = $engine->start($ffmpegCommand);
+
+            if ($result['status'] === 'success') {
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Channel started with 24/7 looping',
+                    'mode' => '24/7 LOOPING',
+                    'pid' => $result['pid'],
+                    'job_id' => $result['job_id'],
+                ]);
+            } else {
+                return response()->json($result, 400);
+            }
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Failed to start looping channel: {$e->getMessage()}");
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
 }
+
 

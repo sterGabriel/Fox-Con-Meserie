@@ -15,14 +15,17 @@
         </div>
 
         <!-- Control Buttons -->
-        <div class="flex gap-3">
-            <button type="button" id="btn-start" class="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold">
+        <div class="flex gap-3 flex-wrap">
+            <button type="button" id="btn-start" class="flex-1 min-w-[150px] px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold">
                 ▶ START CHANNEL
             </button>
-            <button type="button" id="btn-stop" disabled class="flex-1 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition font-semibold">
+            <button type="button" id="btn-start-looping" class="flex-1 min-w-[150px] px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold" title="Start with 24/7 looping">
+                🔄 START 24/7 LOOP
+            </button>
+            <button type="button" id="btn-stop" disabled class="flex-1 min-w-[150px] px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition font-semibold">
                 ❚❚ STOP CHANNEL
             </button>
-            <button type="button" id="btn-test-preview" class="flex-1 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-semibold">
+            <button type="button" id="btn-test-preview" class="flex-1 min-w-[150px] px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-semibold">
                 🎥 TEST OVERLAY (10s)
             </button>
         </div>
@@ -69,6 +72,7 @@
 
 <script>
 const btnStart = document.getElementById('btn-start');
+const btnStartLooping = document.getElementById('btn-start-looping');
 const btnStop = document.getElementById('btn-stop');
 const btnTestPreview = document.getElementById('btn-test-preview');
 const statusEl = document.getElementById('channel-status');
@@ -139,6 +143,7 @@ function updateStatus() {
 btnStart.addEventListener('click', function(e) {
     e.preventDefault();
     btnStart.disabled = true;
+    btnStartLooping.disabled = true;
     
     fetch(`/vod-channels/${channelId}/engine/start`, { method: 'POST' })
         .then(r => r.json())
@@ -156,11 +161,44 @@ btnStart.addEventListener('click', function(e) {
             } else {
                 addLog('❌ Failed to start: ' + data.message);
                 btnStart.disabled = false;
+                btnStartLooping.disabled = false;
             }
         })
         .catch(err => {
             addLog('❌ Error: ' + err.message);
             btnStart.disabled = false;
+            btnStartLooping.disabled = false;
+        });
+});
+
+btnStartLooping.addEventListener('click', function(e) {
+    e.preventDefault();
+    btnStartLooping.disabled = true;
+    addLog('🔄 Starting 24/7 looping mode...');
+    addLog('📝 Generating concat playlist from channel videos');
+    
+    fetch(`/vod-channels/${channelId}/engine/start-looping`, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                addLog('✅ Channel started with 24/7 looping (PID: ' + data.pid + ')');
+                addLog('🎬 All videos will loop seamlessly');
+                addLog('📊 Mode: ' + data.mode);
+                statusEl.innerHTML = '🔄 24/7 LOOPING';
+                statusEl.className = 'text-2xl font-bold text-blue-400 mt-1';
+                btnStop.disabled = false;
+                
+                // Start status updates
+                if (statusCheckInterval) clearInterval(statusCheckInterval);
+                statusCheckInterval = setInterval(updateStatus, 2000);
+            } else {
+                addLog('❌ Failed to start looping: ' + data.message);
+                btnStartLooping.disabled = false;
+            }
+        })
+        .catch(err => {
+            addLog('❌ Error: ' + err.message);
+            btnStartLooping.disabled = false;
         });
 });
 
@@ -176,6 +214,7 @@ btnStop.addEventListener('click', function(e) {
                 statusEl.innerHTML = '⚫ IDLE';
                 statusEl.className = 'text-2xl font-bold text-slate-100 mt-1';
                 btnStart.disabled = false;
+                btnStartLooping.disabled = false;
                 
                 // Stop status updates
                 if (statusCheckInterval) clearInterval(statusCheckInterval);

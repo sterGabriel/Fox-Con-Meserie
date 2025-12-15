@@ -278,6 +278,121 @@ class ChannelEngineService
     }
 
     /**
+     * Generate concat demuxer playlist for 24/7 looping
+     * Creates a playlist.txt file that references all channel videos
+     * Format: ffmpeg concat demuxer compatible
+     */
+    public function generateConcatPlaylist(bool $infiniteLoop = true): string
+    {
+        $playlistItems = $this->channel->playlistItems()
+            ->orderBy('sort_order')
+            ->get();
+
+        if ($playlistItems->isEmpty()) {
+            throw new \Exception('Channel has no videos for concat playlist');
+        }
+
+        $playlistPath = "{$this->outputDir}/playlist.txt";
+        $playlistContent = "# FFmpeg Concat Demuxer Playlist\n";
+        $playlistContent .= "# Generated for channel: {$this->channel->name}\n\n";
+
+        // Add each video to the playlist
+        foreach ($playlistItems as $item) {
+            $video = $item->video;
+            if (file_exists($video->file_path)) {
+                // Escape path for concat demuxer
+                $escapedPath = str_replace("'", "'\\''", $video->file_path);
+                $playlistContent .= "file '{$escapedPath}'\n";
+                $playlistContent .= "duration {$video->duration}\n\n";
+            }
+        }
+
+        // Write playlist file
+        file_put_contents($playlistPath, $playlistContent);
+        
+        $this->appendLog("Generated concat playlist: {$playlistPath}");
+        
+        return $playlistPath;
+    }
+
+    /**
+     * Generate FFmpeg command with looping support
+     * Uses concat demuxer for seamless 24/7 playback
+     */
+    public function generateLoopingCommand(bool $includeOverlay = true): string
+    {
+        // Generate concat playlist
+        $playlistPath = $this->generateConcatPlaylist();
+
+        // Build filter complex for overlay
+        $filterComplex = $this->buildFilterComplex($includeOverlay);
+
+        // Get encoding profile
+        $profile = $this->channel->encodeProfile;
+        if (!$profile) {
+            // Use default LIVE profile
+            $profile = \App\Models\EncodeProfile::where('mode', 'LIVE')
+                ->where('container', 'mpegts')
+                ->first();
+        }
+
+        // Base input and output paths
+        $tsOutput = "{$this->outputDir}/stream.ts";
+
+        // Create HLS directory
+        @mkdir("{$this->outputDir}/hls", 0755, true);
+
+        // Build FFmpeg command with concat demuxer
+        // The concat demuxer automatically loops through the playlist
+        $cmd = [
+            'ffmpeg',
+            '-f', 'concat',        // Use concat demuxer
+            '-safe', '0',          // Allow absolute paths
+            '-protocol_whitelist', 'file,http,https,tcp,tls,crypto', // Required for concat
+            '-i', escapeshellarg($playlistPath), // Input playlist
+        ];
+
+        if (!empty($filterComplex)) {
+            $cmd = array_merge($cmd, ['-filter_complex', escapeshellarg($filterComplex)]);
+        }
+
+        // Codec and encoding settings
+        $cmd = array_merge($cmd, [
+            '-c:v', $profile->codec ?? 'libx264',
+            '-preset', $profile->preset ?? 'medium',
+            '-b:v', ($profile->video_bitrate ?? 1500) . 'k',
+            '-maxrate', ($profile->maxrate ?? 1875) . 'k',
+            '-bufsize', ($profile->bufsize ?? 3750) . 'k',
+            '-c:a', $profile->audio_codec ?? 'aac',
+            '-b:a', ($profile->audio_bitrate ?? 128) . 'k',
+            '-ar', $profile->audio_rate ?? 48000,
+            '-ac', $profile->channels ?? 2,
+        ]);
+
+        // Add outputs: both TS and HLS from single encode
+        // First output: MPEGTS stream (for Xtream Codes/streaming)
+        $cmd = array_merge($cmd, [
+            '-f', 'mpegts',
+            '-muxdelay', '0.1',
+            '-muxpreload', '0.1',
+            escapeshellarg($tsOutput),
+        ]);
+        
+        // Second output: HLS (for browser playback)
+        // Need to specify the same input streams again
+        $cmd = array_merge($cmd, [
+            '-f', 'hls',
+            '-hls_time', '10',
+            '-hls_list_size', '6',
+            '-hls_flags', 'delete_segments',
+            '-start_number', '0',
+            escapeshellarg("{$this->outputDir}/hls/stream.m3u8"),
+        ]);
+
+        return implode(' ', $cmd);
+    }
+
+    /**
      * Generate FFmpeg command for channel
      */
     public function generateCommand(bool $includeOverlay = true): string

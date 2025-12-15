@@ -89,6 +89,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/vod-channels/{channel}/engine/outputs', [LiveChannelController::class, 'outputStreams'])
         ->name('vod-channels.engine.outputs');
 
+    Route::post('/vod-channels/{channel}/engine/start-looping', [LiveChannelController::class, 'startChannelWithLooping'])
+        ->name('vod-channels.engine.start-looping');
+
     // PREVIEW FFMPEG COMMAND
     Route::post('/vod-channels/{channel}/preview-ffmpeg', [LiveChannelController::class, 'previewFFmpeg'])
         ->name('vod-channels.preview-ffmpeg');
