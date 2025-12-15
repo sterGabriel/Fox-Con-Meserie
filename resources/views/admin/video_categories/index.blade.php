@@ -66,50 +66,54 @@
 
     {{-- EXISTING CATEGORIES --}}
     <div class="rounded-2xl border border-slate-800 bg-slate-900/80 p-6">
-        <h2 class="text-lg font-semibold mb-4">Existing Categories</h2>
+        <h2 class="text-lg font-semibold mb-4">Existing Categories ({{ $categories->count() }})</h2>
 
         @if($categories->isEmpty())
-            <p class="text-sm text-slate-400">No categories yet.</p>
+            <p class="text-sm text-slate-400">No categories yet. <a href="{{ route('video-categories.create') }}" class="text-blue-400 hover:text-blue-300">Create one</a></p>
         @else
-            <table class="min-w-full text-sm">
-                <thead class="bg-slate-900/80">
-                <tr>
-                    <th class="px-4 py-2 text-left text-slate-400">ID</th>
-                    <th class="px-4 py-2 text-left text-slate-400">Name</th>
-                    <th class="px-4 py-2 text-left text-slate-400">Description</th>
-                    <th class="px-4 py-2 text-left text-slate-400">Actions</th>
-                </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-800">
-                @foreach($categories as $category)
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-800/50 border-b border-slate-700">
                     <tr>
-                        <td class="px-4 py-2 text-slate-400">{{ $category->id }}</td>
-                        <td class="px-4 py-2 text-slate-100">{{ $category->name }}</td>
-                        <td class="px-4 py-2 text-slate-300">
-                            {{ $category->description ?: '—' }}
-                        </td>
-                        <td class="px-4 py-2 text-slate-300">
-                            <a href="{{ route('video-categories.edit', $category) }}"
-                               style="margin-right:8px;color:#38bdf8;font-size:13px;">
-                                Edit
-                            </a>
-
-                            <form action="{{ route('video-categories.destroy', $category) }}"
-                                  method="POST"
-                                  style="display:inline"
-                                  onsubmit="return confirm('Delete this category? All channels linked to it will lose the category.');">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit"
-                                        style="color:#f97316;font-size:13px;background:none;border:none;cursor:pointer;">
-                                    Delete
-                                </button>
-                            </form>
-                        </td>
+                        <th class="px-4 py-3 text-left text-slate-400 font-semibold w-12">ID</th>
+                        <th class="px-4 py-3 text-left text-slate-400 font-semibold w-40">Name</th>
+                        <th class="px-4 py-3 text-left text-slate-400 font-semibold flex-1">Description</th>
+                        <th class="px-4 py-3 text-center text-slate-400 font-semibold w-32">Actions</th>
                     </tr>
-                @endforeach
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody class="divide-y divide-slate-700/50">
+                    @foreach($categories as $category)
+                        <tr class="hover:bg-slate-800/20 transition">
+                            <td class="px-4 py-3 text-slate-500">{{ $category->id }}</td>
+                            <td class="px-4 py-3 text-slate-200 font-semibold">{{ $category->name }}</td>
+                            <td class="px-4 py-3 text-slate-400">
+                                {{ Str::limit($category->description ?? '—', 60) }}
+                            </td>
+                            <td class="px-4 py-3 text-center">
+                                <div class="flex gap-2 justify-center">
+                                    <a href="{{ route('video-categories.edit', $category) }}"
+                                       class="px-3 py-1 text-xs text-blue-400 hover:text-blue-300 transition">
+                                        Edit
+                                    </a>
+
+                                    <form action="{{ route('video-categories.destroy', $category) }}"
+                                          method="POST"
+                                          style="display:inline"
+                                          onsubmit="return confirm('Delete &quot;{{ $category->name }}&quot;? All videos will lose this category.');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit"
+                                                class="px-3 py-1 text-xs text-red-400 hover:text-red-300 transition">
+                                            Delete
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    @endforeach
+                    </tbody>
+                </table>
+            </div>
         @endif
     </div>
 @endsection
