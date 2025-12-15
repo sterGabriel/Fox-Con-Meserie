@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\VideoController;
 use App\Http\Controllers\Admin\FileBrowserController;
 use App\Http\Controllers\Admin\VideoCategoryController;
 use App\Http\Controllers\Admin\EncodingJobController;
+use App\Http\Controllers\Admin\EncodeProfileController;
 
 // ROOT → redirect to dashboard
 Route::get('/', function () {
@@ -126,6 +127,28 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // FILE BROWSER
     Route::get('/file-browser', [FileBrowserController::class, 'index'])
         ->name('file-browser.index');
+
+    // ───────────── ENCODE PROFILES ─────────────
+    Route::get('/encode-profiles', [EncodeProfileController::class, 'index'])
+        ->name('encode-profiles.index');
+
+    Route::get('/encode-profiles/create', [EncodeProfileController::class, 'create'])
+        ->name('encode-profiles.create');
+
+    Route::post('/encode-profiles', [EncodeProfileController::class, 'store'])
+        ->name('encode-profiles.store');
+
+    Route::get('/encode-profiles/{profile}/edit', [EncodeProfileController::class, 'edit'])
+        ->name('encode-profiles.edit');
+
+    Route::patch('/encode-profiles/{profile}', [EncodeProfileController::class, 'update'])
+        ->name('encode-profiles.update');
+
+    Route::post('/encode-profiles/{profile}/duplicate', [EncodeProfileController::class, 'duplicate'])
+        ->name('encode-profiles.duplicate');
+
+    Route::delete('/encode-profiles/{profile}', [EncodeProfileController::class, 'destroy'])
+        ->name('encode-profiles.destroy');
 
     // PROFILE
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
