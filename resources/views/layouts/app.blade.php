@@ -27,8 +27,8 @@
             <div class="mt-4">
                 <div class="px-3 py-2 text-xs uppercase text-slate-500">VOD CHANNELS</div>
 
-                <a href="{{ route('vod-channels.create') }}"
-                   class="block px-5 py-2 rounded-lg {{ request()->routeIs('vod-channels.create') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">
+                <a href="{{ route('vod-channels.create-new') }}"
+                   class="block px-5 py-2 rounded-lg {{ request()->routeIs('vod-channels.create-new') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">
                     ▸ Create Vod Channel
                 </a>
 

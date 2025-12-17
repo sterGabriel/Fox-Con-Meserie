@@ -4,7 +4,7 @@
     <div class="flex items-center justify-between mb-6">
         <h1 class="text-2xl font-semibold">Vod Channels</h1>
 
-        <a href="{{ route('vod-channels.create') }}"
+        <a href="{{ route('vod-channels.create-new') }}"
            class="px-4 py-2 rounded bg-green-600 hover:bg-green-700 text-white">
             + Create Vod Channel
         </a>
