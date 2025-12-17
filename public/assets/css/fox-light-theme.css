@@ -1,0 +1,229 @@
+/* FOX Light Theme - Global overrides */
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background: #f4f5f7 !important;
+    color: #333;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+}
+
+/* Main layout */
+.flex {
+    display: flex;
+}
+
+.flex-1 {
+    flex: 1;
+}
+
+.min-h-screen {
+    min-height: 100vh;
+}
+
+/* Remove Tailwind's dark backgrounds */
+.bg-gradient-to-b,
+.bg-gradient-to-r,
+[class*="from-slate"],
+[class*="to-slate"],
+[class*="from-orange"],
+[class*="to-orange"] {
+    background: none !important;
+}
+
+/* Sidebar keeps dark theme */
+.fox-sidebar {
+    background: #1f2328 !important;
+}
+
+/* Main content area */
+main {
+    background: #f4f5f7 !important;
+    overflow-y: auto;
+}
+
+/* Section/content padding */
+section {
+    background: #f4f5f7;
+}
+
+/* Remove all text shadow classes */
+.drop-shadow-lg,
+.shadow-2xl,
+.shadow-lg,
+.shadow-md {
+    box-shadow: none !important;
+}
+
+/* Remove text styling conflicts */
+.text-slate-400,
+.text-slate-300,
+.text-slate-200,
+.text-slate-100 {
+    color: #666 !important;
+}
+
+.text-orange-500,
+.text-orange-600 {
+    color: #e30613 !important;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #e8e8e8;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #999;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #666;
+}
+
+/* Accessibility improvements */
+a {
+    color: #2563eb;
+    transition: color 0.2s ease;
+}
+
+a:hover {
+    color: #1d4ed8;
+}
+
+button {
+    font-family: inherit;
+}
+
+input,
+select,
+textarea {
+    font-family: inherit;
+}
+
+/* Spacing utilities */
+.p-4 {
+    padding: 16px;
+}
+
+.p-6 {
+    padding: 24px;
+}
+
+.p-8 {
+    padding: 32px;
+}
+
+.m-0 {
+    margin: 0;
+}
+
+.m-4 {
+    margin: 16px;
+}
+
+.m-6 {
+    margin: 24px;
+}
+
+.gap-4 {
+    gap: 16px;
+}
+
+.gap-6 {
+    gap: 24px;
+}
+
+/* Text utilities */
+.text-sm {
+    font-size: 13px;
+}
+
+.text-base {
+    font-size: 14px;
+}
+
+.text-lg {
+    font-size: 16px;
+}
+
+.text-xl {
+    font-size: 20px;
+}
+
+.text-2xl {
+    font-size: 24px;
+}
+
+.font-semibold {
+    font-weight: 600;
+}
+
+.font-bold {
+    font-weight: 700;
+}
+
+.font-black {
+    font-weight: 900;
+}
+
+/* Utilities removal */
+.animate-slideIn,
+.animate-pulse-glow {
+    animation: none !important;
+}
+
+/* Header styling */
+header {
+    background: #ffffff !important;
+    border-bottom: 3px solid #e30613 !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Rounded corners */
+.rounded {
+    border-radius: 4px;
+}
+
+.rounded-lg {
+    border-radius: 6px;
+}
+
+.rounded-xl {
+    border-radius: 12px;
+}
+
+/* Borders */
+.border {
+    border: 1px solid #e8e8e8;
+}
+
+.border-b {
+    border-bottom: 1px solid #e8e8e8;
+}
+
+.border-t {
+    border-top: 1px solid #e8e8e8;
+}
+
+.border-r {
+    border-right: 1px solid #e8e8e8;
+}
+
+.border-l {
+    border-left: 1px solid #e8e8e8;
+}

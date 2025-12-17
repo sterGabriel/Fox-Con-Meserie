@@ -18,6 +18,12 @@ class LiveChannel extends Model
         return $this->hasMany(PlaylistItem::class, 'vod_channel_id');
     }
 
+    // Relație cu video category
+    public function videoCategory()
+    {
+        return $this->belongsTo(VideoCategory::class, 'video_category_id');
+    }
+
     // Relație cu encoding jobs (coada de encodare)
     public function encodingJobs()
     {

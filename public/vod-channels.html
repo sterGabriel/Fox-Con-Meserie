@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>VOD Channels</title>
+    <link rel="stylesheet" href="./vod-channels.css" />
+</head>
+
+<body>
+    <main class="page-wrap">
+
+        <!-- PAGE HEADER -->
+        <header class="page-header">
+            <div class="page-title-wrap">
+                <h1 class="page-title">
+                    Vod Channels <span class="server-badge">[Server 1]</span>
+                </h1>
+                <p class="page-subtitle">Manage all your streaming channels</p>
+            </div>
+
+            <button class="btn btn-primary" id="btnNewChannel">+ New Channel</button>
+        </header>
+
+        <!-- KPI GRID (6 cards) -->
+        <section class="kpi-grid" aria-label="KPI Summary">
+            <article class="kpi-card">
+                <div class="kpi-title">Total Channels</div>
+                <div class="kpi-value" id="kpiTotalChannels">0</div>
+            </article>
+
+            <article class="kpi-card">
+                <div class="kpi-title">Active Channels</div>
+                <div class="kpi-value" id="kpiActiveChannels">0</div>
+            </article>
+
+            <article class="kpi-card">
+                <div class="kpi-title">Passive Channels</div>
+                <div class="kpi-value" id="kpiPassiveChannels">0</div>
+            </article>
+
+            <article class="kpi-card">
+                <div class="kpi-title">Total Video</div>
+                <div class="kpi-value" id="kpiTotalVideo">0</div>
+            </article>
+
+            <article class="kpi-card">
+                <div class="kpi-title">Total Space</div>
+                <div class="kpi-value" id="kpiTotalSpace">0</div>
+            </article>
+
+            <article class="kpi-card">
+                <div class="kpi-title">Free Space</div>
+                <div class="kpi-value" id="kpiFreeSpace">0</div>
+            </article>
+        </section>
+
+        <!-- SERVER SELECT BAR -->
+        <section class="server-bar card">
+            <label class="field-label" for="serverSelect">Server</label>
+            <select id="serverSelect" class="input">
+                <option value="1">Server 1</option>
+            </select>
+        </section>
+
+        <!-- MAIN CARD (toolbar + warning + table) -->
+        <section class="card main-card">
+
+            <!-- TOOLBAR -->
+            <div class="toolbar">
+                <button class="btn btn-stop" id="btnStopAll">Stop</button>
+                <button class="btn btn-start" id="btnStartAll">Start</button>
+                <button class="btn btn-epg" id="btnChannelsEpg">Channels Epg</button>
+                <button class="btn btn-fast" id="btnFastChannel">Fast Channel</button>
+                <button class="btn btn-msg" id="btnSendMessage">Send Message</button>
+            </div>
+
+            <!-- WARNING -->
+            <div class="warning" id="warningBox">
+                <span class="hl">Important warning !!!</span>
+                You would create more than <span class="hl">[50]</span> channels.
+                There may be slowdowns in the panel, your server's hard drive may crash, please consider these.
+                There is no channel creation limit.
+            </div>
+
+            <!-- TABLE CONTROLS -->
+            <div class="table-controls">
+                <div class="left-controls">
+                    <select id="pageSize" class="input input-small">
+                        <option>60</option>
+                        <option>30</option>
+                        <option>100</option>
+                    </select>
+                    <span class="muted">records per page</span>
+                </div>
+
+                <div class="right-controls">
+                    <input id="searchInput" class="input input-search" placeholder="Search..." />
+                </div>
+            </div>
+
+            <!-- TABLE -->
+            <div class="table-wrap">
+                <table class="vod-table" id="vodTable">
+                    <thead>
+                        <tr>
+                            <th class="col-name">Name</th>
+                            <th class="col-transcoding">Transcoding</th>
+                            <th class="col-playing">Playing</th>
+                            <th class="col-bitrate">Bitrate</th>
+                            <th class="col-uptime">Uptime</th>
+                            <th class="col-status">Status</th>
+                            <th class="col-epg">Epg</th>
+                            <th class="col-size">Size</th>
+                            <th class="col-total-time">Total Time</th>
+                            <th class="col-events">Events</th>
+                            <th class="col-actions">Actions</th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="vodTableBody">
+                        <!-- Rows rendered by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- MODALS (placeholders) -->
+        <div class="modal-backdrop" id="modalBackdrop" hidden></div>
+
+        <div class="modal" id="modalConfirmDelete" hidden>
+            <div class="modal-card">
+                <h3>Confirm delete</h3>
+                <p id="deleteText">Delete this channel?</p>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" id="btnCancelDelete">Cancel</button>
+                    <button class="btn btn-stop" id="btnConfirmDelete">Delete</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal" id="modalSendMessage" hidden>
+            <div class="modal-card">
+                <h3>Send Message</h3>
+                <textarea class="input textarea" id="messageText" placeholder="Type message..."></textarea>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" id="btnCancelMessage">Cancel</button>
+                    <button class="btn btn-msg" id="btnConfirmMessage">Send</button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script src="./vod-channels.js"></script>
+</body>
+
+</html>

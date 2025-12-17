@@ -1,0 +1,148 @@
+# 🔴 COPY-PASTE FOR EMPLOYEE
+
+---
+
+## HERE IS WHAT YOU NEED TO DO
+
+### REQUIREMENT 1: Import Must Actually Work
+- Not "merge to me" or "soon"
+- PROOF: Screenshots + database confirmation
+
+### REQUIREMENT 2: Send Me This Evidence
+
+When you test import, I need EXACT output of:
+
+**A) Network Tab Screenshot:**
+
+In DevTools (F12) → Network tab → click the `/video-categories/3/import` request:
+
+```
+URL:
+Method (POST/GET):
+Status Code:
+Response (paste what you see):
+```
+
+**B) Console Screenshot:**
+
+DevTools → Console tab → (paste any text that appears)
+
+**C) Server Logs During Import:**
+
+```bash
+cd /var/www/iptv-panel
+tail -n 200 storage/logs/laravel.log
+```
+
+Paste EVERYTHING you see after you click Import.
+
+**D) Route List:**
+
+```bash
+cd /var/www/iptv-panel
+php artisan route:list | egrep "video-categories.*browse|import"
+```
+
+Paste output exactly.
+
+**E) Database Count:**
+
+```bash
+cd /var/www/iptv-panel
+php artisan tinker --execute="echo \App\Models\Video::count().PHP_EOL;"
+```
+
+Before import: [number]
+
+After import: [number]
+
+Should be +1 higher.
+
+---
+
+## WHAT SUCCESS LOOKS LIKE
+
+✅ Network shows: Status **200** or **302**
+
+✅ Page reloads automatically
+
+✅ You see: **"✅ Imported: 1 video"** (green message)
+
+✅ Video gets badge: **"✓ Imported"**
+
+✅ Checkbox becomes disabled
+
+✅ Database count increases by 1
+
+---
+
+## WHAT FAILURE LOOKS LIKE
+
+❌ Network shows: **404** or **405** or **419** or **500**
+
+❌ Page doesn't reload
+
+❌ No green message
+
+❌ Database count doesn't change
+
+❌ Console shows red errors
+
+---
+
+## QUICK TEST (5 MINUTES)
+
+```bash
+# 1. Check before
+cd /var/www/iptv-panel
+echo "BEFORE:" && php artisan tinker --execute="echo \App\Models\Video::count().PHP_EOL;"
+
+# 2. Open browser
+# Go to: http://your-server/video-categories/3/browse
+# Click checkbox
+# Click "Import Selected"
+# Wait for page reload
+
+# 3. Check after
+echo "AFTER:" && php artisan tinker --execute="echo \App\Models\Video::count().PHP_EOL;"
+```
+
+If AFTER number is higher than BEFORE number → ✅ IT WORKS
+
+If same number → ❌ IT DOESN'T WORK
+
+---
+
+## PERFORMANCE CHECK
+
+If page is slow when browsing `/video-categories/3/browse`:
+
+```bash
+cd /var/www/iptv-panel
+
+# How many files?
+find /media/videos/FILME/ACTIUNE -type f | wc -l
+
+# If > 100, that's why slow
+# Solution: Pagination or limit list to 50 items
+```
+
+---
+
+## FINAL CHECKLIST BEFORE SUBMITTING
+
+- [ ] Opened `/video-categories/3/browse`
+- [ ] Selected checkbox next to ONE file
+- [ ] Clicked "📥 Import Selected"
+- [ ] WAITED for page to reload
+- [ ] Took screenshot of Network tab
+- [ ] Took screenshot of Console tab
+- [ ] Took screenshot of page after reload
+- [ ] Ran database count check
+- [ ] Collected server logs
+- [ ] Documented all outputs
+- [ ] NO EXCUSES: If it fails, tell me exact error + logs
+
+---
+
+**Send everything to supervisor. Do not mark task done until evidence provided.**

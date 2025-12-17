@@ -42,11 +42,13 @@
                                 >
                                     ℹ️ Info
                                 </button>
-                                <form action="{{ route('vod-channels.playlist.remove', [$channel, $item]) }}" method="POST" style="display: inline;" onsubmit="return confirm('Remove from playlist?');">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="text-red-400 hover:text-red-300 text-xs font-medium transition">Remove</button>
-                                </form>
+                                <button 
+                                    type="button"
+                                    class="text-red-400 hover:text-red-300 text-xs font-medium transition"
+                                    onclick="removePlaylistItem({{ $channel->id }}, {{ $item->id }})"
+                                >
+                                    Remove
+                                </button>
                             </div>
                         </td>
                     </tr>
@@ -81,4 +83,31 @@
             <p class="text-xs text-slate-500 mt-2" id="encodeMessage">Starting encode jobs...</p>
         </div>
     </div>
+</div>
+
+<script>
+async function removePlaylistItem(channelId, itemId) {
+    if (!confirm('Remove this video from playlist?')) return;
+    
+    try {
+        const response = await fetch(`/vod-channels/${channelId}/playlist/${itemId}/remove`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin'
+        });
+        
+        if (response.ok) {
+            alert('✅ Video removed from playlist');
+            location.reload();
+        } else {
+            alert('❌ Error removing video');
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+</script>
 </div>

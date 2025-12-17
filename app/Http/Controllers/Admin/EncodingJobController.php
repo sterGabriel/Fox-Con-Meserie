@@ -78,7 +78,7 @@ class EncodingJobController extends Controller
             $outputUrl = 'rtmp://localhost/live/' . $channel->slug;
             
             try {
-                $ffmpegCommand = $profile ? $builder->buildCommand($profile, $inputPath, $outputUrl) : '';
+                $ffmpegCommand = $profile ? $builder->buildCommand($channel, $inputPath, $outputUrl) : '';
             } catch (\Exception $e) {
                 $ffmpegCommand = '';
             }

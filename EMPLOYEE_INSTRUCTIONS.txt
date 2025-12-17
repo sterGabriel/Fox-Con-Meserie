@@ -1,0 +1,309 @@
+# GIVE THIS TO YOUR EMPLOYEE
+
+Copy and paste everything below. They should follow it exactly.
+
+---
+
+## 📌 IMPORT FUNCTIONALITY - TEST & SUBMIT PROOF
+
+**You have 1 task: Test import and provide evidence**
+
+❌ Do NOT say "it works" without proof  
+❌ Do NOT skip screenshots  
+✅ DO provide all evidence  
+✅ DO follow steps exactly  
+
+---
+
+## QUICK START (5 MINUTES)
+
+### 1. Open Browser
+
+Go to: `http://your-server/video-categories/3/browse`
+
+You should see: List of video files with checkboxes
+
+### 2. Open DevTools
+
+Press: **F12**
+
+Click: **Network** tab
+
+### 3. Test Import
+
+- Click checkbox next to ANY video
+- You should see: **(1 selected)** counter appear
+- Click **"📥 Import Selected"** button
+- **WAIT** 5-10 seconds for page to reload
+
+### 4. Check Results
+
+After page reloads, you should see:
+- ✅ Green message: "Imported: 1 video"
+- ✓ Video has "Imported" badge
+- Checkbox is disabled
+
+---
+
+## 📸 SCREENSHOT #1: Network Request
+
+In DevTools, find the request to `/video-categories/3/import`:
+
+1. Click on it
+2. Click **Headers** tab
+3. Take screenshot showing:
+   ```
+   Request URL: http://...../video-categories/3/import
+   Request Method: POST
+   Status Code: 200 OK   (or 302 Found)
+   ```
+
+**CRITICAL**: If Status is 404, 405, 419, or 500 → STOP and tell supervisor
+
+---
+
+## 📸 SCREENSHOT #2: Response
+
+Same request in DevTools:
+
+1. Click **Response** tab (or **Preview**)
+2. You should see text like:
+   ```
+   Imported: 1 video | Errors: 0
+   ```
+3. Take screenshot
+
+---
+
+## 📸 SCREENSHOT #3: Console
+
+In DevTools:
+
+1. Click **Console** tab
+2. Take screenshot showing the output
+3. Should NOT have any red error messages
+
+If there are red errors, copy them exactly and send to supervisor.
+
+---
+
+## 📸 SCREENSHOT #4: Page After Import
+
+On the browser page after it reloads:
+
+1. Take screenshot showing:
+   - ✅ Green message at top
+   - Video with "✓ Imported" badge
+   - Disabled checkbox
+
+---
+
+## 💾 Database Verification
+
+Open terminal and run:
+
+```bash
+cd /var/www/iptv-panel
+
+# BEFORE IMPORT
+echo "=== BEFORE IMPORT ==="
+php artisan tinker --execute="echo 'Total videos: ' . \App\Models\Video::count() . PHP_EOL;"
+
+# After import, run again
+echo "=== AFTER IMPORT ==="
+php artisan tinker --execute="echo 'Total videos: ' . \App\Models\Video::count() . PHP_EOL;"
+
+# Check the latest video
+echo "=== LATEST VIDEO ==="
+php artisan tinker --execute="
+\$v = \App\Models\Video::latest()->first();
+if (\$v) {
+    echo 'ID: ' . \$v->id . ' | Title: ' . \$v->title . ' | Category: ' . \$v->video_category_id . PHP_EOL;
+} else {
+    echo 'No videos in database';
+}
+"
+```
+
+**Copy and paste the output exactly.**
+
+---
+
+## 🔍 Server Logs
+
+```bash
+cd /var/www/iptv-panel
+
+# During import, tail the log
+tail -f storage/logs/laravel.log
+```
+
+When you click Import button, watch the log.
+
+You should see entries like:
+```
+[timestamp] local.INFO: Video imported: filename.mp4
+```
+
+**Copy the last 30 lines of output after you see the import message.**
+
+---
+
+## ✅ Route Verification
+
+```bash
+cd /var/www/iptv-panel
+php artisan route:list | egrep "video-categories.*browse|import"
+```
+
+**Copy the output.**
+
+Should show:
+```
+GET|HEAD  video-categories/{category}/browse  admin.video_categories.browse
+POST      video-categories/{category}/import  admin.video_categories.import
+```
+
+---
+
+## 📋 Create Evidence File
+
+Create a file: `IMPORT_EVIDENCE.txt`
+
+Paste:
+
+```
+════════════════════════════════════════════════════════════════
+                    IMPORT TEST EVIDENCE
+════════════════════════════════════════════════════════════════
+
+TESTED BY: [your name]
+DATE: [today's date]
+SERVER: [server name/IP]
+
+════════════════════════════════════════════════════════════════
+ROUTES
+════════════════════════════════════════════════════════════════
+[Paste output of: php artisan route:list | egrep "import"]
+
+
+════════════════════════════════════════════════════════════════
+DATABASE - BEFORE IMPORT
+════════════════════════════════════════════════════════════════
+[Paste: Video count BEFORE]
+
+
+════════════════════════════════════════════════════════════════
+IMPORT TEST
+════════════════════════════════════════════════════════════════
+Opened: http://server/video-categories/3/browse
+Selected: [filename]
+Clicked: Import Selected button
+Time: [timestamp]
+
+
+════════════════════════════════════════════════════════════════
+NETWORK RESPONSE
+════════════════════════════════════════════════════════════════
+URL: /video-categories/3/import
+Method: POST
+Status: [200 / 302 / 404 / 419 / 500]
+Response: [text from Response tab]
+
+
+════════════════════════════════════════════════════════════════
+CONSOLE OUTPUT
+════════════════════════════════════════════════════════════════
+[Paste console log - should have NO red errors]
+
+
+════════════════════════════════════════════════════════════════
+DATABASE - AFTER IMPORT
+════════════════════════════════════════════════════════════════
+[Paste: Video count AFTER]
+[Paste: Latest video info]
+
+Count increased: YES / NO
+[If YES, by how much: +1 / +2 / etc]
+
+
+════════════════════════════════════════════════════════════════
+SERVER LOGS
+════════════════════════════════════════════════════════════════
+[Paste last 30 lines from storage/logs/laravel.log]
+
+
+════════════════════════════════════════════════════════════════
+FINAL RESULT
+════════════════════════════════════════════════════════════════
+
+Network Status: ✅ 200/302  or  ❌ [error code]
+
+Page Reloaded: ✅ YES  or  ❌ NO
+
+Green Message: ✅ YES  or  ❌ NO
+
+Database +1: ✅ YES  or  ❌ NO
+
+UI Shows Badge: ✅ YES  or  ❌ NO
+
+VERDICT:
+✅ IMPORT WORKS
+❌ IMPORT BROKEN - Reason: [describe]
+
+════════════════════════════════════════════════════════════════
+
+Screenshots attached:
+- Network-request.png
+- Console-output.png
+- Page-after-import.png
+- Response-preview.png
+
+════════════════════════════════════════════════════════════════
+```
+
+---
+
+## 🚚 SUBMIT
+
+Send to supervisor:
+
+1. **IMPORT_EVIDENCE.txt** - with all outputs
+2. **4 Screenshots**:
+   - Network request
+   - Response preview
+   - Console output
+   - Browser page after import
+
+---
+
+## ❌ IF SOMETHING FAILS
+
+### Error: Status 404 or 405
+
+Tell supervisor: Route is not working
+
+### Error: Status 419
+
+Tell supervisor: CSRF token issue
+
+### Error: Status 500
+
+```bash
+tail -100 /var/www/iptv-panel/storage/logs/laravel.log
+```
+
+Copy the error stack trace and send to supervisor.
+
+### Database count didn't increase
+
+Tell supervisor: Video was not created in database
+
+### Page didn't reload
+
+Open Console (F12), look for red error messages, send to supervisor.
+
+---
+
+**DO NOT mark task complete until supervisor reviews evidence and approves.**
+

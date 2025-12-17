@@ -25,6 +25,7 @@ class EncodingJob extends Model
     ];
 
     protected $casts = [
+        'settings' => 'array',
         'started_at' => 'datetime',
         'finished_at' => 'datetime',
         'completed_at' => 'datetime',

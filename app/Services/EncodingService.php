@@ -170,15 +170,15 @@ class EncodingService
 
         // Encoding settings
         $cmd = array_merge($cmd, [
-            '-c:v', $profile->codec ?? 'libx264',
-            '-preset', $profile->preset ?? 'medium',
-            '-b:v', ($profile->video_bitrate ?? 1500) . 'k',
-            '-maxrate', ($profile->maxrate ?? 1875) . 'k',
-            '-bufsize', ($profile->bufsize ?? 3750) . 'k',
+            '-c:v', 'libx264',  // Use libx264 for all MPEGTS encoding
+            '-preset', $profile->preset ?? 'veryfast',
+            '-b:v', ($profile->video_bitrate_k ?? 1500) . 'k',
+            '-maxrate', ($profile->maxrate_k ?? 1875) . 'k',
+            '-bufsize', ($profile->bufsize_k ?? 3750) . 'k',
             '-c:a', $profile->audio_codec ?? 'aac',
-            '-b:a', ($profile->audio_bitrate ?? 128) . 'k',
-            '-ar', $profile->audio_rate ?? 48000,
-            '-ac', $profile->channels ?? 2,
+            '-b:a', ($profile->audio_bitrate_k ?? 128) . 'k',
+            '-ar', 48000,
+            '-ac', (int)($profile->audio_channels ?? 2),
         ]);
 
         // Output as MPEGTS
@@ -203,11 +203,25 @@ class EncodingService
         $filters[] = "[scaled]pad=1920:1080:(ow-iw)/2:(oh-ih)/2[padded]";
         $lastLabel = '[padded]';
 
+        // Add logo overlay if enabled
+        if ($this->channel->overlay_logo_enabled && $this->channel->overlay_logo_path) {
+            $logoPath = $this->channel->overlay_logo_path;
+            $logoW = $this->channel->overlay_logo_width ?? 100;
+            $logoH = $this->channel->overlay_logo_height ?? 100;
+            $logoX = $this->channel->overlay_logo_x ?? 20;
+            $logoY = $this->channel->overlay_logo_y ?? 20;
+            
+            // Add logo as overlay
+            $filters[] = "movie='{$logoPath}':s={$logoW}x{$logoH}[logo]";
+            $filters[] = "{$lastLabel}[logo]overlay={$logoX}:{$logoY}[withlogo]";
+            $lastLabel = '[withlogo]';
+        }
+
         // Add text overlay if enabled
         if ($this->channel->overlay_text_enabled) {
-            $text = $this->channel->overlay_text_content ?? 'LIVE';
+            $text = $this->channel->overlay_text_content ?? $this->channel->name ?? 'LIVE';
             $x = $this->channel->overlay_text_x ?? 20;
-            $y = $this->channel->overlay_text_y ?? 20;
+            $y = $this->channel->overlay_text_y ?? 120;
             $fontSize = $this->channel->overlay_text_font_size ?? 24;
             $color = $this->channel->overlay_text_color ?? 'white';
 
@@ -217,7 +231,7 @@ class EncodingService
 
         // Add timer if enabled
         if ($this->channel->overlay_timer_enabled) {
-            $timerX = $this->channel->overlay_timer_x ?? 20;
+            $timerX = $this->channel->overlay_timer_x ?? 1700;
             $timerY = $this->channel->overlay_timer_y ?? 50;
             $filters[] = "{$lastLabel}drawtext=text='%{pts\\:hms}':x={$timerX}:y={$timerY}:fontsize=20:fontcolor=white[timer]";
             $lastLabel = '[timer]';
@@ -244,7 +258,37 @@ class EncodingService
 
     /**
      * Format bytes to human readable
+     */    /**
+     * Start encoding async (non-blocking)
      */
+    public function startAsync(): void
+    {
+        try {
+            $command = $this->buildEncodeCommand();
+            
+            // Update job status
+            $this->job->update([
+                'status' => 'running',
+                'started_at' => Carbon::now(),
+            ]);
+
+            $this->appendLog("Starting encoding in background...");
+            $this->appendLog("Command: $command");
+
+            // Start ffmpeg process directly with nohup
+            $cmd = "nohup $command >> " . escapeshellarg($this->logPath) . " 2>&1 &";
+            exec($cmd, $output, $exitCode);
+
+            Log::info("Encoding job {$this->job->id} started async - use cron to monitor");
+            
+        } catch (\Exception $e) {
+            Log::error("Failed to start encoding async for job {$this->job->id}: {$e->getMessage()}");
+            $this->job->update([
+                'status' => 'failed',
+                'error_message' => $e->getMessage(),
+            ]);
+        }
+    }
     protected function formatBytes(int $bytes): string
     {
         $units = ['B', 'KB', 'MB', 'GB'];

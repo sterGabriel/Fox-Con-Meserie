@@ -8,6 +8,7 @@ use App\Models\PlaylistItem;
 use App\Models\Video;
 use App\Models\VideoCategory;
 use App\Models\EncodeProfile;
+use App\Services\EncodingService;
 use App\Services\EncodingProfileBuilder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,12 +17,131 @@ use Illuminate\Support\Str;
 
 class LiveChannelController extends Controller
 {
+    /**
+     * JSON API - Returns KPI + table rows
+     */
+    public function apiIndex()
+    {
+        $serverId = request()->get('serverId', '1');
+        $pageSize = request()->get('pageSize', 60);
+        $search = request()->get('search', '');
+
+        // Get channels with pagination
+        $query = LiveChannel::with(['playlistItems.video'])
+            ->orderBy('id', 'desc');
+
+        if ($search) {
+            $query->where('name', 'like', "%{$search}%");
+        }
+
+        $channels = $query->paginate($pageSize);
+
+        // Calculate KPIs
+        $totalChannels = LiveChannel::count();
+        $enabledChannels = LiveChannel::where('enabled', true)->count();
+        $totalVideos = Video::count();
+
+        // Get disk stats for ENTIRE server
+        $totalBytes = 0;
+        $freeBytes = 0;
+        foreach (['/home', '/'] as $mount) {
+            $totalBytes += disk_total_space($mount);
+            $freeBytes += disk_free_space($mount);
+        }
+
+        $totalTB = round($totalBytes / (1024 ** 4), 2);
+        $freeTB = round($freeBytes / (1024 ** 4), 2);
+
+        $kpi = [
+            'totalChannels' => $totalChannels,
+            'activeChannels' => $enabledChannels,
+            'passiveChannels' => $totalChannels - $enabledChannels,
+            'totalVideo' => $totalVideos,
+            'totalSpace' => $totalTB . ' TB',
+            'freeSpace' => $freeTB . ' TB',
+        ];
+
+        // Transform rows for table
+        $rows = $channels->map(function ($channel) {
+            $videos = $channel->playlistItems->map(fn($pi) => $pi->video)->filter();
+            $totalDuration = $videos->sum(fn($v) => $v->duration_seconds ?? 0);
+            $totalSize = $videos->sum(fn($v) => $v->size_bytes ?? 0);
+            $avgBitrate = $videos->isNotEmpty() ? round($videos->avg('bitrate_kbps') ?? 0) : 0;
+
+            $hours = intdiv($totalDuration, 3600);
+            $minutes = intdiv($totalDuration % 3600, 60);
+            $seconds = $totalDuration % 60;
+
+            $daysActive = max(1, now()->diffInDays($channel->updated_at));
+
+            // Size formatting
+            if ($totalSize < 1024 * 1024) {
+                $sizeStr = round($totalSize / 1024) . 'K';
+            } elseif ($totalSize < 1024 * 1024 * 1024) {
+                $sizeStr = round($totalSize / (1024 * 1024)) . 'M';
+            } else {
+                $sizeStr = round($totalSize / (1024 * 1024 * 1024), 2) . 'G';
+            }
+
+            return [
+                'id' => $channel->id,
+                'name' => $channel->name,
+                'transcodingA' => $videos->count(),
+                'transcodingB' => $videos->where('format', 'mp4')->count(),
+                'transcodingC' => $videos->where('format', 'mkv')->count(),
+                'playing' => $videos->first()?->title ? substr($videos->first()->title, 0, 20) : '-',
+                'bitrate' => $avgBitrate . 'k',
+                'uptime' => $daysActive . 'd ' . ($hours > 0 ? $hours . 'h ' : '') . $minutes . 'm ' . $seconds . 's',
+                'statusOk' => $channel->enabled,
+                'epg' => 'OPEN',
+                'size' => $sizeStr,
+                'totalTime' => $hours . 'h ' . $minutes . 'm ' . $seconds . 's',
+                'playlistCount' => $videos->count(),
+                'convertedCount' => $videos->count(),
+                'errorCount' => 0,
+                'isDisabled' => !$channel->enabled,
+            ];
+        })->toArray();
+
+        return response()->json([
+            'kpi' => $kpi,
+            'rows' => $rows,
+        ]);
+    }
+
     public function index()
     {
-        $channels = LiveChannel::orderBy('id', 'desc')->paginate(20);
+        $perPage = request()->get('per_page', 60);
+        $channels = LiveChannel::with(['playlistItems.video'])
+            ->orderBy('id', 'desc')
+            ->paginate($perPage);
+
+        // Calculate metrics
+        $totalChannels = LiveChannel::count();
+        $enabledChannels = LiveChannel::where('enabled', true)->count();
+        $totalVideos = Video::count();
+
+        // Get disk stats for ENTIRE server (all mounts)
+        $totalBytes = 0;
+        $freeBytes = 0;
+        
+        // Sum all mount points
+        foreach (['/home', '/'] as $mount) {
+            $totalBytes += disk_total_space($mount);
+            $freeBytes += disk_free_space($mount);
+        }
+        
+        $diskStats = [
+            'total_gb' => round($totalBytes / (1024 ** 4), 2),  // Convert to TB
+            'free_gb' => round($freeBytes / (1024 ** 4), 2),    // Convert to TB
+        ];
 
         return view('admin.vod_channels.index', [
             'channels' => $channels,
+            'totalChannels' => $totalChannels,
+            'enabledChannels' => $enabledChannels,
+            'totalVideos' => $totalVideos,
+            'diskStats' => $diskStats,
         ]);
     }
 
@@ -261,12 +381,33 @@ class LiveChannelController extends Controller
         $liveProfiles = EncodeProfile::where('container', 'mpegts')->orderBy('name')->get();
         $allVideos = Video::orderBy('title')->get();
 
+        // Load category videos for preview (if category selected)
+        $categoryVideos = collect();
+        $categoryStats = [
+            'total_videos' => 0,
+            'total_duration' => 0,
+            'avg_bitrate' => 0,
+            'dominant_resolution' => 'N/A',
+        ];
+
+        if ($channel->video_category_id) {
+            $categoryVideos = Video::where('video_category_id', $channel->video_category_id)
+                ->orderBy('title')
+                ->take(20)
+                ->get();
+
+            $categoryStats['total_videos'] = Video::where('video_category_id', $channel->video_category_id)->count();
+            $categoryStats['total_duration'] = Video::where('video_category_id', $channel->video_category_id)->sum('duration_seconds');
+        }
+
         return view('admin.vod_channels.settings_new', [
-            'channel'      => $channel,
-            'categories'   => $categories,
-            'profiles'     => $profiles,
-            'liveProfiles' => $liveProfiles,
-            'allVideos'    => $allVideos,
+            'channel'           => $channel,
+            'categories'        => $categories,
+            'profiles'          => $profiles,
+            'liveProfiles'      => $liveProfiles,
+            'allVideos'         => $allVideos,
+            'categoryVideos'    => $categoryVideos,
+            'categoryStats'     => $categoryStats,
         ]);
     }
 
@@ -524,128 +665,51 @@ class LiveChannelController extends Controller
     public function testPreview(Request $request, LiveChannel $channel)
     {
         try {
-            // Get video from request (for overlay test) or from playlist
-            $videoId = $request->input('video_id') ?? $request->query('video_id');
-            
-            if ($videoId) {
-                // Load specific video for preview
-                $video = Video::find($videoId);
-                if (!$video) {
-                    return response()->json([
-                        'status' => 'error',
-                        'message' => 'Video not found'
-                    ], 404);
-                }
-            } else {
-                // Get first video from playlist
-                $itemId = $request->query('item_id');
-                
-                if ($itemId) {
-                    $playlistItem = $channel->playlistItems()->find($itemId);
-                    if (!$playlistItem) {
-                        return response()->json([
-                            'status' => 'error',
-                            'message' => 'Playlist item not found'
-                        ], 404);
-                    }
-                } else {
-                    $playlistItem = $channel->playlistItems()
-                        ->orderBy('sort_order')
-                        ->first();
-                }
+            // Get video from request or first from playlist
+            $videoId = $request->input('video_id');
+            $video = $videoId ? Video::find($videoId) : $channel->playlistItems()->orderBy('sort_order')->first()?->video;
 
-                if (!$playlistItem) {
-                    return response()->json([
-                        'status' => 'error',
-                        'message' => 'No videos in playlist'
-                    ], 400);
-                }
-
-                $video = $playlistItem->video;
+            if (!$video) {
+                return response()->json(['status' => 'error', 'message' => 'No video found'], 400);
             }
 
             $inputFile = $video->file_path;
-
             if (!file_exists($inputFile)) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Video file not found: ' . $inputFile
-                ], 400);
+                return response()->json(['status' => 'error', 'message' => 'Video file not found'], 400);
             }
 
-            // Create preview output path
+            // Create preview output
             $previewDir = storage_path("app/public/previews/{$channel->id}");
             @mkdir($previewDir, 0755, true);
             $outputFile = "{$previewDir}/preview_" . time() . ".mp4";
 
-            // Generate FFmpeg command for 10s preview with overlay
-            $engine = new \App\Services\ChannelEngineService($channel);
-            $filterComplex = $engine->buildFilterComplex(includeOverlay: true);
-
-            // Build command: 10 seconds only, with overlay
+            // Simple preview without overlay - just 10 seconds
             $cmd = [
                 'ffmpeg',
                 '-i', escapeshellarg($inputFile),
-                '-t', '10',  // Only 10 seconds
-            ];
-
-            if (!empty($filterComplex)) {
-                $cmd = array_merge($cmd, [
-                    '-filter_complex', escapeshellarg($filterComplex),
-                    '-map', '[out]',  // Use filter output
-                ]);
-            } else {
-                $cmd = array_merge($cmd, ['-map', '0:v']);
-            }
-
-            // Add audio and encoding settings
-            $cmd = array_merge($cmd, [
+                '-t', '10',
+                '-c:v', 'libx264',
+                '-preset', 'ultrafast',
+                '-crf', '23',
                 '-c:a', 'aac',
                 '-b:a', '128k',
-                '-c:v', 'libx264',
-                '-preset', 'medium',
-                '-b:v', '1500k',
-                '-y', // Overwrite output
+                '-y',
                 escapeshellarg($outputFile),
-            ]);
+            ];
 
-            $shellCmd = implode(' ', $cmd);
+            exec(implode(' ', $cmd) . ' 2>&1', $output, $code);
 
-            // Execute synchronously (not in background)
-            $process = new \Symfony\Component\Process\Process(
-                explode(' ', str_replace("'", '', $shellCmd))
-            );
-            $process->setTimeout(60);
-            $process->run();
-
-            if (!$process->isSuccessful()) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'FFmpeg error: ' . $process->getErrorOutput()
-                ], 500);
+            if ($code !== 0 || !file_exists($outputFile)) {
+                return response()->json(['status' => 'error', 'message' => 'Failed to generate preview'], 500);
             }
 
-            if (!file_exists($outputFile)) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Preview file not created'
-                ], 500);
-            }
-
-            // Return preview URL (public path)
-            $relativeUrl = "storage/previews/{$channel->id}/" . basename($outputFile);
-            
             return response()->json([
                 'status' => 'success',
-                'preview_url' => "/" . $relativeUrl,
-                'preview_file' => basename($outputFile),
+                'preview_url' => '/storage/previews/' . $channel->id . '/' . basename($outputFile),
             ]);
 
         } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => $e->getMessage()
-            ], 500);
+            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
         }
     }
 
@@ -663,8 +727,8 @@ class LiveChannelController extends Controller
             $isRunning = $engine->isRunning($channel->encoder_pid);
             
             // Get output paths
-            $tsUrl = "{$domain}/streams/{$channel->id}.ts";
-            $hlsUrl = "{$domain}/streams/{$channel->id}/index.m3u8";
+            $tsUrl = "{$domain}/streams/{$channel->id}/stream.ts";
+            $hlsUrl = "{$domain}/streams/{$channel->id}/hls/stream.m3u8";
             
             // Check if output files exist
             $outputDir = storage_path("app/streams/{$channel->id}");
@@ -780,13 +844,25 @@ class LiveChannelController extends Controller
 
                 $outputPath = "{$outputDir}/video_{$item->id}.ts";
                 
-                // Create or update job
+                // Check if job already exists and is not done
+                $existingJob = \App\Models\EncodingJob::where('channel_id', $channel->id)
+                    ->where('playlist_item_id', $item->id)
+                    ->first();
+                
+                // If job exists and is done, don't recreate it
+                if ($existingJob && $existingJob->status === 'done') {
+                    continue;
+                }
+                
+                // Create or update job (but only reset if not already running/done)
                 $job = \App\Models\EncodingJob::updateOrCreate(
                     [
                         'channel_id' => $channel->id,
                         'playlist_item_id' => $item->id,
                     ],
                     [
+                        'live_channel_id' => $channel->id,
+                        'video_id' => $video->id,
                         'input_path' => $video->file_path,
                         'output_path' => $outputPath,
                         'status' => 'queued',
@@ -796,11 +872,13 @@ class LiveChannelController extends Controller
                     ]
                 );
                 
-                $createdJobs++;
-
-                // Kick off encoding in background for this job
-                // Use PHP to execute encoding asynchronously
-                $this->startEncodingProcess($job, $channel);
+                // Only process if not already done
+                if ($job->status !== 'done') {
+                    $createdJobs++;
+                    
+                    // Kick off encoding in background for this job
+                    $this->startEncodingProcess($job, $channel);
+                }
             }
 
             return response()->json([
@@ -823,37 +901,12 @@ class LiveChannelController extends Controller
      */
     protected function startEncodingProcess(\App\Models\EncodingJob $job, LiveChannel $channel)
     {
-        // Create a simple PHP script to run encoding in background
-        $scriptPath = storage_path("app/encode_job_{$job->id}.php");
-        
-        $script = <<<'PHP'
-<?php
-require __DIR__ . '/../../../vendor/autoload.php';
-$app = require __DIR__ . '/../../../bootstrap/app.php';
-$app->boot();
-
-$job = \App\Models\EncodingJob::find(JOBID);
-if (!$job) exit(1);
-
-$channel = \App\Models\LiveChannel::find(CHANNELID);
-if (!$channel) exit(1);
-
-$encoding = new \App\Services\EncodingService($job, $channel);
-$result = $encoding->encode();
-exit($result['status'] === 'success' ? 0 : 1);
-PHP;
-
-        $script = str_replace('JOBID', $job->id, $script);
-        $script = str_replace('CHANNELID', $channel->id, $script);
-        
-        file_put_contents($scriptPath, $script);
-        
-        // Execute in background (nohup + disown)
-        $logFile = storage_path("logs/encode_bg_{$job->id}.log");
-        shell_exec("nohup php {$scriptPath} > {$logFile} 2>&1 &");
-        
-        // Clean up script after 10 seconds
-        @unlink($scriptPath);
+        try {
+            $encoding = new \App\Services\EncodingService($job, $channel);
+            $encoding->startAsync();
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Failed to start encoding process for job {$job->id}: {$e->getMessage()}");
+        }
     }
 
     /**
@@ -925,6 +978,370 @@ PHP;
             ], 500);
         }
     }
-}
 
+    /**
+     * Sync playlist from category
+     * Replaces current playlist with all videos from category
+     */
+    public function syncPlaylistFromCategory(LiveChannel $channel)
+    {
+        try {
+            if (!$channel->video_category_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Channel has no category selected',
+                ], 400);
+            }
+
+            // Get all videos from category
+            $videos = Video::where('video_category_id', $channel->video_category_id)
+                ->orderBy('title')
+                ->get();
+
+            if ($videos->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Category has no videos',
+                ], 400);
+            }
+
+            // Clear existing playlist
+            PlaylistItem::where('vod_channel_id', $channel->id)->delete();
+
+            // Insert videos from category in order
+            foreach ($videos as $index => $video) {
+                PlaylistItem::create([
+                    'vod_channel_id' => $channel->id,
+                    'video_id' => $video->id,
+                    'sort_order' => $index + 1,
+                ]);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => count($videos) . ' videos synced from category',
+                'count' => count($videos),
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Sync playlist failed: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Sync failed: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // CREATE VIDEO PAGE + API METHODS (NEW VARIANTA 2)
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Show the "Create Video" page with categories + videos list
+     */
+    public function createVideoPage()
+    {
+        $categories = VideoCategory::orderBy('name')->get();
+        $videos = [];
+        $channel = null;
+
+        return view('admin.vod_channels.create-video', [
+            'categories' => $categories,
+            'videos' => $videos,
+            'channel' => $channel,
+        ]);
+    }
+
+    /**
+     * Show the "Create Video" page for a specific channel
+     */
+    public function createVideoPageForChannel(LiveChannel $channel)
+    {
+        $categories = VideoCategory::orderBy('name')->get();
+        $videos = [];
+
+        return view('admin.vod_channels.create-video', [
+            'categories' => $categories,
+            'videos' => $videos,
+            'channel' => $channel,
+        ]);
+    }
+
+    /**
+     * API: Get videos by category (AJAX)
+     */
+    public function apiVideosByCategory(Request $request)
+    {
+        $categoryId = $request->get('category_id');
+
+        if (!$categoryId) {
+            return response()->json(['videos' => []]);
+        }
+
+        $videos = Video::where('video_category_id', $categoryId)
+            ->orderBy('title')
+            ->get()
+            ->map(function($video) {
+                return [
+                    'id' => $video->id,
+                    'title' => $video->title,
+                    'file_path' => $video->file_path,
+                    'file_size' => $video->size_bytes ?? 0,
+                    'duration' => $video->duration_seconds ? gmdate('H:i:s', $video->duration_seconds) : null,
+                    'format' => $video->format ?? 'mp4',
+                    'resolution' => $video->resolution ?? '1920x1080',
+                ];
+            });
+
+        return response()->json(['videos' => $videos]);
+    }
+
+    /**
+     * API: Delete a video
+     */
+    public function apiDeleteVideo(Video $video)
+    {
+        try {
+            $video->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Video deleted successfully',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * API: Create encoding job from the create-video form
+     */
+    public function apiCreateEncodingJob(Request $request)
+    {
+        try {
+            $payload = $request->all();
+
+            // Get the video
+            $video = Video::findOrFail($payload['video_id']);
+
+            // Get the category
+            $category = VideoCategory::findOrFail($payload['category_id']);
+
+            // Build encoding settings
+            $settings = $payload['settings'] ?? [];
+
+            // Create a default encode profile if needed
+            $profile = EncodeProfile::first();
+            if (!$profile) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No encode profile configured',
+                ], 400);
+            }
+
+            // Ensure output directory exists
+            $outputDir = storage_path("app/streams/category-{$category->id}");
+            if (!is_dir($outputDir)) {
+                mkdir($outputDir, 0755, true);
+            }
+
+            // Create encoding job with CORRECT column names
+            $jobId = DB::table('encoding_jobs')->insertGetId([
+                'video_id' => $video->id,
+                'live_channel_id' => $payload['channel_id'] ?? null,
+                'channel_id' => $payload['channel_id'] ?? null,
+                'input_path' => $video->file_path,
+                'output_path' => $outputDir . '/stream.ts',
+                'status' => 'pending',
+                'settings' => json_encode($settings),
+                // Logo overlay fields
+                'overlay_logo_enabled' => $settings['logo']['enabled'] ?? false,
+                'overlay_logo_position' => $settings['logo']['pos'] ?? 'tl',
+                'overlay_logo_x' => (int)($settings['logo']['x'] ?? 20),
+                'overlay_logo_y' => (int)($settings['logo']['y'] ?? 20),
+                'overlay_logo_width' => (int)($settings['logo']['w'] ?? 180),
+                'overlay_logo_height' => (int)($settings['logo']['h'] ?? 56),
+                'overlay_logo_opacity' => (float)($settings['logo']['opacity'] ?? 0.8),
+                // Text overlay fields
+                'overlay_text_enabled' => $settings['text']['enabled'] ?? false,
+                'overlay_text_content' => $settings['text']['value'] ?? '',
+                'overlay_text_font_family' => $settings['text']['font'] ?? 'Ubuntu',
+                'overlay_text_font_size' => (int)($settings['text']['size'] ?? 15),
+                'overlay_text_color' => $settings['text']['color'] ?? 'white',
+                'overlay_text_position' => $settings['text']['pos'] ?? 'br',
+                'overlay_text_x' => (int)($settings['text']['x'] ?? 30),
+                'overlay_text_y' => (int)($settings['text']['y'] ?? 30),
+                'overlay_text_opacity' => (float)($settings['text']['opacity'] ?? 1.0),
+                'overlay_text_bg_color' => $settings['text']['box']['color'] ?? 'black',
+                'overlay_text_bg_opacity' => ($settings['text']['box']['enabled'] ?? false) ? 0.5 : 0,
+                'overlay_text_padding' => (int)($settings['text']['box']['padding'] ?? 5),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // START ENCODING IMMEDIATELY
+            $this->startEncodingForJob($jobId, $video, $profile, $settings);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Encoding job created and started',
+                'job_id' => $jobId,
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Create encoding job failed: ' . $e->getMessage() . '\n' . $e->getTraceAsString());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Start encoding for a job with settings from form
+     */
+    private function startEncodingForJob($jobId, Video $video, EncodeProfile $profile, array $settings)
+    {
+        try {
+            // Get the job record
+            $job = DB::table('encoding_jobs')->where('id', $jobId)->first();
+            if (!$job) {
+                throw new \Exception("Job {$jobId} not found");
+            }
+
+            // Ensure output directory exists
+            if (!is_dir($job->output_dir)) {
+                mkdir($job->output_dir, 0755, true);
+            }
+
+            // Build ffmpeg command with overlay
+            $inputFile = escapeshellarg($job->input_file);
+            $outputFile = escapeshellarg($job->output_dir . '/stream.ts');
+
+            // Start with basic ffmpeg command
+            $cmd = "ffmpeg -i {$inputFile}";
+
+            // Add video codec settings
+            $vcodec = $settings['vcodec'] ?? 'h264';
+            $vbitrate = (int)($settings['vbitrate'] ?? 1500);
+            $preset = $settings['preset'] ?? 'medium';
+            $fps = $settings['fps'] ?? 'original';
+
+            $cmd .= " -c:v libx264";
+            if ($preset && $preset !== 'disabled') {
+                $cmd .= " -preset {$preset}";
+            }
+
+            // CRF or bitrate
+            if ($settings['crf_mode'] === 'enabled' && isset($settings['crf'])) {
+                $cmd .= " -crf {$settings['crf']}";
+            } else {
+                $cmd .= " -b:v {$vbitrate}k";
+            }
+
+            // FPS
+            if ($fps && $fps !== 'original') {
+                $cmd .= " -r {$fps}";
+            }
+
+            // Audio
+            $abitrate = (int)($settings['abitrate'] ?? 128);
+            $cmd .= " -c:a aac -b:a {$abitrate}k";
+
+            // Build filter complex for overlays
+            $filterComplex = $this->buildFilterComplexForJob($settings);
+            if ($filterComplex) {
+                $cmd .= " -filter_complex \"{$filterComplex}\"";
+            }
+
+            // Output format (MPEGTS for TS)
+            $cmd .= " -f mpegts {$outputFile}";
+            $cmd .= " 2>&1 > " . escapeshellarg($job->output_dir . '/encoding.log');
+            $cmd .= " &"; // Run in background
+
+            // Update job status to "running"
+            DB::table('encoding_jobs')->where('id', $jobId)->update([
+                'status' => 'running',
+                'updated_at' => now(),
+            ]);
+
+            // Execute encoding in background
+            shell_exec($cmd);
+
+            \Log::info("Encoding job {$jobId} started: {$cmd}");
+        } catch (\Exception $e) {
+            // Update job status to failed
+            DB::table('encoding_jobs')->where('id', $jobId)->update([
+                'status' => 'failed',
+                'error_message' => $e->getMessage(),
+                'updated_at' => now(),
+            ]);
+
+            \Log::error("Encoding job {$jobId} failed to start: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Build filter_complex string for overlay (logo + text + timer)
+     */
+    private function buildFilterComplexForJob(array $settings): string
+    {
+        $filters = [];
+
+        // Logo overlay
+        if ($settings['logo']['enabled'] ?? false) {
+            $logo_path = storage_path('app/uploads/logo.png'); // Assume logo exists
+            if (file_exists($logo_path)) {
+                $logo_path = escapeshellarg($logo_path);
+                $x = (int)($settings['logo']['x'] ?? 20);
+                $y = (int)($settings['logo']['y'] ?? 20);
+                $w = (int)($settings['logo']['w'] ?? 180);
+                $h = (int)($settings['logo']['h'] ?? 56);
+                $op = (float)($settings['logo']['opacity'] ?? 0.8);
+
+                // Scale logo to size and set opacity
+                $filters[] = "[0:v][1:v]scale={$w}:{$h}[scaled];[scaled]format=rgba,colorchannelmixer=aa={$op}[logo];[0:v][logo]overlay={$x}:{$y}[v1]";
+            }
+        }
+
+        // Text overlay
+        if ($settings['text']['enabled'] ?? false) {
+            $text = str_replace(["'", '"', '%'], ['', '', ''], $settings['text']['value'] ?? '');
+            if ($text) {
+                $font = $settings['text']['font'] ?? 'Ubuntu';
+                $size = (int)($settings['text']['size'] ?? 15);
+                $color = $settings['text']['color'] ?? 'white';
+                $x = (int)($settings['text']['x'] ?? 30);
+                $y = (int)($settings['text']['y'] ?? 30);
+
+                // Text box background
+                $boxText = $text;
+                if ($settings['text']['box']['enabled'] ?? false) {
+                    $boxColor = $settings['text']['box']['color'] ?? 'black';
+                    $boxPad = (int)($settings['text']['box']['padding'] ?? 5);
+                    $boxText = "{$text}";
+                    // Note: drawtext box is complex, using simple approach
+                }
+
+                $filters[] = "drawtext=fontfile=/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf:text='{$boxText}':fontsize={$size}:fontcolor={$color}:x={$x}:y={$y}";
+            }
+        }
+
+        if (empty($filters)) {
+            return '';
+        }
+
+        return implode(',', $filters);
+    }
+
+    /**
+     * Show Create VOD Channel form (FOX 1:1 design)
+     */
+    public function createChannel()
+    {
+        return view('admin.vod_channels.create-vod-channel');
+    }
+}
 

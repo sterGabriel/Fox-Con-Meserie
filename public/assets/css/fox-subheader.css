@@ -1,0 +1,72 @@
+.fox-subheader {
+    height: 40px;
+    background: #1a1a1a;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    gap: 16px;
+}
+
+.fox-subheader-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.fox-subheader-label {
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.fox-server-select {
+    background: #2a2a2a;
+    color: #ffffff;
+    border: 1px solid #3a3a3a;
+    padding: 6px 10px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.fox-server-select:hover {
+    border-color: #e30613;
+    background: #323232;
+}
+
+.fox-server-select:focus {
+    outline: none;
+    border-color: #e30613;
+    box-shadow: 0 0 0 2px rgba(227, 6, 19, 0.2);
+}
+
+.fox-subheader-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.fox-restart-btn {
+    background: #e30613;
+    color: #ffffff;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.fox-restart-btn:hover {
+    background: #c80510;
+    box-shadow: 0 2px 6px rgba(227, 6, 19, 0.4);
+}
+
+.fox-restart-btn:active {
+    transform: scale(0.98);
+}

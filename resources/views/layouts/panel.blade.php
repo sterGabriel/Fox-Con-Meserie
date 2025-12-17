@@ -3,107 +3,51 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>🦊 FOX IPTV PANEL</title>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <link rel="stylesheet" href="{{ asset('assets/css/fox-base.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/css/fox-sidebar.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/css/fox-topnav.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/css/fox-subheader.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/css/fox-cards.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/css/fox-tables.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/css/fox-light-theme.css') }}">
     <style>
-        * { scrollbar-width: thin; scrollbar-color: #f97316 #1e293b; }
+        * { scrollbar-width: thin; scrollbar-color: #999 #e8e8e8; }
         ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: #1e293b; }
-        ::-webkit-scrollbar-thumb { background: #f97316; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #ea580c; }
+        ::-webkit-scrollbar-track { background: #e8e8e8; }
+        ::-webkit-scrollbar-thumb { background: #999; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #666; }
         
         @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes pulse-glow { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
         .animate-slideIn { animation: slideIn 0.3s ease-out; }
-        .animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
     </style>
 </head>
-<body class="min-h-screen bg-[radial-gradient(1200px_circle_at_20%_-10%,rgba(59,130,246,0.18),transparent_45%),radial-gradient(900px_circle_at_80%_0%,rgba(34,197,94,0.10),transparent_40%)]">
-<div class="min-h-screen flex">
+<body style="margin: 0; padding: 0; background: #f4f5f7;">
+<div style="display: flex; min-height: 100vh;">
 
-    {{-- SIDEBAR --}}
-    <aside class="w-72 bg-gradient-to-b from-slate-900 to-slate-950 border-r border-orange-500/20 shadow-2xl">
-        <div class="h-20 flex items-center px-6 border-b border-orange-500/20 bg-gradient-to-r from-orange-600/10 to-transparent">
-            <span class="text-orange-500 font-black text-2xl drop-shadow-lg">🦊 FOX</span>
-            <span class="text-slate-400 font-semibold ml-2">IPTV</span>
-        </div>
+    {{-- FOX SIDEBAR --}}
+    @include('components.sidebar')
 
-        <nav class="mt-6 text-sm space-y-2 px-3">
-            <a href="{{ route('dashboard') }}"
-               class="block px-4 py-3 rounded-xl transition-all duration-300 {{ request()->routeIs('dashboard') ? 'bg-gradient-to-r from-orange-600 to-orange-500 text-white shadow-lg shadow-orange-600/20 transform scale-105' : 'text-slate-300 hover:bg-slate-800/50 hover:text-white' }}">
-                <span class="text-lg">📊</span> Dashboard
-            </a>
+    {{-- MAIN CONTENT AREA --}}
+    <main style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+        {{-- FOX TOP NAVIGATION --}}
+        @include('components.top-navigation')
 
-            <div class="mt-6 pt-4 border-t border-slate-800">
-                <div class="px-4 py-2 text-xs uppercase font-black text-orange-500 tracking-widest opacity-75">🎬 VOD</div>
+        {{-- FOX SUB-HEADER (Server selector) --}}
+        @include('components.sub-header')
 
-                <a href="{{ route('vod-channels.index') }}"
-                   class="block px-4 py-3 rounded-xl transition-all duration-300 {{ request()->routeIs('vod-channels.*') ? 'bg-gradient-to-r from-orange-600 to-orange-500 text-white shadow-lg shadow-orange-600/20' : 'text-slate-300 hover:bg-slate-800/50 hover:text-white' }}">
-                    <span class="text-lg">📺</span> VOD Channels
-                </a>
-
-                <a href="{{ route('video-categories.index') }}"
-                   class="block px-4 py-3 rounded-xl transition-all duration-300 {{ request()->routeIs('video-categories.*') ? 'bg-gradient-to-r from-orange-600 to-orange-500 text-white shadow-lg shadow-orange-600/20' : 'text-slate-300 hover:bg-slate-800/50 hover:text-white' }}">
-                    <span class="text-lg">🏷️</span> Categories
-                </a>
-
-                <a href="{{ route('videos.index') }}"
-                   class="block px-4 py-3 rounded-xl transition-all duration-300 {{ request()->routeIs('videos.*') ? 'bg-gradient-to-r from-orange-600 to-orange-500 text-white shadow-lg shadow-orange-600/20' : 'text-slate-300 hover:bg-slate-800/50 hover:text-white' }}">
-                    <span class="text-lg">🎥</span> Videos
-                </a>
-
-                <a href="{{ route('encoding-jobs.index') }}"
-                   class="block px-4 py-3 rounded-xl transition-all duration-300 {{ request()->routeIs('encoding-jobs.*') ? 'bg-gradient-to-r from-orange-600 to-orange-500 text-white shadow-lg shadow-orange-600/20' : 'text-slate-300 hover:bg-slate-800/50 hover:text-white' }}">
-                    <span class="text-lg">⚙️</span> Encoding Jobs
-                </a>
-            </div>
-        </nav>
-    </aside>
-
-    {{-- MAIN CONTENT --}}
-    <main class="flex-1 min-h-screen overflow-hidden flex flex-col">
-        {{-- HEADER --}}
-        <header class="h-20 border-b border-slate-800/50 bg-gradient-to-r from-slate-900/50 to-slate-950/50 backdrop-blur-sm flex items-center justify-between px-8 sticky top-0 z-40">
-            <div class="flex items-center gap-4">
-                <div class="text-3xl">{{ match(Route::currentRouteName()) {
-                    'dashboard' => '📊',
-                    default => preg_match('/vod-channels/', Route::currentRouteName()) ? '📺' : '📄'
-                } }}</div>
-                <div>
-                    <div class="text-xs uppercase text-slate-500 font-semibold">Current Page</div>
-                    <div class="text-lg font-bold text-slate-200">{{ ucfirst(str_replace('-', ' ', Route::currentRouteName())) }}</div>
-                </div>
-            </div>
-            <div class="flex items-center gap-6">
-                <div class="px-4 py-2 rounded-lg bg-slate-800/50 border border-slate-700">
-                    <span class="text-xs text-slate-400">🕐 Last updated:</span>
-                    <span class="text-sm font-semibold text-slate-200 ml-2">{{ now()->format('H:i') }}</span>
-                </div>
-
-                <div class="flex items-center gap-3">
-                    <div class="text-right leading-tight">
-                        <div class="text-[11px] text-slate-400">Logged in</div>
-                        <div class="text-sm font-semibold text-slate-200">
-                            {{ auth()->user()->name }}
-                        </div>
-                    </div>
-
-                    <div class="h-9 w-9 rounded-full bg-slate-700 flex items-center justify-center text-sm font-bold text-orange-400">
-                        {{ strtoupper(substr(auth()->user()->name, 0, 1)) }}
-                    </div>
-                </div>
-            </div>
-        </header>
-
-        {{-- CONTENT --}}
-        <section class="flex-1 overflow-y-auto p-6">
-            <div class="mx-auto max-w-7xl animate-slideIn">
+        {{-- PAGE CONTENT --}}
+        <section style="flex: 1; overflow-y: auto; padding: 24px; background: #f4f5f7;">
+            <div class="animate-slideIn" style="width: 100%; max-width: 1400px; margin: 0 auto;">
                 @yield('content')
             </div>
         </section>
     </main>
 
 </div>
+<script src="{{ asset('assets/js/fox-sidebar.js') }}"></script>
 </body>
 </html>

@@ -53,7 +53,10 @@ class ChannelEngineService
 
             // Create encoding job record
             $job = EncodingJob::create([
+                'live_channel_id' => $this->channel->id,
                 'channel_id' => $this->channel->id,
+                'video_id' => 0,  // No specific video for live stream
+                'playlist_item_id' => 0,  // No specific playlist item
                 'ffmpeg_command' => $ffmpegCommand,
                 'status' => 'queued',
                 'log_path' => $this->logPath,

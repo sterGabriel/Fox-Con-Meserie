@@ -1,0 +1,269 @@
+/* FOX Table System */
+
+.fox-table-container {
+    background: #ffffff;
+    border: 1px solid #e8e8e8;
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.fox-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.fox-table thead {
+    background: #f5f5f5;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.fox-table th {
+    padding: 12px 16px;
+    text-align: left;
+    font-weight: 600;
+    color: #666;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+}
+
+.fox-table tbody tr {
+    border-bottom: 1px solid #f0f0f0;
+    transition: background 0.2s ease;
+}
+
+.fox-table tbody tr:hover {
+    background: #fafafa;
+}
+
+.fox-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.fox-table td {
+    padding: 12px 16px;
+    color: #333;
+    font-weight: 500;
+}
+
+/* Status LED */
+.fox-status-led {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+}
+
+.fox-status-led.green {
+    background: #16a34a;
+}
+
+.fox-status-led.red {
+    background: #dc2626;
+}
+
+.fox-status-led.yellow {
+    background: #f59e0b;
+}
+
+/* Badge */
+.fox-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid;
+}
+
+.fox-badge.blue {
+    background: rgba(37, 99, 235, 0.08);
+    border-color: rgba(37, 99, 235, 0.2);
+    color: #2563eb;
+}
+
+.fox-badge.yellow {
+    background: rgba(245, 158, 11, 0.08);
+    border-color: rgba(245, 158, 11, 0.2);
+    color: #d97706;
+}
+
+.fox-badge.green {
+    background: rgba(22, 163, 74, 0.08);
+    border-color: rgba(22, 163, 74, 0.2);
+    color: #16a34a;
+}
+
+.fox-badge.red {
+    background: rgba(220, 38, 38, 0.08);
+    border-color: rgba(220, 38, 38, 0.2);
+    color: #dc2626;
+}
+
+/* Action buttons */
+.fox-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin: 0 2px;
+}
+
+.fox-action-btn.start {
+    background: #16a34a;
+    color: #ffffff;
+}
+
+.fox-action-btn.start:hover {
+    background: #15803d;
+    box-shadow: 0 2px 6px rgba(22, 163, 74, 0.3);
+}
+
+.fox-action-btn.stop {
+    background: #dc2626;
+    color: #ffffff;
+}
+
+.fox-action-btn.stop:hover {
+    background: #b91c1c;
+    box-shadow: 0 2px 6px rgba(220, 38, 38, 0.3);
+}
+
+.fox-action-btn.edit {
+    background: #f59e0b;
+    color: #ffffff;
+}
+
+.fox-action-btn.edit:hover {
+    background: #d97706;
+    box-shadow: 0 2px 6px rgba(245, 158, 11, 0.3);
+}
+
+.fox-action-btn.delete {
+    background: #dc2626;
+    color: #ffffff;
+}
+
+.fox-action-btn.delete:hover {
+    background: #b91c1c;
+    box-shadow: 0 2px 6px rgba(220, 38, 38, 0.3);
+}
+
+/* Dropdown */
+.fox-dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.fox-dropdown-btn {
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    color: #666;
+    padding: 6px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.fox-dropdown-btn:hover {
+    border-color: #e30613;
+    color: #e30613;
+}
+
+.fox-dropdown-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: #ffffff;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    min-width: 160px;
+    margin-top: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    display: none;
+    z-index: 1000;
+}
+
+.fox-dropdown-menu.is-open {
+    display: block;
+}
+
+.fox-dropdown-menu a {
+    display: block;
+    padding: 10px 14px;
+    color: #666;
+    text-decoration: none;
+    font-size: 12px;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background 0.2s ease;
+}
+
+.fox-dropdown-menu a:last-child {
+    border-bottom: none;
+}
+
+.fox-dropdown-menu a:hover {
+    background: #f8f8f8;
+    color: #e30613;
+}
+
+/* Pagination */
+.fox-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #f0f0f0;
+}
+
+.fox-pagination a,
+.fox-pagination span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #666;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.fox-pagination a:hover {
+    border-color: #e30613;
+    color: #e30613;
+}
+
+.fox-pagination .active {
+    background: #e30613;
+    border-color: #e30613;
+    color: #ffffff;
+}
+
+@media (max-width: 768px) {
+    .fox-table {
+        font-size: 12px;
+    }
+
+    .fox-table th,
+    .fox-table td {
+        padding: 10px 12px;
+    }
+}

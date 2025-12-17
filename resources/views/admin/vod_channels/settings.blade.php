@@ -269,7 +269,6 @@ ffmpeg -re -i input.mp4 ... (loading)
         const profileSelect = document.querySelector('select[name="encode_profile_id"]');
         const previewBtn = document.getElementById('preview-btn');
         const previewOutput = document.getElementById('preview-output');
-        const channelId = '{{ $channel->id }}';
 
         // Toggle manual section visibility
         if (manualToggle) {

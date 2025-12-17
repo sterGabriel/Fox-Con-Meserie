@@ -128,6 +128,14 @@
 </div>
 
 <script>
+// Global channel identifier
+window.CHANNEL_ID = {{ $channel->id }};
+
+// CSRF helper
+function getCsrfToken() {
+    return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+}
+
 const btnEncodeNow = document.getElementById('btn-encode-now');
 const btnEncodeNowAlt = document.getElementById('btn-encode-now-alt');
 const btnStart = document.getElementById('btn-start');
@@ -147,7 +155,7 @@ const btnDownloadLog = document.getElementById('btn-download-log');
 const previewContainer = document.getElementById('preview-container');
 const previewVideo = document.getElementById('preview-video');
 
-const channelId = {{ $channel->id }};
+const channelId = window.CHANNEL_ID;
 let statusCheckInterval = null;
 let encodeCheckInterval = null;
 
@@ -208,7 +216,16 @@ btnStart.addEventListener('click', function(e) {
     btnStart.disabled = true;
     btnStartLooping.disabled = true;
     
-    fetch(`/vod-channels/${channelId}/engine/start`, { method: 'POST' })
+    fetch(`/vod-channels/${channelId}/engine/start`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': getCsrfToken(),
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({})
+    })
         .then(r => r.json())
         .then(data => {
             if (data.status === 'success') {
@@ -240,7 +257,16 @@ btnStartLooping.addEventListener('click', function(e) {
     addLog('🔄 Starting 24/7 looping mode...');
     addLog('📝 Generating concat playlist from channel videos');
     
-    fetch(`/vod-channels/${channelId}/engine/start-looping`, { method: 'POST' })
+    fetch(`/vod-channels/${channelId}/engine/start-looping`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': getCsrfToken(),
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({})
+    })
         .then(r => r.json())
         .then(data => {
             if (data.status === 'success') {
@@ -269,7 +295,16 @@ btnStop.addEventListener('click', function(e) {
     e.preventDefault();
     btnStop.disabled = true;
     
-    fetch(`/vod-channels/${channelId}/engine/stop`, { method: 'POST' })
+    fetch(`/vod-channels/${channelId}/engine/stop`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': getCsrfToken(),
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({})
+    })
         .then(r => r.json())
         .then(data => {
             if (data.status === 'success') {
@@ -315,7 +350,16 @@ btnTestPreview.addEventListener('click', function(e) {
     btnTestPreview.disabled = true;
     addLog('🎥 Generating 10-second preview with overlay...');
     
-    fetch(`/vod-channels/${channelId}/engine/test-preview`, { method: 'POST' })
+    fetch(`/vod-channels/${channelId}/engine/test-preview`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': getCsrfToken(),
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({})
+    })
         .then(r => r.json())
         .then(data => {
             if (data.status === 'success') {
@@ -340,7 +384,16 @@ function startEncoding() {
     addLog('⚙️ Starting offline encoding of playlist...');
     addLog('📝 Creating encoding jobs for each video');
     
-    fetch(`/vod-channels/${channelId}/engine/start-encoding`, { method: 'POST' })
+    fetch(`/vod-channels/${channelId}/engine/start-encoding`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': getCsrfToken(),
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({})
+    })
         .then(r => r.json())
         .then(data => {
             if (data.status === 'success') {
@@ -414,7 +467,6 @@ updateStatus();
 // 📡 STREAMING OUTPUTS (TASK 7)
 // ═══════════════════════════════════════════════════════════════
 
-const channelId = {{ $channel->id }};
 const tsUrlField = document.getElementById('ts-url');
 const hlsUrlField = document.getElementById('hls-url');
 const outputStatus = document.getElementById('output-status');
@@ -510,5 +562,11 @@ function updateStatusWithOutputs() {
 
 // Override updateStatus
 updateStatus = updateStatusWithOutputs;
+
+// Global startEncodingAll function (for onclick compatibility)
+window.startEncodingAll = function(cId) {
+    window.CHANNEL_ID = cId;
+    startEncoding();
+};
 
 </script>

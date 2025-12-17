@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\LiveChannel;
+use App\Services\SystemMonitorService;
 use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
@@ -108,6 +109,13 @@ class DashboardController extends Controller
             'ok'       => $okCount,
         ];
 
+        // ===== SYSTEM METRICS (REAL DATA) =====
+        $cpuUsage = SystemMonitorService::getCpuUsage();
+        $ramUsage = SystemMonitorService::getSystemMemoryUsage();
+        $networkStats = SystemMonitorService::getNetworkStats();
+        $uptime = SystemMonitorService::getUptime();
+        $diskStats = SystemMonitorService::getDiskSpace();
+
         return view('admin.dashboard', [
             'totalChannels'        => $totalChannels,
             'enabledChannels'      => $enabledChannels,
@@ -123,6 +131,12 @@ class DashboardController extends Controller
             'jobsStats'            => $jobsStats,
             'jobs'                 => $jobs,
             'alertSummary'         => $alertSummary,
+            // System metrics
+            'cpuUsage'             => $cpuUsage,
+            'ramUsage'             => $ramUsage,
+            'networkStats'         => $networkStats,
+            'uptime'               => $uptime,
+            'diskStats'            => $diskStats,
         ]);
     }
 }

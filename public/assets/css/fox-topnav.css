@@ -1,0 +1,153 @@
+.fox-topnav {
+    height: 56px;
+    background: #ffffff;
+    border-bottom: 3px solid #e30613;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.fox-topnav-left {
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    flex: 1;
+}
+
+.fox-topnav-item {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #666;
+    text-decoration: none;
+    padding: 8px 14px;
+    border-radius: 20px;
+    transition: all 0.2s ease;
+    letter-spacing: 0.5px;
+}
+
+.fox-topnav-item:hover {
+    color: #333;
+    background: rgba(227, 6, 19, 0.08);
+}
+
+.fox-topnav-item.is-active {
+    background: #e30613;
+    color: #fff;
+}
+
+.fox-topnav-right {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+}
+
+/* LICENSE BADGE */
+.fox-license-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+}
+
+.fox-license-label {
+    color: #999;
+    font-weight: 600;
+}
+
+.fox-license-value {
+    color: #333;
+    font-weight: 700;
+    background: rgba(227, 6, 19, 0.1);
+    padding: 2px 8px;
+    border-radius: 3px;
+}
+
+/* USER DROPDOWN */
+.fox-user-dropdown {
+    position: relative;
+}
+
+.fox-user-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: none;
+    border: 1px solid #ddd;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+    transition: all 0.2s ease;
+}
+
+.fox-user-btn:hover {
+    border-color: #e30613;
+    color: #e30613;
+}
+
+.fox-user-avatar {
+    font-size: 16px;
+}
+
+.fox-dropdown-caret {
+    font-size: 10px;
+    color: #999;
+}
+
+.fox-user-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: #ffffff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    min-width: 150px;
+    margin-top: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    display: none;
+    z-index: 1000;
+}
+
+.fox-user-menu.is-open {
+    display: block;
+}
+
+.fox-user-menu a,
+.fox-user-menu button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 10px 16px;
+    color: #666;
+    text-decoration: none;
+    font-size: 13px;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background 0.2s ease;
+}
+
+.fox-user-menu a:last-child,
+.fox-user-menu button:last-child {
+    border-bottom: none;
+}
+
+.fox-user-menu a:hover,
+.fox-user-menu button:hover {
+    background: #f8f8f8;
+    color: #e30613;
+}
+
+@media (max-width: 1200px) {
+    .fox-topnav-left {
+        gap: 16px;
+    }
+
+    .fox-topnav-item {
+        font-size: 10px;
+        padding: 6px 10px;
+    }
+}

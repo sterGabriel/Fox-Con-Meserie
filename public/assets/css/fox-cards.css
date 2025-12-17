@@ -1,0 +1,94 @@
+/* FOX Card System */
+
+.fox-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.fox-card {
+    background: #ffffff;
+    border: 1px solid #e8e8e8;
+    border-radius: 6px;
+    border-left: 4px solid #2563eb;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.fox-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+}
+
+/* Card icon */
+.fox-card-icon {
+    font-size: 28px;
+    margin-bottom: 12px;
+    opacity: 0.8;
+}
+
+/* Card label */
+.fox-card-label {
+    font-size: 12px;
+    color: #999;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+/* Card value */
+.fox-card-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: #333;
+    margin-bottom: 6px;
+}
+
+/* Card subtitle */
+.fox-card-subtitle {
+    font-size: 11px;
+    color: #aaa;
+    font-weight: 500;
+}
+
+/* Color variants for left border */
+.fox-card.blue {
+    border-left-color: #2563eb;
+}
+
+.fox-card.green {
+    border-left-color: #16a34a;
+}
+
+.fox-card.red {
+    border-left-color: #dc2626;
+}
+
+.fox-card.yellow {
+    border-left-color: #f59e0b;
+}
+
+.fox-card.purple {
+    border-left-color: #9333ea;
+}
+
+/* Wide card */
+.fox-card-wide {
+    grid-column: span 2;
+}
+
+@media (max-width: 768px) {
+    .fox-cards-grid {
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 12px;
+    }
+
+    .fox-card-wide {
+        grid-column: span 1;
+    }
+}

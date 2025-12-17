@@ -1,0 +1,177 @@
+:root {
+    --fox-bg: #1f2328;
+    --fox-bg2: #242a31;
+    --fox-red: #e30613;
+    --fox-text: #e9eef5;
+    --fox-muted: #b7c0cc;
+    --fox-line: rgba(255, 255, 255, .06);
+}
+
+.fox-sidebar {
+    width: 260px;
+    min-height: 100vh;
+    background: var(--fox-bg);
+    color: var(--fox-text);
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--fox-line);
+}
+
+.fox-brand {
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--fox-line);
+}
+
+.fox-brand-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.fox-logo {
+    width: 26px;
+    height: 26px;
+    display: inline-block;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #ff7a18, #af002d 60%, #319197);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, .25);
+}
+
+.fox-brand-text {
+    font-weight: 700;
+    letter-spacing: .5px;
+}
+
+.fox-burger {
+    background: transparent;
+    color: var(--fox-text);
+    border: 0;
+    font-size: 18px;
+    cursor: pointer;
+    opacity: .9;
+}
+
+.fox-nav {
+    padding: 10px 0;
+}
+
+.fox-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    color: var(--fox-text);
+    text-decoration: none;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    position: relative;
+    user-select: none;
+}
+
+.fox-item:hover {
+    background: var(--fox-bg2);
+}
+
+.fox-item.is-active {
+    background: var(--fox-red);
+}
+
+.fox-item.is-active::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: rgba(255, 255, 255, .95);
+}
+
+.fox-ico {
+    width: 18px;
+    height: 18px;
+    display: inline-block;
+    opacity: .95;
+    filter: drop-shadow(0 1px 0 rgba(0, 0, 0, .25));
+}
+
+/* simple CSS icons */
+.ico-home {
+    background: conic-gradient(from 180deg, #fff 0 25%, transparent 0 100%);
+}
+
+.ico-user {
+    background: radial-gradient(circle at 50% 35%, #fff 0 35%, transparent 36%), radial-gradient(circle at 50% 85%, #fff 0 40%, transparent 41%);
+}
+
+.ico-folder {
+    background: linear-gradient(#fff, #fff) left 0 top 35%/100% 65% no-repeat, linear-gradient(#fff, #fff) left 0 top 10%/55% 30% no-repeat;
+}
+
+.fox-label {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.fox-parent .fox-caret {
+    margin-left: auto;
+    width: 10px;
+    height: 10px;
+    border-right: 2px solid var(--fox-muted);
+    border-bottom: 2px solid var(--fox-muted);
+    transform: rotate(-45deg);
+    transition: transform .18s ease, border-color .18s ease;
+}
+
+.fox-parent.is-open .fox-caret {
+    transform: rotate(45deg);
+    border-color: var(--fox-text);
+}
+
+.fox-sub {
+    display: none;
+    padding: 6px 0 10px 0;
+    border-bottom: 1px solid var(--fox-line);
+}
+
+.fox-sub.is-open {
+    display: block;
+}
+
+.fox-subitem {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px 10px 42px;
+    color: var(--fox-muted);
+    text-decoration: none;
+    font-size: 13px;
+    position: relative;
+}
+
+.fox-subitem:hover {
+    color: var(--fox-text);
+    background: rgba(255, 255, 255, .04);
+}
+
+.fox-subitem.is-active {
+    color: var(--fox-text);
+    background: rgba(227, 6, 19, .18);
+}
+
+.fox-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .85);
+    opacity: .95;
+}
+
+.fox-sublabel {
+    font-weight: 600;
+}

@@ -22,8 +22,13 @@
         {{-- STÂNGA: PLAYLIST EXISTENT --}}
         <div class="col-span-5">
             <div class="rounded-lg border border-slate-700/50 bg-slate-800/30 overflow-hidden">
-                <div class="border-b border-slate-700/50 bg-slate-700/20 px-4 py-3">
+                <div class="border-b border-slate-700/50 bg-slate-700/20 px-4 py-3 flex items-center justify-between">
                     <span class="text-sm font-semibold text-slate-200">Current Playlist</span>
+                    @if($channel->video_category_id)
+                    <button type="button" onclick="loadFromCategory()" class="inline-flex items-center rounded px-2 py-1 text-xs font-medium text-green-300 hover:bg-green-500/20 transition">
+                        📌 Load from category
+                    </button>
+                    @endif
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm">
@@ -539,3 +544,38 @@ document.addEventListener('DOMContentLoaded', () => {
     </div>
   </div>
 </div>
+<script>
+function loadFromCategory() {
+    if (!confirm('Replace entire playlist with all videos from category?')) {
+        return;
+    }
+
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = '⏳ Loading...';
+
+    fetch('{{ route("vod-channels.sync-playlist-from-category", $channel) }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+        },
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            alert('✓ ' + data.message);
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            alert('❌ ' + data.message);
+            btn.disabled = false;
+            btn.textContent = '📌 Load from category';
+        }
+    })
+    .catch(e => {
+        alert('❌ Error: ' + e.message);
+        btn.disabled = false;
+        btn.textContent = '📌 Load from category';
+    });
+}
+</script>

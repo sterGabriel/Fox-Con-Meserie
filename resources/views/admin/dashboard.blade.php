@@ -1,338 +1,585 @@
 @extends('layouts.panel')
 
 @section('content')
-<script>
-    // Density toggle persistence
-    document.addEventListener('DOMContentLoaded', function() {
-        const saved = localStorage.getItem('dashboard-density') || 'comfy';
-        document.documentElement.classList.add('density-' + saved);
-        document.getElementById('density-toggle-' + saved).checked = true;
-    });
-
-    function toggleDensity(mode) {
-        localStorage.setItem('dashboard-density', mode);
-        document.documentElement.classList.remove('density-compact', 'density-comfy');
-        document.documentElement.classList.add('density-' + mode);
-    }
-</script>
 
 <style>
-    :root.density-compact { --tw-padding-multiplier: 0.75; }
-    :root.density-comfy { --tw-padding-multiplier: 1; }
+  .fox-dashboard {
+    padding: 24px;
+    background: #f4f5f7;
+  }
+
+  .fox-server-tabs {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .fox-tab-btn {
+    padding: 10px 16px;
+    background: #2a2a2a;
+    color: #ffffff;
+    border: 1px solid #3a3a3a;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+  }
+
+  .fox-tab-btn.active {
+    background: #e30613;
+    border-color: #e30613;
+  }
+
+  .fox-tab-btn:hover {
+    border-color: #e30613;
+  }
+
+  .fox-header-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #ffffff;
+    padding: 16px 20px;
+    border: 1px solid #e8e8e8;
+    border-radius: 6px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+
+  .fox-header-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #333;
+  }
+
+  .fox-restart-header-btn {
+    background: #e30613;
+    color: #fff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+  }
+
+  .fox-restart-header-btn:hover {
+    background: #c80510;
+  }
+
+  /* Cards Grid */
+  .fox-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .fox-metric-card {
+    background: #ffffff;
+    border: 1px solid #e8e8e8;
+    border-radius: 6px;
+    border-left: 4px solid #2f6fed;
+    padding: 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease;
+  }
+
+  .fox-metric-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+  }
+
+  .fox-metric-icon {
+    font-size: 24px;
+    margin-bottom: 8px;
+  }
+
+  .fox-metric-label {
+    font-size: 12px;
+    color: #999;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+
+  .fox-metric-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: #333;
+  }
+
+  /* Charts Grid */
+  .fox-charts-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .fox-chart-box {
+    background: #ffffff;
+    border: 1px solid #e8e8e8;
+    border-radius: 6px;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+
+  .fox-chart-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #333;
+    margin-bottom: 16px;
+  }
+
+  .fox-chart-placeholder {
+    height: 200px;
+    background: #f8f8f8;
+    border: 1px dashed #ddd;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #999;
+    font-size: 13px;
+  }
+
+  @media (max-width: 1024px) {
+    .fox-charts-row {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .fox-cards-grid {
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    }
+
+    .fox-metric-value {
+      font-size: 20px;
+    }
+  }
+
+  /* Recent Channels Table */
+  .fox-recent-section {
+    margin-top: 32px;
+  }
+
+  .fox-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+
+  .fox-section-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #333;
+  }
+
+  .fox-view-all-link {
+    color: #2f6fed;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .fox-view-all-link:hover {
+    text-decoration: underline;
+  }
+
+  .fox-recent-table {
+    width: 100%;
+    background: #ffffff;
+    border: 1px solid #e8e8e8;
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+
+  .fox-table-header {
+    display: grid;
+    grid-template-columns: 40px 1fr 100px 200px 120px 250px;
+    gap: 12px;
+    padding: 12px 16px;
+    background: #f3f4f6;
+    border-bottom: 1px solid #e8e8e8;
+    font-size: 12px;
+    font-weight: 700;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .fox-table-row {
+    display: grid;
+    grid-template-columns: 40px 1fr 100px 200px 120px 250px;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid #f0f0f0;
+    align-items: center;
+    transition: all 0.2s ease;
+  }
+
+  .fox-table-row:hover {
+    background: #f9fafb;
+  }
+
+  .fox-table-row:last-child {
+    border-bottom: none;
+  }
+
+  .fox-channel-logo {
+    width: 40px;
+    height: 40px;
+    border-radius: 4px;
+    background: #e8e8e8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .fox-channel-logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .fox-channel-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+  }
+
+  .fox-channel-id {
+    font-size: 11px;
+    color: #999;
+  }
+
+  .fox-status-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    text-align: center;
+  }
+
+  .fox-status-idle {
+    background: #dbeafe;
+    color: #1e40af;
+  }
+
+  .fox-status-running {
+    background: #dcfce7;
+    color: #166534;
+  }
+
+  .fox-status-error {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+
+  .fox-profile-text {
+    font-size: 12px;
+    color: #666;
+  }
+
+  .fox-updated-text {
+    font-size: 12px;
+    color: #999;
+  }
+
+  .fox-actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  .fox-action-btn {
+    padding: 4px 8px;
+    border: 1px solid #e8e8e8;
+    background: #f9fafb;
+    color: #2f6fed;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .fox-action-btn:hover {
+    background: #2f6fed;
+    color: #fff;
+    border-color: #2f6fed;
+  }
+
+  .fox-action-btn.danger {
+    color: #e30613;
+  }
+
+  .fox-action-btn.danger:hover {
+    background: #e30613;
+    color: #fff;
+    border-color: #e30613;
+  }
+
+  .fox-action-btn.warning {
+    color: #f59e0b;
+  }
+
+  .fox-action-btn.warning:hover {
+    background: #f59e0b;
+    color: #fff;
+    border-color: #f59e0b;
+  }
+
 </style>
 
-<div class="flex items-center justify-between">
-    <div>
-        <div class="text-xs uppercase tracking-wide text-slate-300/70">System Overview</div>
-        <h1 class="mt-1 text-2xl font-semibold text-slate-100">Dashboard</h1>
+<div class="fox-dashboard">
+
+  <!-- SERVER TABS -->
+  <div class="fox-server-tabs">
+    <button class="fox-tab-btn active" onclick="selectServer(1)">Server 1</button>
+    <button class="fox-tab-btn" onclick="selectServer(2)">Server 2</button>
+  </div>
+
+  <!-- HEADER BOX [Server1] + Restart -->
+  <div class="fox-header-box">
+    <div class="fox-header-title">📊 [Server 1]</div>
+    <button class="fox-restart-header-btn" onclick="restartServer()">🔄 Restart</button>
+  </div>
+
+  <!-- METRIC CARDS GRID (2 rows × 6 cards) -->
+  <div class="fox-cards-grid">
+    <!-- ROW 1 -->
+    <div class="fox-metric-card">
+      <div class="fox-metric-icon">💻</div>
+      <div class="fox-metric-label">CPU</div>
+      <div class="fox-metric-value">{{ number_format($cpuUsage ?? 0, 1) }}%</div>
     </div>
 
-    <div class="flex items-center gap-4">
-        <div class="rounded-xl border border-slate-500/20 bg-slate-900/40 backdrop-blur-sm shadow-[0_0_0_1px_rgba(255,255,255,0.02)] px-4 py-2 text-sm text-slate-300/80">
-            <span class="mr-2">Last updated:</span>
-            <span class="font-semibold text-slate-100">{{ now()->format('H:i:s') }}</span>
-        </div>
-
-        <div class="flex items-center gap-2 rounded-xl border border-slate-500/20 bg-slate-900/40 px-3 py-2">
-            <span class="text-xs text-slate-300/70 mr-2">Density:</span>
-            <label class="text-xs text-slate-200/90 cursor-pointer">
-                <input type="radio" id="density-toggle-compact" name="density" value="compact" onchange="toggleDensity('compact')" class="mr-1">
-                Compact
-            </label>
-            <label class="text-xs text-slate-200/90 cursor-pointer ml-3">
-                <input type="radio" id="density-toggle-comfy" name="density" value="comfy" onchange="toggleDensity('comfy')" class="mr-1">
-                Comfy
-            </label>
-        </div>
+    <div class="fox-metric-card">
+      <div class="fox-metric-icon">🧠</div>
+      <div class="fox-metric-label">RAM</div>
+      <div class="fox-metric-value">{{ number_format($ramUsage ?? 0, 1) }}%</div>
     </div>
-</div>
 
-{{-- ALERT SUMMARY BLOCK --}}
-<div class="mt-6 rounded-2xl border border-slate-500/20 bg-slate-900/40 p-5">
-    <div class="text-sm font-semibold text-slate-100 mb-4">Alert Summary</div>
+    <div class="fox-metric-card">
+      <div class="fox-metric-icon">📥</div>
+      <div class="fox-metric-label">Input (Mbps)</div>
+      <div class="fox-metric-value">{{ number_format($networkStats['input_mbps'] ?? 0, 0) }}</div>
+    </div>
 
-    <div class="grid grid-cols-3 gap-4 mb-6">
-        <div class="rounded-xl border border-red-500/30 bg-red-500/10 p-4">
-            <div class="text-xs text-red-200/70 uppercase tracking-wide">Critical</div>
-            <div class="mt-2 text-3xl font-bold text-red-300">{{ count($alertSummary['critical'] ?? []) }}</div>
-            @if(count($alertSummary['critical'] ?? []) > 0)
-                <div class="mt-3 space-y-1">
-                    @foreach(array_slice($alertSummary['critical'] ?? [], 0, 3) as $alert)
-                        <div class="text-xs text-red-200/80">• {{ $alert }}</div>
-                    @endforeach
-                    @if(count($alertSummary['critical'] ?? []) > 3)
-                        <div class="text-xs text-red-200/60">+{{ count($alertSummary['critical']) - 3 }} more</div>
-                    @endif
-                </div>
+    <div class="fox-metric-card">
+      <div class="fox-metric-icon">📤</div>
+      <div class="fox-metric-label">Output (Mbps)</div>
+      <div class="fox-metric-value">{{ number_format($networkStats['output_mbps'] ?? 0, 0) }}</div>
+    </div>
+
+    <div class="fox-metric-card">
+      <div class="fox-metric-icon">👥</div>
+      <div class="fox-metric-label">Online Connections</div>
+      <div class="fox-metric-value">{{ $runningChannels ?? 0 }}</div>
+    </div>
+
+    <div class="fox-metric-card">
+      <div class="fox-metric-icon">🔗</div>
+      <div class="fox-metric-label">Open Connections</div>
+      <div class="fox-metric-value">{{ $enabledChannels ?? 0 }}</div>
+    </div>
+
+    <!-- ROW 2 -->
+    <div class="fox-metric-card">
+      <div class="fox-metric-icon">⚙️</div>
+      <div class="fox-metric-label">Transcoding Videos</div>
+      <div class="fox-metric-value">{{ $jobsStats['running'] ?? 0 }}</div>
+    </div>
+
+    <div class="fox-metric-card">
+      <div class="fox-metric-icon">🎬</div>
+      <div class="fox-metric-label">Trailer Videos</div>
+      <div class="fox-metric-value">{{ $totalChannels ?? 0 }}</div>
+    </div>
+
+    <div class="fox-metric-card">
+      <div class="fox-metric-icon">🎥</div>
+      <div class="fox-metric-label">Total Videos</div>
+      <div class="fox-metric-value">{{ $totalChannels ?? 0 }}</div>
+    </div>
+
+    <div class="fox-metric-card">
+      <div class="fox-metric-icon">📺</div>
+      <div class="fox-metric-label">Live Streams</div>
+      <div class="fox-metric-value">{{ $runningChannels ?? 0 }}</div>
+    </div>
+
+    <div class="fox-metric-card">
+      <div class="fox-metric-icon">📻</div>
+      <div class="fox-metric-label">Radio Live Streams</div>
+      <div class="fox-metric-value">{{ $errorChannels ?? 0 }}</div>
+    </div>
+
+    <div class="fox-metric-card">
+      <div class="fox-metric-icon">⏱️</div>
+      <div class="fox-metric-label">Server Uptime</div>
+      <div class="fox-metric-value">{{ $uptime ?? 'N/A' }}</div>
+    </div>
+  </div>
+
+  <!-- CHARTS ROW 1: Traffic Statistics + Network Bandwidth -->
+  <div class="fox-charts-row">
+    <div class="fox-chart-box">
+      <div class="fox-chart-title">Traffic Statistics</div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+        <div style="text-align: center; padding: 12px; background: #f8f8f8; border-radius: 4px;">
+          <div style="font-size: 11px; color: #999; margin-bottom: 4px;">INPUT</div>
+          <div style="font-size: 18px; font-weight: 700; color: #f59e0b;">{{ number_format($networkStats['input_mbps'] ?? 0, 0) }} Mbps</div>
+        </div>
+        <div style="text-align: center; padding: 12px; background: #f8f8f8; border-radius: 4px;">
+          <div style="font-size: 11px; color: #999; margin-bottom: 4px;">OUTPUT</div>
+          <div style="font-size: 18px; font-weight: 700; color: #fbbf24;">{{ number_format($networkStats['output_mbps'] ?? 0, 0) }} Mbps</div>
+        </div>
+      </div>
+      <div style="text-align: center; padding: 12px; background: #f8f8f8; border-radius: 4px; margin-bottom: 12px;">
+        <div style="font-size: 11px; color: #999; margin-bottom: 4px;">TOTAL</div>
+        <div style="font-size: 18px; font-weight: 700; color: #ea8c55;">{{ number_format($networkStats['total_mbps'] ?? 0, 0) }} Mbps</div>
+      </div>
+      <div class="fox-chart-placeholder">Pie Chart (Upload / Download)</div>
+    </div>
+
+    <div class="fox-chart-box">
+      <div class="fox-chart-title">Network Bandwidth</div>
+      <div class="fox-chart-placeholder">Line Chart (Network Bandwidth)</div>
+    </div>
+  </div>
+
+  <!-- CHARTS ROW 2: Harddisk Information + World Statistics -->
+  <div class="fox-charts-row">
+    <div class="fox-chart-box">
+      <div class="fox-chart-title">Harddisk Information</div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+        <div style="text-align: center; padding: 12px; background: #f8f8f8; border-radius: 4px;">
+          <div style="font-size: 11px; color: #999; margin-bottom: 4px;">USED</div>
+          <div style="font-size: 18px; font-weight: 700; color: #e30613;">{{ $diskStats['used_pct'] ?? 0 }}%</div>
+        </div>
+        <div style="text-align: center; padding: 12px; background: #f8f8f8; border-radius: 4px;">
+          <div style="font-size: 11px; color: #999; margin-bottom: 4px;">FREE</div>
+          <div style="font-size: 18px; font-weight: 700; color: #16a34a;">{{ $diskStats['free_pct'] ?? 0 }}%</div>
+        </div>
+      </div>
+      <div style="text-align: center; padding: 12px; background: #f8f8f8; border-radius: 4px; margin-bottom: 12px;">
+        <div style="font-size: 11px; color: #999; margin-bottom: 4px;">TOTAL</div>
+        <div style="font-size: 18px; font-weight: 700; color: #333;">{{ $diskStats['total_gb'] ?? 0 }} GB</div>
+      </div>
+      <div class="fox-chart-placeholder">Pie Chart (Disk Usage)</div>
+    </div>
+
+    <div class="fox-chart-box">
+      <div class="fox-chart-title">World Statistics</div>
+      <div class="fox-chart-placeholder">World Map (Viewers by Country)</div>
+    </div>
+  </div>
+
+  <!-- RECENT CHANNELS SECTION -->
+  <div class="fox-recent-section">
+    <div class="fox-section-header">
+      <h3 class="fox-section-title">Recent Channels</h3>
+      <a href="/vod-channels" class="fox-view-all-link">View all</a>
+    </div>
+
+    <div class="fox-recent-table">
+      <!-- Table Header -->
+      <div class="fox-table-header">
+        <div style="text-align: center;">Logo</div>
+        <div>Channel</div>
+        <div>Status</div>
+        <div>Profile</div>
+        <div>Updated</div>
+        <div>Actions</div>
+      </div>
+
+      <!-- Table Rows -->
+      @forelse($recentChannels ?? [] as $channel)
+        <div class="fox-table-row">
+          <!-- Logo -->
+          <div class="fox-channel-logo">
+            @if($channel->logo_path)
+              <img src="{{ $channel->logo_path }}" alt="Logo">
+            @else
+              <span style="color: #ccc; font-size: 20px;">📺</span>
             @endif
-        </div>
+          </div>
 
-        <div class="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
-            <div class="text-xs text-amber-200/70 uppercase tracking-wide">Warning</div>
-            <div class="mt-2 text-3xl font-bold text-amber-300">{{ count($alertSummary['warning'] ?? []) }}</div>
-            @if(count($alertSummary['warning'] ?? []) > 0)
-                <div class="mt-3 space-y-1">
-                    @foreach(array_slice($alertSummary['warning'] ?? [], 0, 3) as $alert)
-                        <div class="text-xs text-amber-200/80">• {{ $alert }}</div>
-                    @endforeach
-                    @if(count($alertSummary['warning'] ?? []) > 3)
-                        <div class="text-xs text-amber-200/60">+{{ count($alertSummary['warning']) - 3 }} more</div>
-                    @endif
-                </div>
-            @endif
-        </div>
+          <!-- Channel Name -->
+          <div>
+            <div class="fox-channel-name">{{ $channel->name }}</div>
+            <div class="fox-channel-id">ID: {{ $channel->id }}</div>
+          </div>
 
-        <div class="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
-            <div class="text-xs text-emerald-200/70 uppercase tracking-wide">Healthy</div>
-            <div class="mt-2 text-3xl font-bold text-emerald-300">✓</div>
-            <div class="mt-3 text-xs text-emerald-200/80">{{ count($alertSummary['critical'] ?? []) === 0 && count($alertSummary['warning'] ?? []) === 0 ? 'All systems nominal' : 'Address alerts above' }}</div>
-        </div>
-    </div>
-</div>
-
-{{-- KPI ROW (compact + horizontal) --}}
-<div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-    <div class="rounded-2xl border border-slate-500/20 bg-slate-900/40 p-4">
-        <div class="text-[11px] uppercase tracking-wide text-slate-400">Total Channels</div>
-        <div class="mt-1 text-2xl lg:text-3xl font-semibold leading-none text-slate-100">{{ $totalChannels }}</div>
-    </div>
-
-    <div class="rounded-2xl border border-slate-500/20 bg-slate-900/40 p-4">
-        <div class="text-[11px] uppercase tracking-wide text-slate-400">Enabled</div>
-        <div class="mt-1 text-2xl lg:text-3xl font-semibold leading-none text-slate-100">{{ $enabledChannels }}</div>
-    </div>
-
-    <div class="rounded-2xl border border-slate-500/20 bg-slate-900/40 p-4">
-        <div class="text-[11px] uppercase tracking-wide text-slate-400">Running</div>
-        <div class="mt-1 flex items-end justify-between">
-            <div class="text-2xl lg:text-3xl font-semibold leading-none text-slate-100">{{ $runningChannels }}</div>
-            <span class="text-xs rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-emerald-300">LIVE</span>
-        </div>
-    </div>
-
-    <div class="rounded-2xl border border-slate-500/20 bg-slate-900/40 p-4">
-        <div class="text-[11px] uppercase tracking-wide text-slate-400">Errors</div>
-        <div class="mt-1 flex items-end justify-between">
-            <div class="text-2xl lg:text-3xl font-semibold leading-none text-slate-100">{{ $errorChannels }}</div>
-            <span class="text-xs rounded-full border border-red-500/30 bg-red-500/10 px-2 py-1 text-red-300">ALERT</span>
-        </div>
-    </div>
-
-    <div class="rounded-2xl border border-slate-500/20 bg-slate-900/40 p-4">
-        <div class="text-[11px] uppercase tracking-wide text-slate-400">Storage Used</div>
-        <div class="mt-1 flex items-end justify-between">
-            <div class="text-2xl lg:text-3xl font-semibold leading-none text-slate-100">
-                {{ $diskUsedPct === null ? 'N/A' : $diskUsedPct . '%' }}
-            </div>
-
+          <!-- Status -->
+          <div>
             @php
-                $storageBadge = 'border-slate-400/20 bg-slate-400/10 text-slate-200/80';
-                if (is_numeric($diskUsedPct) && $diskUsedPct >= 85) $storageBadge = 'border-red-500/30 bg-red-500/10 text-red-300';
-                elseif (is_numeric($diskUsedPct) && $diskUsedPct >= 70) $storageBadge = 'border-amber-500/30 bg-amber-500/10 text-amber-300';
-                elseif (is_numeric($diskUsedPct)) $storageBadge = 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300';
+              $statusClass = 'fox-status-idle';
+              $statusText = 'IDLE';
+              if ($channel->status === 'running') {
+                $statusClass = 'fox-status-running';
+                $statusText = 'RUNNING';
+              } elseif ($channel->status === 'error') {
+                $statusClass = 'fox-status-error';
+                $statusText = 'ERROR';
+              }
             @endphp
+            <span class="fox-status-badge {{ $statusClass }}">{{ $statusText }}</span>
+          </div>
 
-            <span class="text-xs rounded-full border px-2 py-1 {{ $storageBadge }}">HEALTH</span>
-        </div>
+          <!-- Profile -->
+          <div class="fox-profile-text">
+            {{ $channel->resolution ?? 'N/A' }}<br>
+            {{ number_format($channel->video_bitrate ?? 0) }} kbps • {{ $channel->fps ?? 0 }} fps
+          </div>
 
-        <div class="mt-2 text-xs text-slate-300/70">
-            {{ $diskTotal ? round($diskTotal/1024/1024/1024, 1) : 0 }} GB total •
-            {{ $diskFree ? round($diskFree/1024/1024/1024, 1) : 0 }} GB free
+          <!-- Updated -->
+          <div class="fox-updated-text">
+            {{ $channel->updated_at ? $channel->updated_at->diffForHumans() : 'N/A' }}
+          </div>
+
+          <!-- Actions -->
+          <div class="fox-actions">
+            <button class="fox-action-btn" title="Settings">⚙️ Settings</button>
+            <button class="fox-action-btn warning" title="Restart">🔄 Restart</button>
+            <button class="fox-action-btn danger" title="Toggle">🔌 Toggle</button>
+          </div>
         </div>
+      @empty
+        <div class="fox-table-row" style="text-align: center; color: #999; padding: 32px;">
+          No recent channels found
+        </div>
+      @endforelse
     </div>
+  </div>
 </div>
 
-{{-- ALERTS + RECENT CHANNELS (12-col grid: 4/8) --}}
-<div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-12">
-    {{-- Alerts (narrow) --}}
-    <div class="lg:col-span-4 rounded-2xl border border-slate-500/20 bg-slate-900/40 p-5">
-        <div class="text-sm font-semibold text-slate-100">Alerts</div>
+<script>
+  function selectServer(serverId) {
+    console.log('Server selected:', serverId);
+    document.querySelectorAll('.fox-tab-btn').forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+    // TODO: Load server data
+  }
 
-        <div class="mt-4 space-y-3">
-            <div class="flex items-center justify-between rounded-xl border border-slate-500/15 bg-slate-950/30 px-3 py-2">
-                <div class="text-sm text-slate-200/90">Missing logo</div>
-                <span class="text-[11px] font-medium rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-amber-300">
-                    {{ $channelsMissingLogo }}
-                </span>
-            </div>
-
-            <div class="flex items-center justify-between rounded-xl border border-slate-500/15 bg-slate-950/30 px-3 py-2">
-                <div class="text-sm text-slate-200/90">Missing outputs</div>
-                <span class="text-[11px] font-medium rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-amber-300">
-                    {{ $channelsMissingOutput }}
-                </span>
-            </div>
-
-            <div class="text-xs text-slate-300/60">
-                Alerts are computed from current DB state (MVP).
-            </div>
-        </div>
-    </div>
-
-    {{-- Recent Channels (dominant) --}}
-    <div class="lg:col-span-8 rounded-2xl border border-slate-500/20 bg-slate-900/40 p-5">
-        <div class="flex items-center justify-between">
-            <div class="text-sm font-semibold text-slate-100">Recent Channels</div>
-            <a href="{{ route('vod-channels.index') }}"
-               class="text-sm text-blue-200/90 hover:text-blue-200 underline underline-offset-4">
-                View all
-            </a>
-        </div>
-
-        <div class="mt-4 overflow-hidden rounded-xl border border-slate-500/15 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
-            <table class="w-full text-sm">
-                <thead class="bg-slate-950/40 text-slate-300/80">
-                    <tr>
-                        <th class="px-3 py-2 text-left">Channel</th>
-                        <th class="px-3 py-2 text-left">Status</th>
-                        <th class="px-3 py-2 text-left">Profile</th>
-                        <th class="px-3 py-2 text-left">Updated</th>
-                        <th class="px-3 py-2 text-right">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @php
-                        // Sort channels by severity
-                        $severityMap = [];
-                        foreach($recentChannels as $ch) {
-                            $sev = 2; // OK default
-                            if ($ch->status === 'error' || empty($ch->encoded_output_path) || empty($ch->hls_output_path)) {
-                                $sev = 0; // CRITICAL
-                            } elseif (empty($ch->logo_path) || $ch->status === 'idle') {
-                                $sev = 1; // WARNING
-                            }
-                            $severityMap[$ch->id] = $sev;
-                        }
-                        $sortedChannels = $recentChannels->sortBy(function($ch) use ($severityMap) {
-                            return $severityMap[$ch->id];
-                        });
-                    @endphp
-
-                    @forelse($sortedChannels as $ch)
-                        @php
-                            $status = $ch->status ?? 'unknown';
-                            $severity = $severityMap[$ch->id];
-                            $badge = match($status) {
-                                'running' => 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
-                                'idle'    => 'border-slate-400/20 bg-slate-400/10 text-slate-200/80',
-                                'error'   => 'border-red-500/30 bg-red-500/10 text-red-300',
-                                default   => 'border-amber-500/30 bg-amber-500/10 text-amber-300',
-                            };
-                            $severityBorder = match($severity) {
-                                0 => 'border-l-4 border-l-red-500',
-                                1 => 'border-l-4 border-l-amber-500',
-                                default => 'border-l-4 border-l-slate-500',
-                            };
-                        @endphp
-                        <tr class="border-t border-slate-500/10 hover:bg-slate-800/40 transition {{ $severityBorder }}">
-                            <td class="px-3 py-2.5">
-                                <div class="flex items-center gap-3">
-                                    <div class="h-8 w-8 rounded-lg border border-slate-500/20 bg-slate-950/30 overflow-hidden flex items-center justify-center">
-                                        @if($ch->logo_path)
-                                            <img class="h-8 w-8 object-contain"
-                                                 src="{{ route('vod-channels.logo.preview', $ch) }}"
-                                                 alt="logo">
-                                        @else
-                                            <span class="text-xs text-slate-400">—</span>
-                                        @endif
-                                    </div>
-                                    <div>
-                                        <div class="font-medium text-slate-100">{{ $ch->name }}</div>
-                                        <div class="text-xs text-slate-300/60">ID: {{ $ch->id }}</div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="px-3 py-2.5">
-                                <span class="text-[11px] font-medium tracking-wide leading-none rounded-full border px-2 py-1 {{ $badge }}">{{ strtoupper($status) }}</span>
-                            </td>
-                            <td class="px-3 py-2.5 text-slate-200/90">
-                                {{ $ch->resolution ?? '—' }} • {{ $ch->video_bitrate ?? '—' }} kbps • {{ $ch->fps ?? '—' }} fps
-                            </td>
-                            <td class="px-3 py-2.5 text-slate-300/70">
-                                {{ optional($ch->updated_at)->diffForHumans() ?? '—' }}
-                            </td>
-                            <td class="px-3 py-2.5 text-right">
-                                <div class="inline-flex items-center gap-2">
-                                    <a href="{{ route('vod-channels.settings', $ch) }}"
-                                       class="inline-flex items-center rounded-lg bg-blue-500/15 px-3 py-1.5 text-xs font-medium text-blue-200 ring-1 ring-inset ring-blue-400/25 hover:bg-blue-500/20 transition">
-                                        Settings
-                                    </a>
-
-                                    <button type="button" disabled
-                                       class="inline-flex items-center rounded-lg bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-200/60 ring-1 ring-inset ring-amber-400/15 opacity-60 cursor-not-allowed">
-                                        Restart
-                                    </button>
-
-                                    <button type="button" disabled
-                                       class="inline-flex items-center rounded-lg bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-200/60 ring-1 ring-inset ring-emerald-400/15 opacity-60 cursor-not-allowed">
-                                        Toggle
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="5" class="px-3 py-6 text-center text-slate-300/70">No channels found.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-{{-- Encoding Jobs (separate, full-width) --}}
-<div class="mt-6 rounded-2xl border border-slate-500/20 bg-slate-900/40 p-5">
-    <div class="flex items-center justify-between">
-        <div class="text-sm font-semibold text-slate-100">Encoding Jobs</div>
-        <div class="text-xs text-slate-300/60">
-            Queued: {{ $jobsStats['queued'] ?? 'N/A' }} • Running: {{ $jobsStats['running'] ?? 'N/A' }} • Failed: {{ $jobsStats['failed'] ?? 'N/A' }}
-        </div>
-    </div>
-
-    <div class="mt-3 overflow-hidden rounded-xl border border-slate-500/15 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
-        <table class="w-full text-sm">
-            <thead class="bg-slate-950/40 text-slate-300/80">
-                <tr>
-                    <th class="px-3 py-2 text-left">Job</th>
-                    <th class="px-3 py-2 text-left">Status</th>
-                    <th class="px-3 py-2 text-left">Progress</th>
-                    <th class="px-3 py-2 text-left">Updated</th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse($jobs as $job)
-                    @php
-                        $st = $job->status ?? 'unknown';
-                        $jb = match($st) {
-                            'running' => 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
-                            'queued'  => 'border-amber-500/30 bg-amber-500/10 text-amber-300',
-                            'failed'  => 'border-red-500/30 bg-red-500/10 text-red-300',
-                            default   => 'border-slate-400/20 bg-slate-400/10 text-slate-200/80',
-                        };
-                    @endphp
-                    <tr class="border-t border-slate-500/10 hover:bg-slate-800/40 transition">
-                        <td class="px-3 py-2.5 text-slate-100">#{{ $job->id }}</td>
-                        <td class="px-3 py-2.5">
-                            <span class="text-[11px] font-medium tracking-wide leading-none rounded-full border px-2 py-1 {{ $jb }}">{{ strtoupper($st) }}</span>
-                        </td>
-                        <td class="px-3 py-2.5 text-slate-200/90">
-                            {{ is_null($job->progress) ? '—' : ($job->progress . '%') }}
-                        </td>
-                        <td class="px-3 py-2.5 text-slate-300/70">
-                            {{ \Carbon\Carbon::parse($job->updated_at)->diffForHumans() }}
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="4" class="px-3 py-6 text-center text-slate-300/70">
-                            No encoding jobs table detected (MVP).
-                        </td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
-</div>
+  function restartServer() {
+    if (confirm('Restart server?')) {
+      console.log('Restarting server...');
+      // TODO: API call
+    }
+  }
+</script>
 @endsection
 

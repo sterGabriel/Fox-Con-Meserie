@@ -5,16 +5,19 @@ namespace App\Console;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 use Illuminate\Console\Scheduling\Schedule;
 use App\Console\Commands\RunEncodingJobs;
+use App\Console\Commands\MonitorEncodingJobs;
 
 class Kernel extends ConsoleKernel
 {
     protected $commands = [
         RunEncodingJobs::class,
+        MonitorEncodingJobs::class,
     ];
 
     protected function schedule(Schedule $schedule): void
     {
-        // future cron
+        // Monitor encoding jobs every minute
+        $schedule->command('encoding:monitor')->everyMinute();
     }
 
     protected function commands(): void

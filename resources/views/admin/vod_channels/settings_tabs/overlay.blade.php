@@ -590,9 +590,12 @@ function generateOverlayPreview() {
     fetch(`/vod-channels/${channelId}/engine/test-preview?item_id=${itemId}`, {
         method: 'POST',
         headers: {
-            'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
-            'Content-Type': 'application/json'
-        }
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({})
     })
     .then(r => r.json())
     .then(data => {
@@ -649,8 +652,10 @@ async function testOverlay(channelId) {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'X-Requested-With': 'XMLHttpRequest'
             },
+            credentials: 'same-origin',
             body: JSON.stringify({ video_id: videoId }),
         });
 

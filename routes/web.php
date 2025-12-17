@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\CreateVideoController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\LiveChannelController;
 use App\Http\Controllers\Admin\VideoController;
@@ -12,6 +13,9 @@ use App\Http\Controllers\Admin\EncodingJobController;
 use App\Http\Controllers\Admin\EncodeProfileController;
 use App\Http\Controllers\Admin\MediaImportController;
 use App\Http\Controllers\Admin\CategoryScanController;
+use App\Http\Controllers\Api\VideoApiController;
+use App\Http\Controllers\Api\EncodingJobApiController;
+use App\Http\Controllers\Api\LiveChannelApiController;
 
 // ROOT → redirect to dashboard
 Route::get('/', function () {
@@ -22,12 +26,37 @@ Route::get('/', function () {
 // 🔓 PUBLIC ROUTES (NO AUTH REQUIRED) - ONLY LOGO PREVIEW
 // ═══════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════
+// 🔓 PUBLIC ROUTES (NO AUTH REQUIRED) - STREAMING + LOGO
+// ═══════════════════════════════════════════════════════════════
+
 Route::get('/vod-channels/{channel}/logo-preview', [LiveChannelController::class, 'logoPreview'])
     ->name('vod-channels.logo.preview');
 
-// ═══════════════════════════════════════════════════════════════
-// 🔒 PROTECTED ROUTES (AUTH + VERIFIED REQUIRED)
-// ═══════════════════════════════════════════════════════════════
+// Streaming outputs (TS + HLS)
+Route::get('/streams/{channel}/{file}', function ($channel, $file) {
+    $path = storage_path("app/streams/{$channel}/{$file}");
+    if (file_exists($path)) {
+        $mime = 'application/octet-stream';
+        if (str_ends_with($file, '.ts')) $mime = 'video/mp2t';
+        if (str_ends_with($file, '.m3u8')) $mime = 'application/vnd.apple.mpegurl';
+        return response()->file($path, ['Content-Type' => $mime]);
+    }
+    abort(404);
+});
+
+// HLS segments in subdirectories
+Route::get('/streams/{channel}/{subdir}/{file}', function ($channel, $subdir, $file) {
+    $path = storage_path("app/streams/{$channel}/{$subdir}/{$file}");
+    if (file_exists($path)) {
+        $mime = 'application/octet-stream';
+        if (str_ends_with($file, '.ts')) $mime = 'video/mp2t';
+        if (str_ends_with($file, '.m3u8')) $mime = 'application/vnd.apple.mpegurl';
+        return response()->file($path, ['Content-Type' => $mime]);
+    }
+    abort(404);
+});
+
 
 Route::middleware(['auth', 'verified'])->group(function () {
 
@@ -40,8 +69,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/vod-channels', [LiveChannelController::class, 'index'])
         ->name('vod-channels.index');
 
+    // API endpoint for new HTML/JS interface
+    Route::get('/api/vod/channels', [LiveChannelController::class, 'apiIndex'])
+        ->name('api.vod-channels');
+
     Route::get('/vod-channels/create', [LiveChannelController::class, 'create'])
-        ->name('vod-channels.create');
+        ->name('vod-channels.create-old');
+
+    Route::get('/vod-channels/create-new', [LiveChannelController::class, 'createChannel'])
+        ->name('vod-channels.create-new');
 
     Route::post('/vod-channels', [LiveChannelController::class, 'store'])
         ->name('vod-channels.store');
@@ -75,6 +111,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/vod-channels/{channel}/settings', [LiveChannelController::class, 'updateSettings'])
         ->name('vod-channels.settings.update');
 
+    // CREATE VIDEO (NEW)
+    Route::get('/create-video/{channel}', [CreateVideoController::class, 'show'])
+        ->name('create-video.show');
+
     // ENGINE CONTROL - START / STOP / STATUS
     Route::post('/vod-channels/{channel}/engine/start', [LiveChannelController::class, 'startChannel'])
         ->name('vod-channels.engine.start');
@@ -107,6 +147,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/vod-channels/{channel}/preview-ffmpeg', [LiveChannelController::class, 'previewFFmpeg'])
         ->name('vod-channels.preview-ffmpeg');
 
+    // SYNC PLAYLIST FROM CATEGORY
+    Route::post('/vod-channels/{channel}/sync-playlist-from-category', [LiveChannelController::class, 'syncPlaylistFromCategory'])
+        ->name('vod-channels.sync-playlist-from-category');
+
     // ───────────── VIDEO CATEGORIES ─────────────
     Route::get('/video-categories', [VideoCategoryController::class, 'index'])
         ->name('video-categories.index');
@@ -130,6 +174,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/video-categories/{category}/import', [FileBrowserController::class, 'import'])
         ->name('admin.video_categories.import');
 
+    Route::post('/video-categories/preview', [FileBrowserController::class, 'generatePreview'])
+        ->name('video-categories.preview');
     // ───────────── VIDEO LIBRARY ─────────────
     Route::get('/videos', [VideoController::class, 'index'])
         ->name('videos.index');
@@ -201,6 +247,36 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    // ═══════════════════════════════════════════════════════════════
+    // CREATE VIDEO API ENDPOINTS (NEW)
+    // ═══════════════════════════════════════════════════════════════
+
+    // Get videos by category
+    Route::get('/api/videos', [VideoApiController::class, 'index'])
+        ->name('api.videos.index');
+
+    // Delete video
+    Route::delete('/api/videos/{video}', [VideoApiController::class, 'destroy'])
+        ->name('api.videos.destroy');
+
+    // Encoding jobs API
+    Route::get('/api/encoding-jobs', [EncodingJobApiController::class, 'index'])
+        ->name('api.encoding-jobs.index');
+    Route::post('/api/encoding-jobs', [EncodingJobApiController::class, 'store'])
+        ->name('api.encoding-jobs.store');
+    Route::post('/api/encoding-jobs/bulk', [EncodingJobApiController::class, 'bulk'])
+        ->name('api.encoding-jobs.bulk');
+    Route::post('/api/encoding-jobs/{job}/test', [EncodingJobApiController::class, 'test'])
+        ->name('api.encoding-jobs.test');
+    Route::delete('/api/encoding-jobs/{job}', [EncodingJobApiController::class, 'destroy'])
+        ->name('api.encoding-jobs.destroy');
+
+    // Live channels API
+    Route::post('/api/live-channels', [LiveChannelApiController::class, 'store'])
+        ->name('api.live-channels.store');
+    Route::post('/api/live-channels/{channel}/settings', [LiveChannelApiController::class, 'saveSettings'])
+        ->name('api.live-channels.save-settings');
 });
 
 require __DIR__.'/auth.php';

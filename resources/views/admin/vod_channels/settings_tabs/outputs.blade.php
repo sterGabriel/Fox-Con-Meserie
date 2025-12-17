@@ -42,11 +42,14 @@
 </div>
 
 <script>
-const channelId = '{{ $channel->id }}';
 
 // Load output streams on tab load
 function loadOutputStreams() {
-    fetch(`/vod-channels/${channelId}/engine/outputs`)
+    const channelId = '{{ $channel->id }}';
+    fetch(`/vod-channels/${channelId}/engine/outputs`, {
+        method: 'GET',
+        credentials: 'same-origin'
+    })
         .then(r => r.json())
         .then(data => {
             if (data.status === 'success') {

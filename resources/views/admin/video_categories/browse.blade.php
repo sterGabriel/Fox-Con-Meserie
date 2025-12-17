@@ -5,10 +5,19 @@
     <!-- Header -->
     <div class="flex items-center justify-between mb-6">
         <h1 class="text-3xl font-bold">Import Videos into: <span class="text-blue-600">{{ $category->name }}</span></h1>
-        <a href="{{ route('admin.video_categories.index') }}" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded">Back</a>
+        <a href="{{ route('video-categories.index') }}" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded">Back</a>
     </div>
 
-    <!-- Breadcrumb Navigation -->
+    <!-- Instructions -->
+    <div class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <h3 class="font-semibold text-blue-900 mb-2">📌 How to import:</h3>
+        <ol class="text-sm text-blue-800 space-y-1 ml-4 list-decimal">
+            <li>Browse the folders and find your video files</li>
+            <li>Check the boxes next to the videos you want to import</li>
+            <li>Click <strong>"📥 Import Selected"</strong> button</li>
+            <li>Wait for the page to reload with a success message</li>
+        </ol>
+    </div>    <!-- Breadcrumb Navigation -->
     <div class="mb-4 p-3 bg-gray-100 rounded-lg flex items-center gap-2 overflow-x-auto">
         @foreach ($breadcrumb as $crumb)
             @if ($loop->last)
@@ -27,13 +36,13 @@
                 <span>⬆</span> Up
             </a>
         @endif
-        <button onclick="selectAllFiles()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">✓ Select All</button>
-        <button onclick="deselectAllFiles()" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded">✗ Deselect All</button>
-        <button onclick="importSelected()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-semibold" id="import-btn">📥 Import Selected</button>
+        <button type="button" onclick="selectAllFiles()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">✓ Select All</button>
+        <button type="button" onclick="deselectAllFiles()" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded">✗ Deselect All</button>
     </div>
 
-    <!-- File Browser -->
-    <form id="browser-form">
+    <!-- File Browser Form -->
+    <form id="browser-form" method="POST" action="{{ route('admin.video_categories.import', $category) }}" enctype="multipart/form-data">
+        @csrf
         <div class="grid grid-cols-1 gap-4">
             <!-- Folders Section -->
             @if (!empty($dirs))
@@ -67,6 +76,7 @@
                             <input 
                                 type="checkbox" 
                                 class="mt-1 file-checkbox" 
+                                name="files[]"
                                 value="{{ $file['path'] }}"
                                 {{ $file['imported'] ? 'disabled' : '' }}
                             >
@@ -100,7 +110,13 @@
                             <div class="flex gap-1 flex-shrink-0">
                                 @if (!$file['imported'])
                                 <button type="button" onclick="previewVideo('{{ $file['path'] }}', '{{ $file['name'] }}')" class="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded text-sm">🎥 Preview</button>
-                                <button type="button" onclick="importSingleFile('{{ $file['path'] }}')" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm">📥 Import</button>
+                                
+                                <!-- Import Form (POST) -->
+                                <form method="POST" action="{{ route('admin.video_categories.import', $category) }}" class="inline" style="display: inline;">
+                                    @csrf
+                                    <input type="hidden" name="files[]" value="{{ $file['path'] }}">
+                                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm">📥 Import</button>
+                                </form>
                                 @endif
                             </div>
                         </div>
@@ -116,8 +132,29 @@
             </div>
             @endif
         </div>
+
+        <!-- Import Selected Button -->
+        <div class="mt-4 flex gap-2">
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-semibold" id="import-btn" onclick="document.getElementById('browser-form').submit(); return false;">
+                📥 Import Selected
+            </button>
+            <span class="text-sm text-gray-600 self-center" id="selected-count">(0 selected)</span>
+        </div>
     </form>
 </div>
+
+<!-- Success Message -->
+@if ($message = session('success'))
+<div class="mt-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded">
+    ✅ {{ $message }}
+</div>
+@endif
+
+@if ($message = session('error'))
+<div class="mt-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+    ❌ {{ $message }}
+</div>
+@endif
 
 <!-- Modal for Previews -->
 <div id="preview-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -139,6 +176,7 @@
 </div>
 
 <script>
+// Select/Deselect functions
 function selectAllFiles() {
     document.querySelectorAll('.file-checkbox:not(:disabled)').forEach(cb => cb.checked = true);
     updateSelectedCount();
@@ -151,74 +189,40 @@ function deselectAllFiles() {
 
 function updateSelectedCount() {
     const selected = document.querySelectorAll('.file-checkbox:checked').length;
-    const btn = document.getElementById('import-btn');
-    if (selected > 0) {
-        btn.textContent = `📥 Import Selected (${selected})`;
-        btn.disabled = false;
-    } else {
-        btn.textContent = '📥 Import Selected';
-        btn.disabled = true;
-    }
+    const span = document.getElementById('selected-count');
+    if (span) span.textContent = '(' + selected + ' selected)';
 }
 
-function importSelected() {
-    const selected = Array.from(document.querySelectorAll('.file-checkbox:checked')).map(cb => cb.value);
-    if (selected.length === 0) {
-        alert('Please select at least one file');
-        return;
-    }
-
-    const btn = document.getElementById('import-btn');
-    btn.disabled = true;
-    btn.textContent = '⏳ Importing...';
-
-    fetch('{{ route("admin.video_categories.import", $category) }}', {
+// Preview function
+function previewVideo(path, name) {
+    document.getElementById('preview-title').textContent = '⏳ Loading...';
+    document.getElementById('preview-modal').classList.remove('hidden');
+    
+    fetch('{{ route("video-categories.preview") }}', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+            'X-Requested-With': 'XMLHttpRequest'
         },
-        body: JSON.stringify({ files: selected }),
+        credentials: 'same-origin',
+        body: JSON.stringify({ path: path }),
     })
     .then(r => r.json())
     .then(data => {
-        alert(`✓ ${data.message}`);
-        setTimeout(() => location.reload(), 1000);
+        if (data.success) {
+            document.getElementById('preview-title').textContent = 'Preview: ' + name;
+            document.getElementById('preview-source').src = data.url + '?t=' + Date.now();
+            document.getElementById('preview-video').load();
+        } else {
+            alert('Preview failed');
+            closePreview();
+        }
     })
     .catch(e => {
-        alert('❌ Import failed: ' + e.message);
-        btn.disabled = false;
-        btn.textContent = '📥 Import Selected';
+        alert('Error: ' + e.message);
+        closePreview();
     });
-}
-
-function importSingleFile(path) {
-    if (confirm('Import this file?')) {
-        const form = new FormData();
-        form.append('files', JSON.stringify([path]));
-        
-        fetch('{{ route("admin.video_categories.import", $category) }}', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-            },
-            body: JSON.stringify({ files: [path] }),
-        })
-        .then(r => r.json())
-        .then(data => {
-            alert('✓ File imported');
-            location.reload();
-        })
-        .catch(e => alert('❌ Error: ' + e.message));
-    }
-}
-
-function previewVideo(path, name) {
-    document.getElementById('preview-title').textContent = 'Preview: ' + name;
-    document.getElementById('preview-source').src = `/storage/video?path=${encodeURIComponent(path)}`;
-    document.getElementById('preview-video').load();
-    document.getElementById('preview-modal').classList.remove('hidden');
 }
 
 function closePreview() {
@@ -226,12 +230,29 @@ function closePreview() {
     document.getElementById('preview-video').pause();
 }
 
-// Update count on checkbox change
-document.querySelectorAll('.file-checkbox').forEach(cb => {
-    cb.addEventListener('change', updateSelectedCount);
+// Setup on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Checkbox change listeners
+    document.querySelectorAll('.file-checkbox').forEach(cb => {
+        cb.addEventListener('change', updateSelectedCount);
+    });
+    
+    // Form submission
+    const form = document.getElementById('browser-form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            const selected = document.querySelectorAll('.file-checkbox:checked').length;
+            if (selected === 0) {
+                e.preventDefault();
+                alert('Please select at least one file');
+                return false;
+            }
+            return true;
+        });
+    }
+    
+    updateSelectedCount();
 });
-
-updateSelectedCount();
 </script>
 
 <style>
