@@ -1,5 +1,5 @@
 @php
-  $currentRoute = Route::currentRouteName();
+  $currentRoute = Route::currentRouteName() ?? '';
 @endphp
 
 <nav class="fox-topnav">

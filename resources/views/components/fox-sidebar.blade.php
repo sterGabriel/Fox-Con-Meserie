@@ -1,6 +1,6 @@
 @php
   // Helper pentru "active" pe linkuri
-  $isActive = fn($pattern) => request()->is($pattern) ? 'bg-[#b31217]' : '';
+  $isActive = fn($pattern) => request()->is($pattern) ? '#b31217' : '';
 @endphp
 
 <style>
@@ -9,13 +9,13 @@
   .sidebar-icon { width: 22px; display: inline-flex; justify-content: center; }
 </style>
 
-<aside class="w-[260px] min-w-[260px] h-screen sticky top-0 bg-[#111821] text-white flex flex-col">
+<aside style="width: 260px; min-width: 260px; height: 100vh; position: sticky; top: 0; background: #111821; color: white; display: flex; flex-direction: column;">
   {{-- Logo + hamburger --}}
-  <div class="h-[70px] flex items-center justify-between px-5 border-b border-white/10">
-    <div class="flex items-center gap-3">
-      <div class="text-[#ff7a00] font-extrabold tracking-wide text-xl">FOX CODEC</div>
+  <div style="height: 70px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1px solid rgba(255,255,255,.1);">
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <div style="color: #ff7a00; font-weight: 900; letter-spacing: 0.05em; font-size: 20px;">FOX CODEC</div>
     </div>
-    <button type="button" class="text-white/80 hover:text-white">
+    <button type="button" style="color: rgba(255,255,255,.8); background: none; border: none; cursor: pointer;">
       {{-- hamburger icon --}}
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
         <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -24,20 +24,20 @@
   </div>
 
   {{-- Menu --}}
-  <nav class="flex-1 overflow-y-auto py-3">
+  <nav style="flex: 1; overflow-y: auto; padding: 12px 0;">
     {{-- Dashboard --}}
     <a href="{{ route('dashboard') }}"
-       class="sidebar-link {{ $isActive('dashboard') }}">
+       class="sidebar-link" style="background: {{ $isActive('dashboard') ? '#b31217' : 'transparent' }};">
       <span class="sidebar-icon">📊</span>
       <span>Dashboard</span>
     </a>
 
     {{-- VOD Section Header --}}
-    <div class="mt-4 px-5 text-xs font-semibold uppercase tracking-wider text-slate-400">VOD</div>
+    <div style="margin-top: 16px; padding: 0 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; color: #64748b;">VOD</div>
 
     {{-- VOD Channels --}}
     <a href="{{ route('vod-channels.index') }}"
-       class="sidebar-link {{ $isActive('vod-channels*') }}">
+       class="sidebar-link" style="background: {{ $isActive('vod-channels*') ? '#b31217' : 'transparent' }};">
       <span class="sidebar-icon">📺</span>
       <span>VOD Channels</span>
     </a>
@@ -63,7 +63,7 @@
       <span>Encoding Jobs</span>
     </a>
 
-    <hr class="my-4 border-slate-700/60">
+    <hr style="margin: 16px 8px; border: 0; height: 1px; background: rgba(255,255,255,.1);">
 
     {{-- VOD Radio Channels --}}
     <a href="#"
@@ -137,5 +137,5 @@
   </nav>
 
   {{-- highlight bar roșu în dreapta (ca în poză) --}}
-  <div class="w-[3px] bg-[#b31217] self-end h-full -mt-[calc(100vh-70px)]"></div>
+  <div style="width: 3px; background: #b31217; align-self: flex-end; height: 100%; margin-top: calc(-100vh + 70px);"></div>
 </aside>
