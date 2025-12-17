@@ -29,7 +29,7 @@
 <div style="display: flex; min-height: 100vh;">
 
     {{-- FOX SIDEBAR --}}
-    @include('components.sidebar')
+    <x-fox-sidebar />
 
     {{-- MAIN CONTENT AREA --}}
     <main style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
