@@ -6,6 +6,11 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>CAL MARO – IPTV Panel</title>
 
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('assets/favicon/favicon-32x32.svg') }}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('assets/favicon/favicon-16x16.svg') }}">
+    <link rel="apple-touch-icon" href="{{ asset('assets/favicon/apple-touch-icon.svg') }}">
+    <link rel="shortcut icon" href="{{ asset('assets/favicon/favicon.ico') }}">
+
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <link rel="stylesheet" href="{{ asset('assets/css/fox-base.css') }}">
     <link rel="stylesheet" href="{{ asset('assets/css/fox-sidebar.css') }}">

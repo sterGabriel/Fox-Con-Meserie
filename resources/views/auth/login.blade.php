@@ -1,4 +1,21 @@
 <x-guest-layout>
+    <!-- CAL MARO Logo & Branding -->
+    <div class="flex flex-col items-center mb-8">
+        <img
+            src="{{ asset('assets/logo/cal-maro-logo.svg') }}"
+            alt="CAL MARO"
+            class="w-24 h-24 object-contain mb-4"
+        >
+
+        <h1 class="text-2xl font-extrabold text-white tracking-wide">
+            CAL MARO
+        </h1>
+
+        <p class="text-sm text-white/60 mt-1">
+            IPTV PANEL
+        </p>
+    </div>
+
     <!-- Session Status -->
     <x-auth-session-status class="mb-4" :status="session('status')" />
 
