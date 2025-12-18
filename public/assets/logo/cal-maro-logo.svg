@@ -1,0 +1,29 @@
+<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+  <!-- Logo: Cal Maro - simple horse icon -->
+  <rect width="120" height="120" rx="12" fill="#8B4513" opacity="0.1"/>
+  
+  <!-- Horse head -->
+  <g fill="none" stroke="#8B4513" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Neck -->
+    <path d="M 60 35 L 55 55"/>
+    
+    <!-- Head -->
+    <circle cx="50" cy="65" r="12"/>
+    
+    <!-- Snout -->
+    <path d="M 40 63 L 32 65"/>
+    
+    <!-- Ear -->
+    <path d="M 52 52 L 55 38"/>
+    <path d="M 58 52 L 62 38"/>
+    
+    <!-- Mane -->
+    <path d="M 60 38 Q 65 42 68 50"/>
+  </g>
+  
+  <!-- Eyes -->
+  <circle cx="48" cy="62" r="1.5" fill="#8B4513"/>
+  
+  <!-- Text: CAL MARO -->
+  <text x="60" y="95" font-family="Arial, sans-serif" font-size="10" font-weight="bold" text-anchor="middle" fill="#8B4513">CAL MARO</text>
+</svg>

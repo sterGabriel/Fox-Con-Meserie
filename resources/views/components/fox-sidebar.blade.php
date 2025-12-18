@@ -10,17 +10,22 @@
 </style>
 
 <aside style="width: 260px; min-width: 260px; height: 100vh; position: sticky; top: 0; background: #111821; color: white; display: flex; flex-direction: column;">
-  {{-- Logo + hamburger --}}
-  <div style="height: 70px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1px solid rgba(255,255,255,.1);">
-    <div style="display: flex; align-items: center; gap: 12px;">
-      <div style="color: #ff7a00; font-weight: 900; letter-spacing: 0.05em; font-size: 20px;">FOX CODEC</div>
+  {{-- HEADER SIDEBAR --}}
+  <div style="height: 70px; display: flex; align-items: center; gap: 12px; padding: 0 20px; border-bottom: 1px solid rgba(255,255,255,.1);">
+    <img
+        src="{{ asset('assets/logo/cal-maro-logo.svg') }}"
+        alt="CAL MARO"
+        style="width: 36px; height: 36px; object-fit: contain;"
+    >
+
+    <div style="line-height: 1.2;">
+        <div style="color: white; font-weight: 900; font-size: 18px; letter-spacing: 0.05em;">
+            CAL MARO
+        </div>
+        <div style="font-size: 12px; color: rgba(255,255,255,.6);">
+            IPTV PANEL
+        </div>
     </div>
-    <button type="button" style="color: rgba(255,255,255,.8); background: none; border: none; cursor: pointer;">
-      {{-- hamburger icon --}}
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-      </svg>
-    </button>
   </div>
 
   {{-- Menu --}}
