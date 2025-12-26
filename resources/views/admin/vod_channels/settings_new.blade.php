@@ -586,7 +586,7 @@ async function loadVideos() {
     }
 
     try {
-        const response = await fetch(`/api/videos?category_id=${encodeURIComponent(catId)}`, {
+        const response = await fetch(`/api/videos?category_id=${encodeURIComponent(catId)}&channel_id=${encodeURIComponent(String(CHANNEL_ID))}&exclude_encoded=1`, {
             headers: { 'X-Requested-With': 'XMLHttpRequest' }
         });
         const videos = await response.json();

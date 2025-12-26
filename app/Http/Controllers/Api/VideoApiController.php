@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
+use App\Models\PlaylistItem;
 use App\Models\Video;
 use App\Services\VideoProbeService;
 use App\Services\TmdbService;
@@ -18,17 +19,61 @@ class VideoApiController extends Controller
     public function index(Request $request)
     {
         $categoryId = $request->query('category_id');
+        $channelId = (int) $request->query('channel_id', 0);
+        $excludeEncoded = (string) $request->query('exclude_encoded', '0');
+        $excludeEncoded = in_array(strtolower($excludeEncoded), ['1', 'true', 'yes', 'on'], true);
         
         if (!$categoryId) {
             return response()->json([], 200);
         }
 
-        $videos = Video::query()
+        $excludeVideoIds = [];
+
+        // Optional: hide videos already encoded (TS-ready) for this channel.
+        // This is used by the per-channel "Encoding / Import" screen to avoid showing work that's already done.
+        if ($channelId > 0 && $excludeEncoded) {
+            $streamsDir = storage_path('app/streams/' . $channelId);
+
+            if (is_dir($streamsDir)) {
+                $items = PlaylistItem::query()
+                    ->where(function ($q) use ($channelId) {
+                        $q->where('live_channel_id', $channelId)
+                          ->orWhere('vod_channel_id', $channelId);
+                    })
+                    ->whereNotNull('video_id')
+                    ->get(['id', 'video_id']);
+
+                $encodedByVideoId = [];
+                foreach ($items as $item) {
+                    $vid = (int) ($item->video_id ?? 0);
+                    if ($vid <= 0) continue;
+
+                    // Primary naming: video_{playlist_item_id}.ts
+                    $primary = $streamsDir . '/video_' . (int) $item->id . '.ts';
+                    // Legacy/stable fallback: video_{video_id}.ts
+                    $fallback = $streamsDir . '/video_' . $vid . '.ts';
+
+                    if (is_file($primary) || is_file($fallback)) {
+                        $encodedByVideoId[$vid] = true;
+                    }
+                }
+
+                $excludeVideoIds = array_keys($encodedByVideoId);
+            }
+        }
+
+        $videosQuery = Video::query()
             ->where('video_category_id', (int)$categoryId)
-            ->orderByDesc('id')
+            ->orderByDesc('id');
+
+        if (!empty($excludeVideoIds)) {
+            $videosQuery->whereNotIn('id', $excludeVideoIds);
+        }
+
+        $videos = $videosQuery
             ->limit(1000)
             ->get([
-                'id', 'title', 'file_path', 'duration_seconds', 
+                'id', 'title', 'file_path', 'duration_seconds',
                 'bitrate_kbps', 'resolution', 'size_bytes', 'format',
                 'tmdb_id', 'tmdb_poster_path', 'tmdb_backdrop_path'
             ]);
