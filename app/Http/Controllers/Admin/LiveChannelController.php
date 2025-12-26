@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Carbon\Carbon;
 
 class LiveChannelController extends Controller
 {
@@ -321,12 +322,35 @@ class LiveChannelController extends Controller
             $job->display_progress = $pct;
             $job->display_speed = $meta['speed'];
 
+            $job->display_eta = null;
+            if ($job->status === 'running' && $durationSeconds > 0 && is_int($meta['out_time_ms'])) {
+                $outSeconds = (int) floor(max(0, $meta['out_time_ms']) / 1000000);
+                $remain = max(0, $durationSeconds - $outSeconds);
+                $job->display_eta = gmdate('H:i:s', (int) $remain);
+            }
+
             if (is_int($meta['out_time_ms'])) {
                 $seconds = (int) floor(max(0, $meta['out_time_ms']) / 1000000);
                 $job->display_out_time = gmdate('H:i:s', $seconds);
             } else {
                 $job->display_out_time = null;
             }
+        }
+
+        // Queue position for queued jobs (matches sequential runner ordering: sort_order asc, created_at asc).
+        $sortOrderByPlaylistItemId = $allPlaylistItems->pluck('sort_order', 'id');
+        $queuedJobs = $jobs
+            ->filter(fn ($j) => strtolower((string) ($j->status ?? '')) === 'queued')
+            ->sort(function ($a, $b) use ($sortOrderByPlaylistItemId) {
+                $sa = (int) ($sortOrderByPlaylistItemId->get((int) ($a->playlist_item_id ?? 0), PHP_INT_MAX));
+                $sb = (int) ($sortOrderByPlaylistItemId->get((int) ($b->playlist_item_id ?? 0), PHP_INT_MAX));
+                if ($sa !== $sb) return $sa <=> $sb;
+                return ((string) ($a->created_at ?? '')) <=> ((string) ($b->created_at ?? ''));
+            })
+            ->values();
+
+        foreach ($queuedJobs as $i => $job) {
+            $job->display_queue_position = $i + 1;
         }
 
         // Prefer mapping by playlist_item_id (stable for TS outputs), fallback by video_id.
@@ -1451,7 +1475,8 @@ class LiveChannelController extends Controller
             
             // Check if channel is currently running
             $engine = new \App\Services\ChannelEngineService($channel);
-            $isRunning = $engine->isRunning($channel->encoder_pid);
+            $pid = (int) ($channel->encoder_pid ?? 0);
+            $isRunning = $pid > 0 ? $engine->isRunning($pid) : false;
             
             // Get output paths
             $tsUrl = "{$domain}/streams/{$channel->id}/stream.ts";
@@ -1492,6 +1517,115 @@ class LiveChannelController extends Controller
             return response()->json([
                 'status' => 'error',
                 'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function nowPlaying(Request $request, LiveChannel $channel)
+    {
+        try {
+            $engine = new \App\Services\ChannelEngineService($channel);
+            $pid = (int) ($channel->encoder_pid ?? 0);
+            $isRunning = $pid > 0 ? $engine->isRunning($pid) : false;
+
+            // Only meaningful when looping encoded playlist.
+            $outputDir = storage_path("app/streams/{$channel->id}");
+
+            $playlistItems = \App\Models\PlaylistItem::query()
+                ->where(function ($q) use ($channel) {
+                    $q->where('live_channel_id', $channel->id)
+                      ->orWhere('vod_channel_id', $channel->id);
+                })
+                ->with('video')
+                ->orderBy('sort_order')
+                ->orderBy('id')
+                ->get();
+
+            $segments = [];
+            foreach ($playlistItems as $item) {
+                $video = $item->video;
+                if (!$video) continue;
+
+                $duration = (int) ($video->duration_seconds ?? 0);
+                if ($duration <= 0) continue;
+
+                $primary = $outputDir . '/video_' . (int) $item->id . '.ts';
+                $fallback = $outputDir . '/video_' . (int) ($item->video_id ?? 0) . '.ts';
+                $tsExists = is_file($primary) || (((int) ($item->video_id ?? 0) > 0) && is_file($fallback));
+                if (!$tsExists) continue;
+
+                $title = trim((string) ($video->title ?? ''));
+                if ($title === '') $title = 'Video #' . (int) ($video->id ?? 0);
+
+                $segments[] = [
+                    'title' => $title,
+                    'duration' => $duration,
+                ];
+            }
+
+            if (!$isRunning || empty($segments) || empty($channel->started_at)) {
+                return response()->json([
+                    'status' => 'success',
+                    'is_running' => (bool) $isRunning,
+                    'has_playlist' => !empty($segments),
+                    'now' => null,
+                    'next' => [],
+                ]);
+            }
+
+            $total = array_sum(array_map(fn ($s) => (int) $s['duration'], $segments));
+            if ($total <= 0) {
+                return response()->json([
+                    'status' => 'success',
+                    'is_running' => true,
+                    'has_playlist' => false,
+                    'now' => null,
+                    'next' => [],
+                ]);
+            }
+
+            $startedAt = Carbon::parse($channel->started_at);
+            $elapsed = max(0, $startedAt->diffInSeconds(Carbon::now()));
+            $pos = $elapsed % $total;
+
+            $idx = 0;
+            $offset = $pos;
+            foreach ($segments as $i => $s) {
+                $dur = (int) $s['duration'];
+                if ($offset < $dur) {
+                    $idx = $i;
+                    break;
+                }
+                $offset -= $dur;
+            }
+
+            $cur = $segments[$idx];
+            $remaining = max(0, (int) $cur['duration'] - (int) $offset);
+
+            $next = [];
+            $n = count($segments);
+            for ($k = 1; $k <= 3; $k++) {
+                $next[] = [
+                    'title' => (string) $segments[($idx + $k) % $n]['title'],
+                    'index' => (($idx + $k) % $n) + 1,
+                ];
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'is_running' => true,
+                'has_playlist' => true,
+                'now' => [
+                    'title' => (string) $cur['title'],
+                    'index' => $idx + 1,
+                    'remaining_seconds' => (int) $remaining,
+                ],
+                'next' => $next,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
             ], 500);
         }
     }
@@ -2018,6 +2152,13 @@ class LiveChannelController extends Controller
                     $pct = 100;
                 }
 
+                $eta = null;
+                if ($job->status === 'running' && $durationSeconds > 0 && is_int($progressMeta['out_time_ms'])) {
+                    $outSeconds = (int) floor(max(0, $progressMeta['out_time_ms']) / 1000000);
+                    $remain = max(0, $durationSeconds - $outSeconds);
+                    $eta = gmdate('H:i:s', (int) $remain);
+                }
+
                 // If ffmpeg reported end and output exists, mark as done
                 if ($job->status === 'running' && ($progressMeta['progress'] === 'end')) {
                     if ($job->output_path && file_exists($job->output_path)) {
@@ -2098,8 +2239,25 @@ class LiveChannelController extends Controller
                     'out_time' => is_int($progressMeta['out_time_ms'])
                         ? gmdate('H:i:s', (int) floor(max(0, $progressMeta['out_time_ms']) / 1000000))
                         : null,
+                    'eta' => $eta,
                     'output_url' => $publicUrlForOutput($job->output_path),
                 ];
+            }
+
+            // Queue position for queued jobs (matches sequential runner ordering).
+            $queuedOrdered = $jobs
+                ->filter(fn ($j) => strtolower((string) ($j->status ?? '')) === 'queued')
+                ->sort(function ($a, $b) {
+                    $sa = (int) ($a->playlistItem?->sort_order ?? PHP_INT_MAX);
+                    $sb = (int) ($b->playlistItem?->sort_order ?? PHP_INT_MAX);
+                    if ($sa !== $sb) return $sa <=> $sb;
+                    return ((string) ($a->created_at ?? '')) <=> ((string) ($b->created_at ?? ''));
+                })
+                ->values();
+
+            $queuedPosById = [];
+            foreach ($queuedOrdered as $i => $j) {
+                $queuedPosById[(int) $j->id] = $i + 1;
             }
 
             $totalJobs = $jobs->count();
@@ -2127,6 +2285,8 @@ class LiveChannelController extends Controller
                     'progress' => $computed[$job->id]['pct'] ?? ($job->progress ?? 0),
                     'speed' => $computed[$job->id]['speed'] ?? null,
                     'out_time' => $computed[$job->id]['out_time'] ?? null,
+                    'eta' => $computed[$job->id]['eta'] ?? null,
+                    'queued_position' => $queuedPosById[(int) $job->id] ?? null,
                     'output_path' => $job->output_path,
                     'output_url' => $computed[$job->id]['output_url'] ?? null,
                 ])->values(),

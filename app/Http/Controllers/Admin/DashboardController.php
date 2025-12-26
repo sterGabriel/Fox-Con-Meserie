@@ -14,13 +14,43 @@ class DashboardController extends Controller
         // Channels
         $totalChannels   = LiveChannel::count();
         $enabledChannels = LiveChannel::where('enabled', 1)->count();
-        $runningChannels = LiveChannel::where('status', 'running')->count();
+        $runningChannels = LiveChannel::whereIn('status', ['running', 'live'])->count();
         $errorChannels   = LiveChannel::where('status', 'error')->count();
-        $idleChannels    = LiveChannel::where('status', 'idle')->count();
+        $idleChannels    = LiveChannel::whereIn('status', ['idle', 'stopped'])->count();
+
+        // playlist_items schema has evolved; count items via either FK to avoid showing 0 for legacy rows.
+        $playlistHasVodChannelId = false;
+        try {
+            $playlistHasVodChannelId = DB::getSchemaBuilder()->hasTable('playlist_items')
+                && DB::getSchemaBuilder()->hasColumn('playlist_items', 'vod_channel_id');
+        } catch (\Throwable $e) {
+            $playlistHasVodChannelId = false;
+        }
 
         // Recent channels for quick status view
         $recentChannels = LiveChannel::query()
-            ->select(['id', 'name', 'status', 'enabled', 'resolution', 'video_bitrate', 'fps', 'updated_at', 'logo_path'])
+            ->select([
+                'id',
+                'name',
+                'status',
+                'enabled',
+                'resolution',
+                'video_bitrate',
+                'fps',
+                'updated_at',
+                'logo_path',
+                'started_at',
+                'encoded_output_path',
+                'hls_output_path',
+            ])
+            ->selectSub(function ($q) use ($playlistHasVodChannelId) {
+                $q->from('playlist_items')
+                    ->selectRaw('COUNT(*)')
+                    ->whereColumn('playlist_items.live_channel_id', 'live_channels.id');
+                if ($playlistHasVodChannelId) {
+                    $q->orWhereColumn('playlist_items.vod_channel_id', 'live_channels.id');
+                }
+            }, 'playlist_items_count')
             ->orderByDesc('updated_at')
             ->limit(8)
             ->get();

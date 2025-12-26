@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\VideoApiController;
 use App\Http\Controllers\Api\EncodingJobApiController;
 use App\Http\Controllers\Api\LiveChannelApiController;
 use App\Http\Controllers\Admin\TmdbSettingsController;
+use App\Http\Controllers\EpgController;
 
 // ROOT → redirect to dashboard
 Route::get('/', function () {
@@ -93,6 +94,10 @@ Route::get('/streams/{channel}/{subdir}/{file}', function ($channel, $subdir, $f
     }
     abort(404);
 });
+
+// XMLTV EPG (All channels) — dynamic 7-day rolling window
+Route::get('/epg/all.xml', [EpgController::class, 'all'])
+    ->name('epg.all');
 
 
 Route::middleware(['auth', 'verified'])->group(function () {
@@ -204,6 +209,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('/vod-channels/{channel}/engine/outputs', [LiveChannelController::class, 'outputStreams'])
         ->name('vod-channels.engine.outputs');
+
+    // NOW PLAYING (for EPG helpers)
+    Route::get('/vod-channels/{channel}/now-playing', [LiveChannelController::class, 'nowPlaying'])
+        ->name('vod-channels.now-playing');
 
     Route::post('/vod-channels/{channel}/engine/start-looping', [LiveChannelController::class, 'startChannelWithLooping'])
         ->name('vod-channels.engine.start-looping');

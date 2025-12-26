@@ -71,6 +71,7 @@ class DatabaseBackupService
 
         $process = new Process([
             $bin,
+            '--result-file=' . $file,
             '--single-transaction',
             '--quick',
             '--lock-tables=false',
@@ -103,21 +104,20 @@ class DatabaseBackupService
             ];
         }
 
-        $out = $process->getOutput();
-        if (!is_string($out) || $out === '') {
+        if (!is_file($file)) {
             return [
                 'ok' => false,
                 'ran' => true,
-                'error' => 'mysqldump returned empty output',
+                'error' => 'mysqldump did not create output file',
             ];
         }
 
-        $written = @file_put_contents($file, $out);
-        if ($written === false) {
+        $size = @filesize($file);
+        if (!is_int($size) || $size <= 0) {
             return [
                 'ok' => false,
                 'ran' => true,
-                'error' => 'Failed to write backup file to disk',
+                'error' => 'mysqldump created an empty output file',
             ];
         }
 

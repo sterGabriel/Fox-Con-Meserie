@@ -14,6 +14,64 @@
 
     $uptimeText = is_string($uptime) ? $uptime : '—';
 
+    $formatUptimeDDHHMM = function (string $raw): string {
+        $raw = trim($raw);
+        if ($raw === '' || $raw === 'N/A') return '—';
+
+        $seconds = null;
+
+        // If /proc/uptime style: "12345.67 890.12"
+        if (preg_match('/^\d+(?:\.\d+)?\s+\d+(?:\.\d+)?$/', $raw)) {
+            $seconds = (int) floor((float) explode(' ', $raw)[0]);
+        }
+
+        // uptime -p style: "up 3 weeks, 2 days, 19 hours, 39 minutes"
+        if ($seconds === null) {
+            $raw2 = preg_replace('/^up\s+/i', '', $raw);
+            $chunks = preg_split('/,\s*/', $raw2);
+            $unitSeconds = [
+                'week' => 604800,
+                'weeks' => 604800,
+                'day' => 86400,
+                'days' => 86400,
+                'hour' => 3600,
+                'hours' => 3600,
+                'minute' => 60,
+                'minutes' => 60,
+            ];
+
+            $acc = 0;
+            $matched = false;
+            foreach ($chunks as $chunk) {
+                if (preg_match('/(\d+)\s+([a-zA-Z]+)/', $chunk, $m)) {
+                    $n = (int) $m[1];
+                    $u = strtolower($m[2]);
+                    if (isset($unitSeconds[$u])) {
+                        $acc += $n * $unitSeconds[$u];
+                        $matched = true;
+                    }
+                }
+            }
+            if ($matched) {
+                $seconds = $acc;
+            }
+        }
+
+        if (!is_int($seconds)) {
+            return '—';
+        }
+
+        $days = intdiv($seconds, 86400);
+        $seconds %= 86400;
+        $hours = intdiv($seconds, 3600);
+        $seconds %= 3600;
+        $minutes = intdiv($seconds, 60);
+
+        return sprintf('%02d:%02d:%02d', $days, $hours, $minutes);
+    };
+
+    $uptimeDDHHMM = is_string($uptimeText) ? $formatUptimeDDHHMM($uptimeText) : '—';
+
     $cards = [
         ['icon' => '📺', 'label' => 'Total Channels',   'value' => $totalChannels,   'variant' => 'blue'],
         ['icon' => '✅', 'label' => 'Enabled',          'value' => $enabledChannels, 'variant' => 'green'],
@@ -23,18 +81,32 @@
         ['icon' => '💽', 'label' => 'Disk Used',         'value' => $diskUsedText,    'variant' => 'yellow'],
         ['icon' => '🧠', 'label' => 'CPU',              'value' => $cpuText,         'variant' => 'blue'],
         ['icon' => '🧬', 'label' => 'RAM',              'value' => $ramText,         'variant' => 'purple'],
-        ['icon' => '⏱',  'label' => 'Uptime',           'value' => $uptimeText,      'variant' => 'blue'],
+        ['icon' => '⏱',  'label' => 'Uptime',           'value' => $uptimeDDHHMM,    'variant' => 'blue'],
     ];
 
     $statusBadge = function ($status) {
         $status = (string) ($status ?? 'unknown');
         return match ($status) {
-            'running' => ['green', 'RUNNING'],
-            'error'   => ['red', 'ERROR'],
-            'idle'    => ['yellow', 'IDLE'],
+            'running', 'live' => ['green', 'RUNNING'],
+            'error'            => ['red', 'ERROR'],
+            'idle', 'stopped'  => ['yellow', 'IDLE'],
             default   => ['blue', strtoupper($status)],
         };
     };
+
+    $streamBase = rtrim((string) config('app.streaming_domain', ''), '/');
+    if ($streamBase === '' || str_contains($streamBase, 'localhost')) {
+        $streamBase = rtrim((string) request()->getSchemeAndHttpHost(), '/');
+    }
+
+    $formatHHMM = function (?int $seconds): string {
+        if (!is_int($seconds) || $seconds < 0) return '—';
+        $hours = intdiv($seconds, 3600);
+        $minutes = intdiv($seconds % 3600, 60);
+        return sprintf('%02d:%02d', $hours, $minutes);
+    };
+
+    $pageNowTs = now()->timestamp;
 @endphp
 
 <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px;">
@@ -72,14 +144,29 @@
 </div>
 
 {{-- Metrics --}}
-<div class="fox-cards-grid">
+<div class="fox-cards-grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));align-items:stretch;">
     @foreach($cards as $card)
-        <div class="fox-card {{ $card['variant'] }}">
+        <div class="fox-card {{ $card['variant'] }}" style="min-height:120px;">
             <div class="fox-card-icon">{{ $card['icon'] }}</div>
             <div class="fox-card-label">{{ $card['label'] }}</div>
             <div class="fox-card-value">{{ $card['value'] }}</div>
         </div>
     @endforeach
+</div>
+
+{{-- Playlists --}}
+@php
+  $masterM3uUrl = url('/streams/all.m3u8');
+@endphp
+
+<div class="fox-table-container" style="padding:16px;margin-top:16px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+    <div style="font-size:12px;font-weight:800;color:#666;letter-spacing:.04em;text-transform:uppercase;">Playlists</div>
+    <a href="{{ $masterM3uUrl }}" style="display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;background:#2563eb;color:#fff;font-size:12px;font-weight:800;text-decoration:none;">⬇ Download M3U</a>
+  </div>
+  <div style="margin-top:10px;font-size:12px;color:#666;word-break:break-all;">
+    URL: <span style="font-weight:700;color:#111;">{{ $masterM3uUrl }}</span>
+  </div>
 </div>
 
 {{-- Recent channels --}}
@@ -89,406 +176,158 @@
         <a href="{{ route('vod-channels.index') }}" style="font-size:12px;font-weight:700;color:#2563eb;text-decoration:none;">View all</a>
     </div>
 
-    <div style="overflow-x:auto;">
-        <table class="fox-table">
-            <thead>
-            <tr>
-                <th style="width:80px;">ID</th>
-                <th>Name</th>
-                <th style="width:140px;">Status</th>
-                <th style="width:120px;">Enabled</th>
-                <th style="width:220px;">Updated</th>
-            </tr>
-            </thead>
-            <tbody>
+    <div style="padding:16px;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;">
             @forelse($recentChannels as $ch)
                 @php
                     [$badgeColor, $badgeText] = $statusBadge($ch->status);
+                    $isRunning = in_array((string) ($ch->status ?? ''), ['running', 'live'], true);
+
+                    $startedAtTs = null;
+                    $onlineSeconds = null;
+                    if ($isRunning && !empty($ch->started_at)) {
+                        try {
+                            $startedAtTs = \Carbon\Carbon::parse($ch->started_at)->timestamp;
+                            $onlineSeconds = max(0, $pageNowTs - $startedAtTs);
+                        } catch (\Throwable $e) {
+                            $startedAtTs = null;
+                            $onlineSeconds = null;
+                        }
+                    }
+
+                    $playlistCount = (int) ($ch->playlist_items_count ?? 0);
+                    $streamUrl = $streamBase . "/streams/{$ch->id}/hls/stream.m3u8";
+                    $hasOutputs = !empty($ch->encoded_output_path) && !empty($ch->hls_output_path);
                 @endphp
-                <tr>
-                    <td>{{ $ch->id }}</td>
-                    <td style="font-weight:700;">{{ $ch->name }}</td>
-                    <td><span class="fox-badge {{ $badgeColor }}">{{ $badgeText }}</span></td>
-                    <td>
-                        @if((int) $ch->enabled === 1)
-                            <span class="fox-badge green">YES</span>
-                        @else
-                            <span class="fox-badge red">NO</span>
-                        @endif
-                    </td>
-                    <td style="color:#666;">{{ optional($ch->updated_at)->format('Y-m-d H:i') }}</td>
-                </tr>
+
+                <div style="background:#fff;border:1px solid #eee;border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px;">
+                    <div style="display:flex;align-items:center;gap:12px;">
+                        <div style="width:44px;height:44px;border-radius:12px;background:#f3f4f6;display:flex;align-items:center;justify-content:center;overflow:hidden;flex:0 0 auto;">
+                            @if(!empty($ch->logo_path))
+                                <img src="{{ route('vod-channels.logo.preview', $ch) }}?v={{ urlencode((string) optional($ch->updated_at)->timestamp) }}" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'" />
+                            @else
+                                <span style="font-size:18px;opacity:.55;">📺</span>
+                            @endif
+                        </div>
+
+                        <div style="min-width:0;flex:1;">
+                            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+                                <div style="font-weight:900;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $ch->name }}</div>
+                                <span class="fox-badge {{ $badgeColor }}" style="flex:0 0 auto;">{{ $badgeText }}</span>
+                            </div>
+                            <div style="margin-top:4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                                <span class="fox-badge blue">ID: {{ $ch->id }}</span>
+                                @if((int) $ch->enabled === 1)
+                                    <span class="fox-badge green">ENABLED</span>
+                                @else
+                                    <span class="fox-badge red">DISABLED</span>
+                                @endif
+                                @if($hasOutputs)
+                                    <span class="fox-badge green">OUTPUT OK</span>
+                                @else
+                                    <span class="fox-badge yellow">OUTPUT?</span>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                        <div style="background:#f9fafb;border:1px solid #f0f0f0;border-radius:12px;padding:10px;">
+                            <div style="font-size:11px;font-weight:900;color:#6b7280;letter-spacing:.04em;text-transform:uppercase;">Online For</div>
+                            <div style="margin-top:4px;font-size:13px;font-weight:900;color:#111;">
+                                @if($startedAtTs !== null)
+                                    <span class="js-online-hhmm" data-started-at="{{ $startedAtTs }}">{{ $formatHHMM($onlineSeconds) }}</span>
+                                @else
+                                    —
+                                @endif
+                            </div>
+                        </div>
+                        <div style="background:#f9fafb;border:1px solid #f0f0f0;border-radius:12px;padding:10px;">
+                            <div style="font-size:11px;font-weight:900;color:#6b7280;letter-spacing:.04em;text-transform:uppercase;">Playlist Items</div>
+                            <div style="margin-top:4px;font-size:13px;font-weight:900;color:#111;">{{ $playlistCount }}</div>
+                        </div>
+                    </div>
+
+                    <div style="background:#f9fafb;border:1px solid #f0f0f0;border-radius:12px;padding:10px;">
+                        <div style="font-size:11px;font-weight:900;color:#6b7280;letter-spacing:.04em;text-transform:uppercase;">Stream URL (HLS)</div>
+                        <div style="margin-top:4px;font-size:12px;color:#111;word-break:break-all;">{{ $streamUrl }}</div>
+                    </div>
+
+                    <div style="display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;">
+                        <button type="button" data-copy-text="{{ $streamUrl }}" onclick="copyTextFromButton(this)" style="display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;background:#fff;color:#111;border:1px solid #e5e7eb;font-size:12px;font-weight:800;">📋 Copy Playlist</button>
+                                                <a href="{{ $streamUrl }}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;background:#2563eb;color:#fff;font-size:12px;font-weight:800;text-decoration:none;">▶ Open Stream</a>
+                                                <a href="{{ route('vod-channels.playlist', $ch) }}" style="display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;background:#111;color:#fff;font-size:12px;font-weight:800;text-decoration:none;">▶ Playlist</a>
+                                                <a href="{{ route('vod-channels.settings', $ch) }}" style="display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;background:#fff;color:#111;border:1px solid #e5e7eb;font-size:12px;font-weight:800;text-decoration:none;">⚙ Settings</a>
+                    </div>
+                </div>
             @empty
-                <tr>
-                    <td colspan="5" style="color:#666;">No channels found.</td>
-                </tr>
+                <div style="color:#666;">No channels found.</div>
             @endforelse
-            </tbody>
-        </table>
-    </div>
-</div>
-    grid-template-columns: 40px 1fr 100px 200px 120px 250px;
-    gap: 12px;
-    padding: 12px 16px;
-    border-bottom: 1px solid #f0f0f0;
-    align-items: center;
-    transition: all 0.2s ease;
-  }
-
-  .fox-table-row:hover {
-    background: #f9fafb;
-  }
-
-  .fox-table-row:last-child {
-    border-bottom: none;
-  }
-
-  .fox-channel-logo {
-    width: 40px;
-    height: 40px;
-    border-radius: 4px;
-    background: #e8e8e8;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-  }
-
-  .fox-channel-logo img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .fox-channel-name {
-    font-size: 13px;
-    font-weight: 600;
-    color: #333;
-  }
-
-  .fox-channel-id {
-    font-size: 11px;
-    color: #999;
-  }
-
-  .fox-status-badge {
-    display: inline-block;
-    padding: 4px 8px;
-    border-radius: 12px;
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    text-align: center;
-  }
-
-  .fox-status-idle {
-    background: #dbeafe;
-    color: #1e40af;
-  }
-
-  .fox-status-running {
-    background: #dcfce7;
-    color: #166534;
-  }
-
-  .fox-status-error {
-    background: #fee2e2;
-    color: #991b1b;
-  }
-
-  .fox-profile-text {
-    font-size: 12px;
-    color: #666;
-  }
-
-  .fox-updated-text {
-    font-size: 12px;
-    color: #999;
-  }
-
-  .fox-actions {
-    display: flex;
-    gap: 6px;
-  }
-
-  .fox-action-btn {
-    padding: 4px 8px;
-    border: 1px solid #e8e8e8;
-    background: #f9fafb;
-    color: #2f6fed;
-    border-radius: 3px;
-    font-size: 11px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-
-  .fox-action-btn:hover {
-    background: #2f6fed;
-    color: #fff;
-    border-color: #2f6fed;
-  }
-
-  .fox-action-btn.danger {
-    color: #e30613;
-  }
-
-  .fox-action-btn.danger:hover {
-    background: #e30613;
-    color: #fff;
-    border-color: #e30613;
-  }
-
-  .fox-action-btn.warning {
-    color: #f59e0b;
-  }
-
-  .fox-action-btn.warning:hover {
-    background: #f59e0b;
-    color: #fff;
-    border-color: #f59e0b;
-  }
-
-</style>
-
-<div class="fox-dashboard">
-
-  <!-- SERVER TABS -->
-  <div class="fox-server-tabs">
-    <button class="fox-tab-btn active" onclick="selectServer(1)">Server 1</button>
-    <button class="fox-tab-btn" onclick="selectServer(2)">Server 2</button>
-  </div>
-
-  <!-- HEADER BOX [Server1] + Restart -->
-  <div class="fox-header-box">
-    <div class="fox-header-title">📊 [Server 1]</div>
-    <button class="fox-restart-header-btn" onclick="restartServer()">🔄 Restart</button>
-  </div>
-
-  <!-- METRIC CARDS GRID (2 rows × 6 cards) -->
-  <div class="fox-cards-grid">
-    <!-- ROW 1 -->
-    <div class="fox-metric-card">
-      <div class="fox-metric-icon">💻</div>
-      <div class="fox-metric-label">CPU</div>
-      <div class="fox-metric-value">{{ number_format($cpuUsage ?? 0, 1) }}%</div>
-    </div>
-
-    <div class="fox-metric-card">
-      <div class="fox-metric-icon">🧠</div>
-      <div class="fox-metric-label">RAM</div>
-      <div class="fox-metric-value">{{ number_format($ramUsage ?? 0, 1) }}%</div>
-    </div>
-
-    <div class="fox-metric-card">
-      <div class="fox-metric-icon">📥</div>
-      <div class="fox-metric-label">Input (Mbps)</div>
-      <div class="fox-metric-value">{{ number_format($networkStats['input_mbps'] ?? 0, 0) }}</div>
-    </div>
-
-    <div class="fox-metric-card">
-      <div class="fox-metric-icon">📤</div>
-      <div class="fox-metric-label">Output (Mbps)</div>
-      <div class="fox-metric-value">{{ number_format($networkStats['output_mbps'] ?? 0, 0) }}</div>
-    </div>
-
-    <div class="fox-metric-card">
-      <div class="fox-metric-icon">👥</div>
-      <div class="fox-metric-label">Online Connections</div>
-      <div class="fox-metric-value">{{ $runningChannels ?? 0 }}</div>
-    </div>
-
-    <div class="fox-metric-card">
-      <div class="fox-metric-icon">🔗</div>
-      <div class="fox-metric-label">Open Connections</div>
-      <div class="fox-metric-value">{{ $enabledChannels ?? 0 }}</div>
-    </div>
-
-    <!-- ROW 2 -->
-    <div class="fox-metric-card">
-      <div class="fox-metric-icon">⚙️</div>
-      <div class="fox-metric-label">Transcoding Videos</div>
-      <div class="fox-metric-value">{{ $jobsStats['running'] ?? 0 }}</div>
-    </div>
-
-    <div class="fox-metric-card">
-      <div class="fox-metric-icon">🎬</div>
-      <div class="fox-metric-label">Trailer Videos</div>
-      <div class="fox-metric-value">{{ $totalChannels ?? 0 }}</div>
-    </div>
-
-    <div class="fox-metric-card">
-      <div class="fox-metric-icon">🎥</div>
-      <div class="fox-metric-label">Total Videos</div>
-      <div class="fox-metric-value">{{ $totalChannels ?? 0 }}</div>
-    </div>
-
-    <div class="fox-metric-card">
-      <div class="fox-metric-icon">📺</div>
-      <div class="fox-metric-label">Live Streams</div>
-      <div class="fox-metric-value">{{ $runningChannels ?? 0 }}</div>
-    </div>
-
-    <div class="fox-metric-card">
-      <div class="fox-metric-icon">📻</div>
-      <div class="fox-metric-label">Radio Live Streams</div>
-      <div class="fox-metric-value">{{ $errorChannels ?? 0 }}</div>
-    </div>
-
-    <div class="fox-metric-card">
-      <div class="fox-metric-icon">⏱️</div>
-      <div class="fox-metric-label">Server Uptime</div>
-      <div class="fox-metric-value">{{ $uptime ?? 'N/A' }}</div>
-    </div>
-  </div>
-
-  <!-- CHARTS ROW 1: Traffic Statistics + Network Bandwidth -->
-  <div class="fox-charts-row">
-    <div class="fox-chart-box">
-      <div class="fox-chart-title">Traffic Statistics</div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-        <div style="text-align: center; padding: 12px; background: #f8f8f8; border-radius: 4px;">
-          <div style="font-size: 11px; color: #999; margin-bottom: 4px;">INPUT</div>
-          <div style="font-size: 18px; font-weight: 700; color: #f59e0b;">{{ number_format($networkStats['input_mbps'] ?? 0, 0) }} Mbps</div>
         </div>
-        <div style="text-align: center; padding: 12px; background: #f8f8f8; border-radius: 4px;">
-          <div style="font-size: 11px; color: #999; margin-bottom: 4px;">OUTPUT</div>
-          <div style="font-size: 18px; font-weight: 700; color: #fbbf24;">{{ number_format($networkStats['output_mbps'] ?? 0, 0) }} Mbps</div>
-        </div>
-      </div>
-      <div style="text-align: center; padding: 12px; background: #f8f8f8; border-radius: 4px; margin-bottom: 12px;">
-        <div style="font-size: 11px; color: #999; margin-bottom: 4px;">TOTAL</div>
-        <div style="font-size: 18px; font-weight: 700; color: #ea8c55;">{{ number_format($networkStats['total_mbps'] ?? 0, 0) }} Mbps</div>
-      </div>
-      <div class="fox-chart-placeholder">Pie Chart (Upload / Download)</div>
     </div>
-
-    <div class="fox-chart-box">
-      <div class="fox-chart-title">Network Bandwidth</div>
-      <div class="fox-chart-placeholder">Line Chart (Network Bandwidth)</div>
-    </div>
-  </div>
-
-  <!-- CHARTS ROW 2: Harddisk Information + World Statistics -->
-  <div class="fox-charts-row">
-    <div class="fox-chart-box">
-      <div class="fox-chart-title">Harddisk Information</div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-        <div style="text-align: center; padding: 12px; background: #f8f8f8; border-radius: 4px;">
-          <div style="font-size: 11px; color: #999; margin-bottom: 4px;">USED</div>
-          <div style="font-size: 18px; font-weight: 700; color: #e30613;">{{ $diskStats['used_pct'] ?? 0 }}%</div>
-        </div>
-        <div style="text-align: center; padding: 12px; background: #f8f8f8; border-radius: 4px;">
-          <div style="font-size: 11px; color: #999; margin-bottom: 4px;">FREE</div>
-          <div style="font-size: 18px; font-weight: 700; color: #16a34a;">{{ $diskStats['free_pct'] ?? 0 }}%</div>
-        </div>
-      </div>
-      <div style="text-align: center; padding: 12px; background: #f8f8f8; border-radius: 4px; margin-bottom: 12px;">
-        <div style="font-size: 11px; color: #999; margin-bottom: 4px;">TOTAL</div>
-        <div style="font-size: 18px; font-weight: 700; color: #333;">{{ $diskStats['total_gb'] ?? 0 }} GB</div>
-      </div>
-      <div class="fox-chart-placeholder">Pie Chart (Disk Usage)</div>
-    </div>
-
-    <div class="fox-chart-box">
-      <div class="fox-chart-title">World Statistics</div>
-      <div class="fox-chart-placeholder">World Map (Viewers by Country)</div>
-    </div>
-  </div>
-
-  <!-- RECENT CHANNELS SECTION -->
-  <div class="fox-recent-section">
-    <div class="fox-section-header">
-      <h3 class="fox-section-title">Recent Channels</h3>
-      <a href="/vod-channels" class="fox-view-all-link">View all</a>
-    </div>
-
-    <div class="fox-recent-table">
-      <!-- Table Header -->
-      <div class="fox-table-header">
-        <div style="text-align: center;">Logo</div>
-        <div>Channel</div>
-        <div>Status</div>
-        <div>Profile</div>
-        <div>Updated</div>
-        <div>Actions</div>
-      </div>
-
-      <!-- Table Rows -->
-      @forelse($recentChannels ?? [] as $channel)
-        <div class="fox-table-row">
-          <!-- Logo -->
-          <div class="fox-channel-logo">
-            @if($channel->logo_path)
-              <img src="{{ $channel->logo_path }}" alt="Logo">
-            @else
-              <span style="color: #ccc; font-size: 20px;">📺</span>
-            @endif
-          </div>
-
-          <!-- Channel Name -->
-          <div>
-            <div class="fox-channel-name">{{ $channel->name }}</div>
-            <div class="fox-channel-id">ID: {{ $channel->id }}</div>
-          </div>
-
-          <!-- Status -->
-          <div>
-            @php
-              $statusClass = 'fox-status-idle';
-              $statusText = 'IDLE';
-              if ($channel->status === 'running') {
-                $statusClass = 'fox-status-running';
-                $statusText = 'RUNNING';
-              } elseif ($channel->status === 'error') {
-                $statusClass = 'fox-status-error';
-                $statusText = 'ERROR';
-              }
-            @endphp
-            <span class="fox-status-badge {{ $statusClass }}">{{ $statusText }}</span>
-          </div>
-
-          <!-- Profile -->
-          <div class="fox-profile-text">
-            {{ $channel->resolution ?? 'N/A' }}<br>
-            {{ number_format($channel->video_bitrate ?? 0) }} kbps • {{ $channel->fps ?? 0 }} fps
-          </div>
-
-          <!-- Updated -->
-          <div class="fox-updated-text">
-            {{ $channel->updated_at ? $channel->updated_at->diffForHumans() : 'N/A' }}
-          </div>
-
-          <!-- Actions -->
-          <div class="fox-actions">
-            <button class="fox-action-btn" title="Settings">⚙️ Settings</button>
-            <button class="fox-action-btn warning" title="Restart">🔄 Restart</button>
-            <button class="fox-action-btn danger" title="Toggle">🔌 Toggle</button>
-          </div>
-        </div>
-      @empty
-        <div class="fox-table-row" style="text-align: center; color: #999; padding: 32px;">
-          No recent channels found
-        </div>
-      @endforelse
-    </div>
-  </div>
 </div>
 
 <script>
-  function selectServer(serverId) {
-    console.log('Server selected:', serverId);
-    document.querySelectorAll('.fox-tab-btn').forEach(btn => btn.classList.remove('active'));
-    event.target.classList.add('active');
-    // TODO: Load server data
-  }
+    async function copyToClipboard(text) {
+        if (!text) return false;
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(text);
+                return true;
+            }
+        } catch (e) {
+            // fall back
+        }
 
-  function restartServer() {
-    if (confirm('Restart server?')) {
-      console.log('Restarting server...');
-      // TODO: API call
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.top = '-1000px';
+            ta.style.left = '-1000px';
+            document.body.appendChild(ta);
+            ta.select();
+            ta.setSelectionRange(0, ta.value.length);
+            const ok = document.execCommand('copy');
+            document.body.removeChild(ta);
+            return ok;
+        } catch (e) {
+            return false;
+        }
     }
-  }
+
+    async function copyTextFromButton(btn) {
+        const text = btn?.getAttribute('data-copy-text') || '';
+        const original = btn.textContent;
+        const ok = await copyToClipboard(text);
+        btn.textContent = ok ? '✓ Copied' : 'Copy failed';
+        setTimeout(() => { btn.textContent = original; }, 1200);
+    }
+
+    function pad2(n) {
+        n = Math.floor(Math.max(0, n));
+        return (n < 10 ? '0' : '') + String(n);
+    }
+
+    function formatHHMMFromSeconds(totalSeconds) {
+        totalSeconds = Math.max(0, Math.floor(totalSeconds));
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        return String(hours).padStart(2, '0') + ':' + pad2(minutes);
+    }
+
+    function updateOnlineTimers() {
+        const nowTs = Math.floor(Date.now() / 1000);
+        document.querySelectorAll('.js-online-hhmm').forEach((el) => {
+            const startedAt = parseInt(el.getAttribute('data-started-at') || '', 10);
+            if (!Number.isFinite(startedAt) || startedAt <= 0) return;
+            el.textContent = formatHHMMFromSeconds(nowTs - startedAt);
+        });
+    }
+
+    updateOnlineTimers();
+    setInterval(updateOnlineTimers, 15000);
 </script>
 @endsection
 

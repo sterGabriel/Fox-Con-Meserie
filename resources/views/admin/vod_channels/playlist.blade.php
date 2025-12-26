@@ -121,11 +121,24 @@
 
 <div class="np" id="totalTime" style="margin: 0 0 12px;">Total Time: —</div>
 
+<div class="card" style="margin-bottom: 14px;">
+  <div class="card-h">
+    <div class="card-t">Now Playing</div>
+    <div class="muted" style="font-size:12px; font-weight:900;" id="jsNpStatus">—</div>
+  </div>
+  <div class="card-b" style="display:grid; gap:10px;">
+    <div class="muted"><span style="font-weight:900;">Now:</span> <span id="jsNpTitle">—</span> <span class="muted" id="jsNpIndex"></span></div>
+    <div class="muted"><span style="font-weight:900;">Remaining:</span> <span id="jsNpRemain">—</span></div>
+    <div class="muted"><span style="font-weight:900;">Next:</span> <span id="jsNpNext">—</span></div>
+  </div>
+</div>
+
 @php($domain = rtrim((string) config('app.streaming_domain', ''), '/'))
 @php($domain = ($domain === '' || str_contains($domain, 'localhost')) ? rtrim((string) request()->getSchemeAndHttpHost(), '/') : $domain)
 @php($hlsUrl = $domain . "/streams/{$channel->id}/hls/stream.m3u8")
 @php($tsUrlLive = $domain . "/streams/{$channel->id}/stream.ts")
 @php($masterUrl = $domain . "/streams/all.m3u8")
+@php($epgUrl = $domain . "/epg/all.xml")
 
 <div class="card" style="margin-bottom: 14px;">
   <div class="card-h">
@@ -140,6 +153,12 @@
 
     <div class="muted" style="font-weight:900;">Master Playlist (All Channels)</div>
     <a class="muted" href="{{ $masterUrl }}" target="_blank" rel="noopener">{{ $masterUrl }}</a>
+
+    <div class="muted" style="font-weight:900;">EPG (XMLTV, 7 days)</div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+      <a class="muted" href="{{ $epgUrl }}" target="_blank" rel="noopener">{{ $epgUrl }}</a>
+      <a class="btn btn-outline btn-sm" href="{{ $epgUrl }}" target="_blank" rel="noopener">Export EPG (All)</a>
+    </div>
 
     <div class="muted">Note: Streams are available only when the channel is running.</div>
   </div>
@@ -167,6 +186,7 @@
             <th>Title</th>
             <th style="width:140px;">Status</th>
             <th style="width:120px;">Progress</th>
+            <th style="width:120px;">ETA</th>
             <th style="width:180px;">Action</th>
           </tr>
         </thead>
@@ -181,10 +201,12 @@
             @if(!$job && $video && isset($jobByVideoId))
               @php($job = $jobByVideoId->get($video->id) ?? null)
             @endif
-            @php($jobStatus = $job ? strtoupper((string)($job->status ?? '')) : 'NOT STARTED')
+            @php($rawJobStatus = $job ? strtoupper((string)($job->status ?? '')) : 'NOT STARTED')
+            @php($jobStatus = ($job && $rawJobStatus === 'QUEUED' && isset($job->display_queue_position) && (int)$job->display_queue_position > 0) ? ('QUEUED #' . (int)$job->display_queue_position) : $rawJobStatus)
             @php($progress = $job ? (int)($job->display_progress ?? $job->progress ?? 0) : 0)
             @php($outTime = $job ? (string)($job->display_out_time ?? '') : '')
             @php($speed = $job ? (string)($job->display_speed ?? '') : '')
+            @php($eta = $job ? (string)($job->display_eta ?? '') : '')
             <tr class="js-enc-row" data-playlist-item-id="{{ (int) $item->id }}" data-video-id="{{ (int)($video?->id ?? 0) }}">
               <td class="muted">{{ $index + 1 }}</td>
               <td class="title-cell">
@@ -199,9 +221,9 @@
               <td class="muted">
                 @if(!$job)
                   —
-                @elseif($jobStatus === 'QUEUED' || $jobStatus === 'NOT STARTED')
+                @elseif(str_starts_with($jobStatus, 'QUEUED') || $jobStatus === 'NOT STARTED')
                   —
-                @elseif($jobStatus === 'RUNNING')
+                @elseif($rawJobStatus === 'RUNNING')
                   {{ $progress }}%
                   @if($outTime !== '')
                     <span class="muted">({{ $outTime }}@if($speed !== '') · {{ $speed }}@endif)</span>
@@ -210,6 +232,15 @@
                   @endif
                 @else
                   {{ $progress }}%
+                @endif
+              </td>
+              <td class="muted js-enc-eta">
+                @if(!$job)
+                  —
+                @elseif($rawJobStatus === 'RUNNING' && $eta !== '')
+                  {{ $eta }}
+                @else
+                  —
                 @endif
               </td>
               <td>
@@ -260,6 +291,23 @@
       return `${pct}%`;
     }
 
+    function formatStatus(job) {
+      if (!job) return 'NOT STARTED';
+      const st = String(job.status || '').toUpperCase();
+      if (st === 'QUEUED' && Number(job.queued_position || 0) > 0) {
+        return `QUEUED #${Number(job.queued_position)}`;
+      }
+      return st || 'NOT STARTED';
+    }
+
+    function formatEta(job) {
+      if (!job) return '—';
+      const st = String(job.status || '').toUpperCase();
+      if (st !== 'RUNNING') return '—';
+      const eta = job.eta ? String(job.eta) : '';
+      return eta || '—';
+    }
+
     async function poll() {
       const res = await fetch(`/vod-channels/${channelId}/engine/encoding-jobs`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
       const json = await res.json().catch(() => ({}));
@@ -290,13 +338,15 @@
         const vid = Number(row.getAttribute('data-video-id') || 0);
         const job = (pid > 0 && mapByPlaylistItemId.get(pid)) || (vid > 0 && mapByVideoId.get(vid)) || null;
 
-        const st = job ? String(job.status || '').toUpperCase() : 'NOT STARTED';
         const stCell = row.querySelector('.js-enc-status');
-        if (stCell) stCell.textContent = st;
+        if (stCell) stCell.textContent = formatStatus(job);
 
         const cells = row.querySelectorAll('td');
         const progressCell = cells.length >= 4 ? cells[3] : null;
         if (progressCell) progressCell.textContent = formatProgress(job);
+
+        const etaCell = row.querySelector('.js-enc-eta');
+        if (etaCell) etaCell.textContent = formatEta(job);
       }
 
       const signature = jobs.map(j => `${j.id}:${j.status}:${j.progress}`).join('|');
@@ -320,6 +370,82 @@
       setInterval(() => { poll().catch(() => {}); }, 2000);
       poll().catch(() => {});
     }
+  })();
+</script>
+
+<script>
+  (function () {
+    const channelId = {{ (int) $channel->id }};
+
+    const stEl = document.getElementById('jsNpStatus');
+    const titleEl = document.getElementById('jsNpTitle');
+    const idxEl = document.getElementById('jsNpIndex');
+    const remainEl = document.getElementById('jsNpRemain');
+    const nextEl = document.getElementById('jsNpNext');
+
+    let remaining = null;
+    let lastFetchAt = 0;
+
+    function fmt(seconds) {
+      const s = Math.max(0, Number(seconds || 0));
+      const hh = Math.floor(s / 3600);
+      const mm = Math.floor((s % 3600) / 60);
+      const ss = Math.floor(s % 60);
+      const pad = (n) => String(n).padStart(2, '0');
+      return pad(hh) + ':' + pad(mm) + ':' + pad(ss);
+    }
+
+    function renderIdle(msg) {
+      if (stEl) stEl.textContent = msg || 'Not running';
+      if (titleEl) titleEl.textContent = '—';
+      if (idxEl) idxEl.textContent = '';
+      if (remainEl) remainEl.textContent = '—';
+      if (nextEl) nextEl.textContent = '—';
+      remaining = null;
+    }
+
+    async function fetchNow() {
+      const res = await fetch(`/vod-channels/${channelId}/now-playing`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json.status !== 'success') return;
+
+      lastFetchAt = Date.now();
+
+      if (!json.is_running) {
+        renderIdle('Not running');
+        return;
+      }
+      if (!json.has_playlist) {
+        renderIdle('No encoded playlist');
+        return;
+      }
+      if (!json.now) {
+        renderIdle('—');
+        return;
+      }
+
+      if (stEl) stEl.textContent = 'LIVE';
+      if (titleEl) titleEl.textContent = String(json.now.title || '—');
+      if (idxEl) idxEl.textContent = json.now.index ? `(#${Number(json.now.index)})` : '';
+      remaining = Number(json.now.remaining_seconds || 0);
+      if (remainEl) remainEl.textContent = fmt(remaining);
+
+      const next = Array.isArray(json.next) ? json.next : [];
+      const list = next.map(n => String(n.title || '')).filter(Boolean).join(' · ');
+      if (nextEl) nextEl.textContent = list || '—';
+    }
+
+    setInterval(() => {
+      if (remaining === null) return;
+      remaining = Math.max(0, remaining - 1);
+      if (remainEl) remainEl.textContent = fmt(remaining);
+      if (remaining === 0 && Date.now() - lastFetchAt > 1500) {
+        fetchNow().catch(() => {});
+      }
+    }, 1000);
+
+    setInterval(() => { fetchNow().catch(() => {}); }, 5000);
+    fetchNow().catch(() => {});
   })();
 </script>
 

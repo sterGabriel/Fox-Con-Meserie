@@ -9,10 +9,13 @@
 /public/encoded
 /storage/*.key
 /storage/pail
+/storage/app/full-backups
+/storage/app/db-backups
 /vendor
 .env
 .env.backup
 .env.production
+.env.testing
 .phpactor.json
 .phpunit.result.cache
 Homestead.json
@@ -27,3 +30,7 @@ yarn-error.log
 /.zed
 *.ts.lock
 .DS_Store
+
+# Local-only artifacts
+/backups
+/notes
