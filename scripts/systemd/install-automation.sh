@@ -17,6 +17,14 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
+echo "Installing Redis server (local)..."
+if ! command -v redis-server >/dev/null 2>&1; then
+  apt-get update
+  apt-get install -y redis-server
+fi
+
+systemctl enable --now redis-server.service || true
+
 if [[ ! -f "$SCHEDULE_UNIT_SRC" ]]; then
   echo "ERROR: Missing $SCHEDULE_UNIT_SRC"
   exit 1

@@ -6,6 +6,7 @@ use App\Models\LiveChannel;
 use App\Models\PlaylistItem;
 use App\Services\ChannelEngineService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
 
 class AutostartChannels extends Command
 {
@@ -47,6 +48,14 @@ class AutostartChannels extends Command
         $failed = 0;
 
         foreach ($channels as $channel) {
+            $lock = Cache::lock('channels:autostart:' . (int) $channel->id, 55);
+            if (!$lock->get()) {
+                $this->line("SKIP #{$channel->id} {$channel->name} (locked)");
+                $skipped++;
+                continue;
+            }
+
+            try {
             $engine = new ChannelEngineService($channel);
 
             // Detect running ffmpeg even if encoder_pid is missing/stale (or signal permission is denied).
@@ -93,6 +102,13 @@ class AutostartChannels extends Command
             } else {
                 $this->error("FAIL #{$channel->id} {$channel->name}: " . ($result['message'] ?? 'Unknown error'));
                 $failed++;
+            }
+            } finally {
+                try {
+                    $lock->release();
+                } catch (\Throwable $e) {
+                    // ignore
+                }
             }
         }
 

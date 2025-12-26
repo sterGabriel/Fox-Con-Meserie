@@ -1,6 +1,7 @@
 [Unit]
 Description=IPTV Panel - Autostart channels after reboot
-After=network.target
+Wants=redis-server.service
+After=network.target redis-server.service
 
 [Service]
 Type=oneshot

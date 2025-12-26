@@ -1,6 +1,7 @@
 [Unit]
 Description=IPTV Panel - Laravel Queue Worker (queue:work)
-After=network.target
+Wants=redis-server.service
+After=network.target redis-server.service
 
 [Service]
 Type=simple
