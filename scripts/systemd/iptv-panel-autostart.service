@@ -1,0 +1,30 @@
+[Unit]
+Description=IPTV Panel - Autostart channels after reboot
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/var/www/iptv-panel
+User=www-data
+Group=www-data
+
+# IMPORTANT:
+# The command intentionally spawns long-running ffmpeg processes detached.
+# Prevent systemd from killing those child processes when the oneshot exits.
+KillMode=none
+TimeoutStartSec=60
+
+# Starts channels that are marked as status=live in DB but not currently running.
+ExecStart=/usr/bin/php8.4 artisan channels:autostart --only-missing
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/www/iptv-panel/storage /var/www/iptv-panel/bootstrap/cache
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

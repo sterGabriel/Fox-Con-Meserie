@@ -11,6 +11,13 @@ Scop: totul să ruleze singur, fără să depindă de UI deschis.
 Scheduler-ul rulează:
 - `encoding:monitor` (la fiecare minut) — marchează job-uri terminate și pornește automat următorul job queued per canal
 - `videos:sync-metadata` (hourly)
+- (nou) `channels:autostart --only-missing` (la fiecare minut) — pornește automat canalele care au rămas cu `status=live` în DB după reboot/crash
+
+### Instalare (1 comandă — recomandat)
+Repo-ul include un installer care copiază unit-urile în systemd și le pornește automat:
+```bash
+sudo bash /var/www/iptv-panel/scripts/systemd/install-automation.sh
+```
 
 Recomandare: `schedule:work` ca systemd service.
 Fișier: `scripts/systemd/iptv-panel-schedule.service`
@@ -61,3 +68,13 @@ Poți folosi cron clasic, dar e mai puțin robust decât systemd.
 - În fișierele systemd, schimbă `User=`/`Group=` dacă nu rulezi ca `www-data`.
 - Dacă `php` nu e `/usr/bin/php8.4`, schimbă `ExecStart`.
 - Permisiuni: `storage/` și `bootstrap/cache` trebuie să fie writable.
+
+## 7) Autostart la reboot (fără UI)
+Pe lângă scheduler, installer-ul pornește și un oneshot systemd care rulează la boot:
+- `iptv-panel-autostart.service`
+
+Verificare:
+```bash
+sudo systemctl status iptv-panel-autostart.service
+sudo journalctl -u iptv-panel-autostart.service -f
+```

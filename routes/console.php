@@ -13,3 +13,6 @@ Schedule::command('videos:sync-metadata')->hourly();
 
 // Keep encoding queue progressing automatically (marks completed jobs and starts next queued per channel).
 Schedule::command('encoding:monitor')->everyMinute();
+
+// Ensure channels that should be live are running (reboot/crash recovery).
+Schedule::command('channels:autostart --only-missing')->everyMinute();
