@@ -11,7 +11,7 @@ class VideoObserver
      */
     public function created(Video $video): void
     {
-        if (!$video->resolution || !$video->duration_seconds || !$video->size_bytes) {
+        if (!$video->resolution || !$video->duration_seconds || !$video->size_bytes || !$video->bitrate_kbps || !$video->format) {
             $this->syncMetadata($video);
         }
     }
@@ -21,7 +21,7 @@ class VideoObserver
      */
     public function updated(Video $video): void
     {
-        if (!$video->resolution || !$video->duration_seconds || !$video->size_bytes) {
+        if (!$video->resolution || !$video->duration_seconds || !$video->size_bytes || !$video->bitrate_kbps || !$video->format) {
             $this->syncMetadata($video);
         }
     }
@@ -49,12 +49,25 @@ class VideoObserver
         $durationOutput = trim(shell_exec($durationCmd));
         $duration = $durationOutput ? (int)$durationOutput : 0;
 
+        // Get container format
+        $formatCmd = "ffprobe -v error -show_entries format=format_name -of default=noprint_wrappers=1:nokey=1 2>/dev/null " . escapeshellarg($filePath);
+        $formatName = trim((string) shell_exec($formatCmd));
+        $formatName = $formatName !== '' ? $formatName : null;
+
+        // Get bitrate (kbps)
+        $bitrateCmd = "ffprobe -v error -show_entries format=bit_rate -of default=noprint_wrappers=1:nokey=1 2>/dev/null " . escapeshellarg($filePath);
+        $bitrateOutput = trim((string) shell_exec($bitrateCmd));
+        $bitrateBps = $bitrateOutput !== '' ? (int) $bitrateOutput : 0;
+        $bitrateKbps = $bitrateBps > 0 ? (int) round($bitrateBps / 1000) : null;
+
         // Update without triggering observer again
-        Video::withoutEvents(function () use ($video, $sizeBytes, $resolution, $duration) {
+        Video::withoutEvents(function () use ($video, $sizeBytes, $resolution, $duration, $bitrateKbps, $formatName) {
             $video->update([
                 'size_bytes' => $sizeBytes,
                 'resolution' => $resolution,
                 'duration_seconds' => $duration,
+                'bitrate_kbps' => $bitrateKbps,
+                'format' => $formatName,
             ]);
         });
     }

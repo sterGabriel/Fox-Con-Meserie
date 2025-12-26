@@ -56,6 +56,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Streaming Domain
+    |--------------------------------------------------------------------------
+    |
+    | Public base URL used for stream outputs (TS/HLS). Set STREAMING_DOMAIN
+    | when your stream URLs must use a different host/port than APP_URL.
+    |
+    */
+
+    'streaming_domain' => rtrim((string) env('STREAMING_DOMAIN', env('APP_URL', 'http://localhost')), '/'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

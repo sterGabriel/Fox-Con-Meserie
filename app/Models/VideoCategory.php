@@ -8,7 +8,9 @@ class VideoCategory extends Model
 {
     protected $fillable = [
         'name',
+        'slug',
         'description',
+        'source_path',
         // orice alte coloane mai ai (slug, tmdb_id etc.)
     ];
 

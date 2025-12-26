@@ -1,223 +1,132 @@
 @extends('layouts.panel')
 
 @section('content')
+@php
+    $diskUsedText = is_numeric($diskUsedPct) ? ($diskUsedPct . '%') : '—';
+    $cpuText = $cpuUsage !== null ? (round($cpuUsage, 1) . '%') : '—';
 
-<style>
-  .fox-dashboard {
-    padding: 24px;
-    background: #f4f5f7;
-  }
-
-  .fox-server-tabs {
-    display: flex;
-    gap: 12px;
-    margin-bottom: 20px;
-  }
-
-  .fox-tab-btn {
-    padding: 10px 16px;
-    background: #2a2a2a;
-    color: #ffffff;
-    border: 1px solid #3a3a3a;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 600;
-    transition: all 0.2s ease;
-  }
-
-  .fox-tab-btn.active {
-    background: #e30613;
-    border-color: #e30613;
-  }
-
-  .fox-tab-btn:hover {
-    border-color: #e30613;
-  }
-
-  .fox-header-box {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: #ffffff;
-    padding: 16px 20px;
-    border: 1px solid #e8e8e8;
-    border-radius: 6px;
-    margin-bottom: 24px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  }
-
-  .fox-header-title {
-    font-size: 16px;
-    font-weight: 700;
-    color: #333;
-  }
-
-  .fox-restart-header-btn {
-    background: #e30613;
-    color: #fff;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 600;
-    transition: all 0.2s ease;
-  }
-
-  .fox-restart-header-btn:hover {
-    background: #c80510;
-  }
-
-  /* Cards Grid */
-  .fox-cards-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 16px;
-    margin-bottom: 24px;
-  }
-
-  .fox-metric-card {
-    background: #ffffff;
-    border: 1px solid #e8e8e8;
-    border-radius: 6px;
-    border-left: 4px solid #2f6fed;
-    padding: 16px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-    transition: all 0.2s ease;
-  }
-
-  .fox-metric-card:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    transform: translateY(-2px);
-  }
-
-  .fox-metric-icon {
-    font-size: 24px;
-    margin-bottom: 8px;
-  }
-
-  .fox-metric-label {
-    font-size: 12px;
-    color: #999;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 6px;
-  }
-
-  .fox-metric-value {
-    font-size: 24px;
-    font-weight: 700;
-    color: #333;
-  }
-
-  /* Charts Grid */
-  .fox-charts-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-    margin-bottom: 24px;
-  }
-
-  .fox-chart-box {
-    background: #ffffff;
-    border: 1px solid #e8e8e8;
-    border-radius: 6px;
-    padding: 20px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  }
-
-  .fox-chart-title {
-    font-size: 14px;
-    font-weight: 700;
-    color: #333;
-    margin-bottom: 16px;
-  }
-
-  .fox-chart-placeholder {
-    height: 200px;
-    background: #f8f8f8;
-    border: 1px dashed #ddd;
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #999;
-    font-size: 13px;
-  }
-
-  @media (max-width: 1024px) {
-    .fox-charts-row {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  @media (max-width: 768px) {
-    .fox-cards-grid {
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    $ramText = '—';
+    if (is_array($ramUsage) && isset($ramUsage['percent'])) {
+        $ramText = round((float) $ramUsage['percent'], 1) . '%';
+    } elseif (is_numeric($ramUsage)) {
+        $ramText = round((float) $ramUsage, 1) . '%';
     }
 
-    .fox-metric-value {
-      font-size: 20px;
-    }
-  }
+    $uptimeText = is_string($uptime) ? $uptime : '—';
 
-  /* Recent Channels Table */
-  .fox-recent-section {
-    margin-top: 32px;
-  }
+    $cards = [
+        ['icon' => '📺', 'label' => 'Total Channels',   'value' => $totalChannels,   'variant' => 'blue'],
+        ['icon' => '✅', 'label' => 'Enabled',          'value' => $enabledChannels, 'variant' => 'green'],
+        ['icon' => '▶',  'label' => 'Running',          'value' => $runningChannels, 'variant' => 'green'],
+        ['icon' => '⚠️', 'label' => 'Errors',           'value' => $errorChannels,   'variant' => 'red'],
+        ['icon' => '⏸',  'label' => 'Idle',             'value' => $idleChannels,    'variant' => 'yellow'],
+        ['icon' => '💽', 'label' => 'Disk Used',         'value' => $diskUsedText,    'variant' => 'yellow'],
+        ['icon' => '🧠', 'label' => 'CPU',              'value' => $cpuText,         'variant' => 'blue'],
+        ['icon' => '🧬', 'label' => 'RAM',              'value' => $ramText,         'variant' => 'purple'],
+        ['icon' => '⏱',  'label' => 'Uptime',           'value' => $uptimeText,      'variant' => 'blue'],
+    ];
 
-  .fox-section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-  }
+    $statusBadge = function ($status) {
+        $status = (string) ($status ?? 'unknown');
+        return match ($status) {
+            'running' => ['green', 'RUNNING'],
+            'error'   => ['red', 'ERROR'],
+            'idle'    => ['yellow', 'IDLE'],
+            default   => ['blue', strtoupper($status)],
+        };
+    };
+@endphp
 
-  .fox-section-title {
-    font-size: 16px;
-    font-weight: 700;
-    color: #333;
-  }
+<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px;">
+    <h1 style="margin:0;font-size:24px;font-weight:800;">Dashboard</h1>
+</div>
 
-  .fox-view-all-link {
-    color: #2f6fed;
-    text-decoration: none;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-  }
+{{-- Alerts summary --}}
+<div class="fox-table-container" style="padding:16px;margin-bottom:16px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <div style="font-size:12px;font-weight:800;color:#666;letter-spacing:.04em;text-transform:uppercase;">Alerts</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+            <span class="fox-badge red">CRITICAL: {{ count($alertSummary['critical'] ?? []) }}</span>
+            <span class="fox-badge yellow">WARNING: {{ count($alertSummary['warning'] ?? []) }}</span>
+            <span class="fox-badge green">OK: {{ (int)($alertSummary['ok'] ?? 0) }}</span>
+        </div>
+    </div>
 
-  .fox-view-all-link:hover {
-    text-decoration: underline;
-  }
+    @php
+        $criticalList = $alertSummary['critical'] ?? [];
+        $warningList = $alertSummary['warning'] ?? [];
+    @endphp
 
-  .fox-recent-table {
-    width: 100%;
-    background: #ffffff;
-    border: 1px solid #e8e8e8;
-    border-radius: 6px;
-    overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  }
+    @if(count($criticalList) === 0 && count($warningList) === 0)
+        <div style="margin-top:10px;font-size:13px;color:#16a34a;font-weight:600;">All systems OK.</div>
+    @else
+        <ul style="margin:10px 0 0 0;padding-left:18px;font-size:13px;color:#333;">
+            @foreach($criticalList as $item)
+                <li><span style="color:#dc2626;font-weight:700;">CRITICAL</span> — {{ $item }}</li>
+            @endforeach
+            @foreach($warningList as $item)
+                <li><span style="color:#d97706;font-weight:700;">WARNING</span> — {{ $item }}</li>
+            @endforeach
+        </ul>
+    @endif
+</div>
 
-  .fox-table-header {
-    display: grid;
-    grid-template-columns: 40px 1fr 100px 200px 120px 250px;
-    gap: 12px;
-    padding: 12px 16px;
-    background: #f3f4f6;
-    border-bottom: 1px solid #e8e8e8;
-    font-size: 12px;
-    font-weight: 700;
-    color: #666;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-  }
+{{-- Metrics --}}
+<div class="fox-cards-grid">
+    @foreach($cards as $card)
+        <div class="fox-card {{ $card['variant'] }}">
+            <div class="fox-card-icon">{{ $card['icon'] }}</div>
+            <div class="fox-card-label">{{ $card['label'] }}</div>
+            <div class="fox-card-value">{{ $card['value'] }}</div>
+        </div>
+    @endforeach
+</div>
 
-  .fox-table-row {
-    display: grid;
+{{-- Recent channels --}}
+<div class="fox-table-container" style="margin-top:16px;">
+    <div style="padding:14px 16px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div style="font-size:12px;font-weight:800;color:#666;letter-spacing:.04em;text-transform:uppercase;">Recent Channels</div>
+        <a href="{{ route('vod-channels.index') }}" style="font-size:12px;font-weight:700;color:#2563eb;text-decoration:none;">View all</a>
+    </div>
+
+    <div style="overflow-x:auto;">
+        <table class="fox-table">
+            <thead>
+            <tr>
+                <th style="width:80px;">ID</th>
+                <th>Name</th>
+                <th style="width:140px;">Status</th>
+                <th style="width:120px;">Enabled</th>
+                <th style="width:220px;">Updated</th>
+            </tr>
+            </thead>
+            <tbody>
+            @forelse($recentChannels as $ch)
+                @php
+                    [$badgeColor, $badgeText] = $statusBadge($ch->status);
+                @endphp
+                <tr>
+                    <td>{{ $ch->id }}</td>
+                    <td style="font-weight:700;">{{ $ch->name }}</td>
+                    <td><span class="fox-badge {{ $badgeColor }}">{{ $badgeText }}</span></td>
+                    <td>
+                        @if((int) $ch->enabled === 1)
+                            <span class="fox-badge green">YES</span>
+                        @else
+                            <span class="fox-badge red">NO</span>
+                        @endif
+                    </td>
+                    <td style="color:#666;">{{ optional($ch->updated_at)->format('Y-m-d H:i') }}</td>
+                </tr>
+            @empty
+                <tr>
+                    <td colspan="5" style="color:#666;">No channels found.</td>
+                </tr>
+            @endforelse
+            </tbody>
+        </table>
+    </div>
+</div>
     grid-template-columns: 40px 1fr 100px 200px 120px 250px;
     gap: 12px;
     padding: 12px 16px;

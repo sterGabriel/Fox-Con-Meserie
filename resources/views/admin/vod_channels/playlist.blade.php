@@ -1,581 +1,600 @@
-@extends('layouts.app')
+@extends('layouts.panel')
 
 @section('content')
-    <h1 class="mb-3">
-        Playlist [{{ $channel->name }}]
-    </h1>
+<style>
+  /* Full width: hide left sidebar */
+  body > div > aside { display: none !important; }
+  body > div > main { flex: 1 1 100% !important; }
+  .animate-slideIn { max-width: 100% !important; margin: 0 !important; }
 
-    {{-- Mesaje succes / eroare --}}
-    @if (session('success'))
-        <div class="alert alert-success">
-            {{ session('success') }}
-        </div>
-    @endif
+  .page-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:16px; }
+  .page-title { font-size:22px; font-weight:900; color:var(--text-primary); margin:0; }
+  .page-subtitle { font-size:12px; color:var(--text-muted); margin-top:6px; }
 
-    @if (session('error'))
-        <div class="alert alert-danger">
-            {{ session('error') }}
-        </div>
-    @endif
+  .flash { border:1px solid var(--border-color); background:var(--card-bg); border-radius:6px; padding:12px 14px; box-shadow:var(--shadow-sm); margin:12px 0 16px; }
+  .flash.success { border-left:4px solid var(--fox-green); }
+  .flash.error { border-left:4px solid var(--fox-red); }
 
-    <div class="grid grid-cols-7 gap-4">
-        {{-- STÂNGA: PLAYLIST EXISTENT --}}
-        <div class="col-span-5">
-            <div class="rounded-lg border border-slate-700/50 bg-slate-800/30 overflow-hidden">
-                <div class="border-b border-slate-700/50 bg-slate-700/20 px-4 py-3 flex items-center justify-between">
-                    <span class="text-sm font-semibold text-slate-200">Current Playlist</span>
-                    @if($channel->video_category_id)
-                    <button type="button" onclick="loadFromCategory()" class="inline-flex items-center rounded px-2 py-1 text-xs font-medium text-green-300 hover:bg-green-500/20 transition">
-                        📌 Load from category
-                    </button>
-                    @endif
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead>
-                        <tr class="border-b border-slate-700/30 bg-slate-800/50">
-                            <th class="px-4 py-2 text-left font-medium text-slate-400 w-12">#</th>
-                            <th class="px-4 py-2 text-left font-medium text-slate-400">Name</th>
-                            <th class="px-4 py-2 text-left font-medium text-slate-400 w-20">Order</th>
-                            <th class="px-4 py-2 text-left font-medium text-slate-400 w-40">Actions</th>
-                        </tr>
-                        <tbody id="playlist-body">
-                        @forelse($playlistItems as $index => $item)
-                            <tr data-id="{{ $item->id }}" class="border-b border-slate-700/20 hover:bg-slate-700/20 transition cursor-move">
-                                <td class="px-4 py-3 text-slate-400">{{ $index + 1 }}</td>
-                                <td class="px-4 py-3 text-slate-200">{{ optional($item->video)->title ?? 'Unknown' }}</td>
-                                <td class="px-4 py-3 text-slate-400">{{ $item->sort_order }}</td>
-                                <td>
-                                    <div class="flex gap-1">
-                                        {{-- INFO --}}
-                                        <button
-                                            type="button"
-                                            class="inline-flex items-center rounded px-2 py-1 text-xs font-medium text-blue-300 hover:bg-blue-500/20 transition"
-                                            onclick="showVideoInfo({{ optional($item->video)->id ?? 0 }})"
-                                        >ℹ️</button>
+  .card { background:var(--card-bg); border:1px solid var(--border-color); border-radius:6px; box-shadow:var(--shadow-sm); overflow:hidden; }
+  .card-h { padding:12px 14px; border-bottom:1px solid var(--border-light); display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .card-t { font-size:13px; font-weight:900; color:var(--text-primary); }
+  .card-b { padding:14px; }
 
-                                        {{-- UP --}}
-                                        <form method="POST"
-                                              action="{{ route('vod-channels.playlist.move-up', [$channel, $item]) }}">
-                                            @csrf
-                                            <button type="submit" class="inline-flex items-center rounded px-2 py-1 text-xs font-medium text-slate-300 hover:bg-slate-700/50 transition">↑</button>
-                                        </form>
+  .btn-row { display:flex; gap:10px; flex-wrap:wrap; }
+  .btn { padding:10px 12px; border-radius:6px; color:#fff; font-weight:900; font-size:12px; border:0; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; }
+  .btn-blue { background:var(--fox-blue); }
+  .btn-green { background:var(--btn-start); }
+  .btn-red { background:var(--btn-stop); }
+  .btn-dark { background:var(--text-primary); }
+  .btn-outline { background: transparent; color: var(--text-primary); border: 1px solid var(--border-color); }
+  .btn:disabled { opacity:.5; cursor:not-allowed; }
 
-                                        {{-- DOWN --}}
-                                        <form method="POST"
-                                              action="{{ route('vod-channels.playlist.move-down', [$channel, $item]) }}">
-                                            @csrf
-                                            <button type="submit" class="inline-flex items-center rounded px-2 py-1 text-xs font-medium text-slate-300 hover:bg-slate-700/50 transition">↓</button>
-                                        </form>
+  .btn-col { display:flex; flex-direction:row; flex-wrap:wrap; gap:8px; align-items:center; }
+  .btn-sm { padding:8px 10px; font-size:11px; border-radius:6px; }
+  .cell-actions { width: 320px; }
 
-                                        {{-- DELETE --}}
-                                        <form method="POST"
-                                              action="{{ route('vod-channels.playlist.remove', [$channel, $item]) }}"
-                                              onsubmit="return confirm('Remove this item from playlist?');">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="inline-flex items-center rounded px-2 py-1 text-xs font-medium text-red-300 hover:bg-red-500/20 transition">Delete</button>
-                                        </form>
-                                    </div>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="4" class="px-4 py-6 text-center text-slate-400">
-                                    No items in this playlist yet.
-                                </td>
-                            </tr>
-                        @endforelse
-                        </tbody>
-                    </table>
-                </div>
-
-                <button id="save-order"
-                    class="mt-3 inline-flex items-center rounded-lg bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-200 ring-1 ring-inset ring-emerald-400/20 hover:bg-emerald-500/15 transition">
-                    💾 Save order
-                </button>
-            </div>
-        </div>
-
-        {{-- DREAPTA: INFO CANAL + LISTĂ VIDEOS CU "SELECT" --}}
-        <div class="col-span-2">
-            <div class="rounded-lg border border-slate-700/50 bg-slate-800/30 overflow-hidden mb-4">
-                <div class="border-b border-slate-700/50 bg-slate-700/20 px-4 py-3">
-                    <span class="text-sm font-semibold text-slate-200">Channel Info</span>
-                </div>
-                <div class="p-4 space-y-3">
-                    <div>
-                        <p class="text-xs text-slate-400 uppercase tracking-wide">Channel</p>
-                        <p class="text-sm font-medium text-slate-200">{{ $channel->name }}</p>
-                    </div>
-
-                    @php
-                        $rawCatId = $channel->video_category ?? null;
-                        $category = $rawCatId ? \App\Models\VideoCategory::find($rawCatId) : null;
-                    @endphp
-
-                    <div>
-                        <p class="text-xs text-slate-400 uppercase tracking-wide">Video Category</p>
-                        <p class="text-sm font-medium text-slate-200">{{ $category?->name ?? '— no category —' }}</p>
-                    </div>
-
-                    <div class="mt-4 flex flex-wrap gap-2">
-                        <a href="{{ route('vod-channels.settings', $channel) }}"
-                           class="inline-flex items-center rounded-lg bg-blue-500/15 px-3 py-2 text-sm font-medium text-blue-200 ring-1 ring-inset ring-blue-400/25 hover:bg-blue-500/20 transition">
-                            Open Settings
-                        </a>
-
-                        <form method="POST" action="{{ route('encoding-jobs.queue-channel', $channel) }}">
-                            @csrf
-                            <button type="submit"
-                                class="inline-flex items-center rounded-lg bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-200 ring-1 ring-inset ring-amber-400/20 hover:bg-amber-500/15 transition">
-                                Queue encoding for this playlist
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-
-            <div class="rounded-lg border border-slate-700/50 bg-slate-800/30 overflow-hidden">
-                <div class="border-b border-slate-700/50 bg-slate-700/20 px-4 py-3">
-                    <span class="text-sm font-semibold text-slate-200">Available Videos</span>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead>
-                        <tr class="border-b border-slate-700/30 bg-slate-800/50">
-                            <th class="px-4 py-2 text-left font-medium text-slate-400 w-12">
-                                <input type="checkbox" id="select-all" class="rounded">
-                            </th>
-                            <th class="px-4 py-2 text-left font-medium text-slate-400">#</th>
-                            <th class="px-4 py-2 text-left font-medium text-slate-400">Video Name</th>
-                            <th class="px-4 py-2 text-left font-medium text-slate-400 w-32">Actions</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        @forelse($videos as $video)
-                            <tr class="border-b border-slate-700/20 hover:bg-slate-700/20 transition">
-                                <td class="px-4 py-3">
-                                    <input type="checkbox" class="video-pick rounded" value="{{ $video->id }}">
-                                </td>
-                                <td class="px-4 py-3 text-slate-400">{{ $video->id }}</td>
-                                <td class="px-4 py-3 text-slate-200">{{ $video->title }}</td>
-                                <td class="px-4 py-3 space-x-1">
-                                    {{-- STREAM INFO / FFPROBE --}}
-                                    <button type="button" 
-                                            class="video-probe-btn inline-flex items-center rounded-lg bg-purple-500/15 px-2 py-1.5 text-xs font-medium text-purple-300 ring-1 ring-inset ring-purple-400/25 hover:bg-purple-500/20 transition"
-                                            data-video-id="{{ $video->id }}"
-                                            data-video-title="{{ $video->title }}">
-                                        📊 Info
-                                    </button>
-
-                                    {{-- SELECT → adaugă în playlist --}}
-                                    <form method="POST"
-                                          action="{{ route('vod-channels.playlist.add', $channel) }}"
-                                          class="inline">
-                                        @csrf
-                                        <input type="hidden" name="video_id" value="{{ $video->id }}">
-                                        <button type="submit" class="inline-flex items-center rounded-lg bg-green-500/15 px-2 py-1.5 text-xs font-medium text-green-300 ring-1 ring-inset ring-green-400/25 hover:bg-green-500/20 transition">
-                                            ➕ Select
-                                        </button>
-                                    </form>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="4" class="px-4 py-6 text-center text-slate-400">
-                                    No videos found.
-                                </td>
-                            </tr>
-                        @endforelse
-                        </tbody>
-                    </table>
-                </div>
-
-                <form method="POST" action="{{ route('vod-channels.playlist.add-bulk', $channel) }}" class="p-4 border-t border-slate-700/30">
-                    @csrf
-                    <input type="hidden" name="video_ids" id="video_ids">
-                    <button type="submit"
-                        class="inline-flex items-center rounded-lg bg-blue-500/15 px-3 py-2 text-sm font-medium text-blue-200 ring-1 ring-inset ring-blue-400/20 hover:bg-blue-500/20 transition">
-                        ➕ Add selected videos
-                    </button>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    {{-- STREAM INFO MODAL --}}
-    <div id="probe-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-        <div class="bg-slate-900 rounded-2xl border border-slate-500/20 p-6 max-w-2xl w-full mx-4 max-h-96 overflow-y-auto shadow-2xl">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-lg font-semibold text-slate-100" id="probe-title">Stream Info</h2>
-                <button type="button" id="probe-close" class="text-slate-400 hover:text-slate-200 transition">✕</button>
-            </div>
-            <div id="probe-content" class="space-y-4 text-sm text-slate-300">
-                <p class="text-slate-400">Loading...</p>
-            </div>
-        </div>
-    </div>
-@endsection
-
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  // STREAM INFO / FFPROBE
-  const modal = document.getElementById('probe-modal');
-  const closeBtn = document.getElementById('probe-close');
-  const content = document.getElementById('probe-content');
-  const titleEl = document.getElementById('probe-title');
-
-  document.querySelectorAll('.video-probe-btn').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.preventDefault();
-      const videoId = btn.getAttribute('data-video-id');
-      const videoTitle = btn.getAttribute('data-video-title');
-      
-      titleEl.textContent = '📊 Stream Info: ' + videoTitle;
-      content.innerHTML = '<p class="text-slate-400">⏳ Probing video...</p>';
-      modal.classList.remove('hidden');
-
-      try {
-        const response = await fetch(`/videos/${videoId}/probe`);
-        const data = await response.json();
-
-        if (data.error) {
-          content.innerHTML = `<p class="text-red-400">❌ ${data.error}</p>`;
-          return;
-        }
-
-        let html = '<div class="space-y-3">';
-        
-        if (data.duration) {
-          const mins = Math.floor(data.duration / 60);
-          const secs = Math.floor(data.duration % 60);
-          html += `<div><span class="text-slate-400">⏱️ Duration:</span> <span class="font-mono text-blue-300">${mins}m ${secs}s</span></div>`;
-        }
-        
-        if (data.bit_rate) {
-          html += `<div><span class="text-slate-400">📊 Bitrate:</span> <span class="font-mono text-blue-300">${data.bit_rate}</span></div>`;
-        }
-
-        if (data.video) {
-          html += '<div class="border-t border-slate-600 pt-3 mt-3"><p class="font-semibold text-slate-200 mb-2">📹 Video Stream</p>';
-          html += `<div><span class="text-slate-400">Codec:</span> <span class="font-mono">${data.video.codec}</span></div>`;
-          if (data.video.width && data.video.height) {
-            html += `<div><span class="text-slate-400">Resolution:</span> <span class="font-mono text-green-300">${data.video.width}x${data.video.height}</span></div>`;
-          }
-          if (data.video.fps) {
-            html += `<div><span class="text-slate-400">FPS:</span> <span class="font-mono text-green-300">${data.video.fps}</span></div>`;
-          }
-          if (data.video.bitrate) {
-            html += `<div><span class="text-slate-400">Bitrate:</span> <span class="font-mono text-green-300">${data.video.bitrate}</span></div>`;
-          }
-          html += '</div>';
-        }
-
-        if (data.audio) {
-          html += '<div class="border-t border-slate-600 pt-3 mt-3"><p class="font-semibold text-slate-200 mb-2">🎵 Audio Stream</p>';
-          html += `<div><span class="text-slate-400">Codec:</span> <span class="font-mono">${data.audio.codec}</span></div>`;
-          if (data.audio.channels) {
-            html += `<div><span class="text-slate-400">Channels:</span> <span class="font-mono text-amber-300">${data.audio.channels}</span></div>`;
-          }
-          if (data.audio.sample_rate) {
-            html += `<div><span class="text-slate-400">Sample Rate:</span> <span class="font-mono text-amber-300">${data.audio.sample_rate}</span></div>`;
-          }
-          if (data.audio.bitrate) {
-            html += `<div><span class="text-slate-400">Bitrate:</span> <span class="font-mono text-amber-300">${data.audio.bitrate}</span></div>`;
-          }
-          html += '</div>';
-        }
-
-        html += '</div>';
-        content.innerHTML = html;
-      } catch (err) {
-        content.innerHTML = `<p class="text-red-400">❌ Request failed: ${err.message}</p>`;
-      }
-    });
-  });
-
-  closeBtn.addEventListener('click', () => {
-    modal.classList.add('hidden');
-  });
-
-  modal.addEventListener('click', (e) => {
-    if (e.target === modal) {
-      modal.classList.add('hidden');
-    }
-  });
-
-  // DRAG & DROP REORDERING
-  const tbody = document.getElementById('playlist-body');
-  const btn = document.getElementById('save-order');
-
-  if (tbody) {
-    new Sortable(tbody, {
-      animation: 150,
-      ghostClass: 'bg-slate-700/50',
-    });
-
-    btn?.addEventListener('click', async () => {
-      const ids = [...tbody.querySelectorAll('tr[data-id]')].map(tr => tr.dataset.id);
-
-      const res = await fetch("{{ route('vod-channels.playlist.reorder', $channel) }}", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-TOKEN": "{{ csrf_token() }}",
-          "Accept": "application/json",
-        },
-        body: JSON.stringify({ ids })
-      });
-
-      if (res.ok) {
-        alert('Order saved successfully!');
-        location.reload();
-      } else {
-        alert('Save failed');
-      }
-    });
+  .bottom-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    padding: 12px 0 6px;
+    background: linear-gradient(to top, rgba(0,0,0,.06), rgba(0,0,0,0));
   }
+  .bottom-actions {
+    display:flex;
+    gap:10px;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+  }
+  .bottom-actions .btn {
+    flex: 1 1 220px;
+    padding: 12px 16px;
+    font-size: 12px;
+    border-radius: 999px;
+  }
+  .total-pill {
+    margin-top: 10px;
+    border: 1px solid var(--border-color);
+    background: var(--card-bg);
+    border-radius: 999px;
+    padding: 14px 18px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap: 12px;
+    box-shadow: var(--shadow-sm);
+  }
+  .total-pill .label { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .5px; font-weight: 900; }
+  .total-pill .value { font-size: 22px; font-weight: 900; color: var(--text-primary); }
 
-  // BULK SELECT
-  const selectAll = document.getElementById('select-all');
-  const videoPicks = document.querySelectorAll('.video-pick');
-  const form = document.querySelector('form[action*="add-bulk"]');
-  const hidden = document.getElementById('video_ids');
+  .player { width:100%; max-height:70vh; border-radius:6px; border:1px solid var(--border-light); background:var(--card-bg); }
+  .np { font-size:12px; color:var(--text-muted); font-weight:800; }
 
-  selectAll?.addEventListener('change', () => {
-    videoPicks.forEach(cb => cb.checked = selectAll.checked);
-  });
+  .table-wrap { overflow:auto; }
+  table { width:100%; border-collapse:separate; border-spacing:0; }
+  thead th { position:sticky; top:0; z-index:2; background:var(--card-bg); font-size:11px; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.4px; text-align:left; padding:10px 12px; border-bottom:1px solid var(--border-light); }
+  tbody td { padding:10px 12px; border-bottom:1px solid var(--border-light); font-size:12px; color:var(--text-primary); vertical-align:middle; }
+  tbody tr:hover { background:rgba(255,255,255,.03); }
 
-  form?.addEventListener('submit', (e) => {
-    const ids = [...document.querySelectorAll('.video-pick:checked')].map(x => x.value);
-    if (!ids.length) {
-      e.preventDefault();
-      alert('Select at least 1 video');
-      return;
+  .muted { color:var(--text-muted); }
+  .title-cell { font-weight:900; }
+  .title-wrap { display:flex; align-items:center; gap:10px; }
+  .poster { width:36px; height:54px; border-radius:6px; border:1px solid var(--border-light); object-fit:cover; flex:0 0 auto; }
+  .status-ok { font-weight:900; color:var(--fox-green); }
+</style>
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Playlist (Encoded Only) — {{ $channel->name }}</h1>
+    <div class="page-subtitle">Shows only TS-ready items for quick playback.</div>
+
+    <div class="btn-row" style="margin-top:10px; justify-content:flex-start;">
+      <form method="POST" action="{{ route('vod-channels.engine.start-looping', $channel) }}" style="margin:0;">
+        @csrf
+        <button class="btn btn-green" type="submit" onclick="return confirm('Start channel (24/7 loop)?');">Start</button>
+      </form>
+
+      <form method="POST" action="{{ route('vod-channels.engine.stop', $channel) }}" style="margin:0;" onsubmit="return confirm('Stop channel?');">
+        @csrf
+        <button class="btn btn-red" type="submit">Stop</button>
+      </form>
+
+      <form method="POST" action="{{ route('vod-channels.engine.start-encoding', $channel) }}" style="margin:0;" onsubmit="return confirm('Queue TS encoding for all playlist videos?');">
+        @csrf
+        <button class="btn btn-blue" type="submit">Start Encoding TS</button>
+      </form>
+    </div>
+  </div>
+  <div class="btn-row">
+    <a class="btn btn-blue" href="{{ route('vod-channels.settings', $channel) }}">Settings</a>
+    <a class="btn btn-blue" href="{{ route('vod-channels.index') }}">Back</a>
+  </div>
+</div>
+
+@if(session('success'))
+  <div class="flash success">{{ session('success') }}</div>
+@endif
+@if(session('error'))
+  <div class="flash error">{{ session('error') }}</div>
+@endif
+
+<div class="np" id="totalTime" style="margin: 0 0 12px;">Total Time: —</div>
+
+@php($domain = rtrim((string) config('app.streaming_domain', ''), '/'))
+@php($domain = ($domain === '' || str_contains($domain, 'localhost')) ? rtrim((string) request()->getSchemeAndHttpHost(), '/') : $domain)
+@php($hlsUrl = $domain . "/streams/{$channel->id}/hls/stream.m3u8")
+@php($tsUrlLive = $domain . "/streams/{$channel->id}/stream.ts")
+@php($masterUrl = $domain . "/streams/all.m3u8")
+
+<div class="card" style="margin-bottom: 14px;">
+  <div class="card-h">
+    <div class="card-t">Stream URLs</div>
+  </div>
+  <div class="card-b" style="display:grid; gap:10px;">
+    <div class="muted" style="font-weight:900;">HLS (M3U8)</div>
+    <a class="muted" href="{{ $hlsUrl }}" target="_blank" rel="noopener">{{ $hlsUrl }}</a>
+
+    <div class="muted" style="font-weight:900;">TS (MPEG-TS)</div>
+    <a class="muted" href="{{ $tsUrlLive }}" target="_blank" rel="noopener">{{ $tsUrlLive }}</a>
+
+    <div class="muted" style="font-weight:900;">Master Playlist (All Channels)</div>
+    <a class="muted" href="{{ $masterUrl }}" target="_blank" rel="noopener">{{ $masterUrl }}</a>
+
+    <div class="muted">Note: Streams are available only when the channel is running.</div>
+  </div>
+</div>
+
+@php($pendingItems = isset($pendingItems) ? $pendingItems : collect())
+@php($pendingCount = is_countable($pendingItems) ? count($pendingItems) : 0)
+
+@if($pendingCount > 0)
+  <div class="card" style="margin-bottom: 14px;">
+    <div class="card-h">
+      <div class="card-t">Encoding Queue (Not Encoded Yet)</div>
+      <div class="muted" style="font-size:12px; font-weight:900;">
+        {{ $pendingCount }} item(s)
+        @if(isset($jobCounts))
+          · Jobs: <span id="jsJobsRunning">{{ (int)($jobCounts['running'] ?? 0) }}</span> running, <span id="jsJobsQueued">{{ (int)($jobCounts['queued'] ?? 0) }}</span> queued
+        @endif
+      </div>
+    </div>
+    <div class="card-b table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:70px;">#</th>
+            <th>Title</th>
+            <th style="width:140px;">Status</th>
+            <th style="width:120px;">Progress</th>
+            <th style="width:180px;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          @foreach($pendingItems as $index => $item)
+            @php($video = $item->video)
+            @php($posterUrl = ($video && !empty($video->tmdb_poster_path)) ? ('https://image.tmdb.org/t/p/w92' . $video->tmdb_poster_path) : '')
+            @php($job = null)
+            @if(isset($jobByPlaylistItemId))
+              @php($job = $jobByPlaylistItemId->get($item->id) ?? null)
+            @endif
+            @if(!$job && $video && isset($jobByVideoId))
+              @php($job = $jobByVideoId->get($video->id) ?? null)
+            @endif
+            @php($jobStatus = $job ? strtoupper((string)($job->status ?? '')) : 'NOT STARTED')
+            @php($progress = $job ? (int)($job->display_progress ?? $job->progress ?? 0) : 0)
+            @php($outTime = $job ? (string)($job->display_out_time ?? '') : '')
+            @php($speed = $job ? (string)($job->display_speed ?? '') : '')
+            <tr class="js-enc-row" data-playlist-item-id="{{ (int) $item->id }}" data-video-id="{{ (int)($video?->id ?? 0) }}">
+              <td class="muted">{{ $index + 1 }}</td>
+              <td class="title-cell">
+                <div class="title-wrap">
+                  @if($posterUrl !== '')
+                    <img class="poster" src="{{ $posterUrl }}" alt="">
+                  @endif
+                  <span>{{ $video?->title ?? 'Unknown' }}</span>
+                </div>
+              </td>
+              <td class="muted js-enc-status">{{ $jobStatus }}</td>
+              <td class="muted">
+                @if(!$job)
+                  —
+                @elseif($jobStatus === 'QUEUED' || $jobStatus === 'NOT STARTED')
+                  —
+                @elseif($jobStatus === 'RUNNING')
+                  {{ $progress }}%
+                  @if($outTime !== '')
+                    <span class="muted">({{ $outTime }}@if($speed !== '') · {{ $speed }}@endif)</span>
+                  @elseif($speed !== '')
+                    <span class="muted">({{ $speed }})</span>
+                  @endif
+                @else
+                  {{ $progress }}%
+                @endif
+              </td>
+              <td>
+                <div style="display:flex; gap:8px; justify-content:flex-end;">
+                  <a class="btn btn-blue btn-sm" href="{{ route('vod-channels.settings', $channel) }}">Open Settings</a>
+                  @if($job && in_array($jobStatus, ['QUEUED','RUNNING'], true))
+                    <form method="POST" action="{{ route('vod-channels.engine.encoding-jobs.cancel', [$channel, $job]) }}" style="margin:0;" onsubmit="return confirm('{{ $jobStatus === 'RUNNING' ? 'Stop this running encoding job?' : 'Remove this item from encoding queue?' }}');">
+                      @csrf
+                      <button class="btn btn-red btn-sm" type="submit">{{ $jobStatus === 'RUNNING' ? 'Stop' : 'Delete' }}</button>
+                    </form>
+                  @else
+                    <button class="btn btn-red btn-sm" type="button" disabled>Delete</button>
+                  @endif
+                </div>
+              </td>
+            </tr>
+          @endforeach
+        </tbody>
+      </table>
+      <div class="muted" style="margin-top:10px; font-size:12px;">Tip: start encoding from Settings. This page shows only TS-ready items in the Encoded Items table.</div>
+    </div>
+  </div>
+@endif
+
+<script>
+  (function () {
+    const channelId = {{ (int) $channel->id }};
+    const statusEls = () => Array.from(document.querySelectorAll('tr.js-enc-row'));
+
+    const runningEl = document.getElementById('jsJobsRunning');
+    const queuedEl = document.getElementById('jsJobsQueued');
+
+    let lastSignature = null;
+    let lastCompleted = null;
+
+    function formatProgress(job) {
+      if (!job) return '—';
+      const st = String(job.status || '').toUpperCase();
+      if (st === 'QUEUED' || st === 'NOT STARTED') return '—';
+      const pct = (typeof job.progress === 'number') ? job.progress : Number(job.progress || 0);
+      if (st === 'RUNNING') {
+        const outTime = job.out_time ? String(job.out_time) : '';
+        const speed = job.speed ? String(job.speed) : '';
+        if (outTime) return `${pct}% (${outTime}${speed ? ' · ' + speed : ''})`;
+        if (speed) return `${pct}% (${speed})`;
+        return `${pct}%`;
+      }
+      return `${pct}%`;
     }
-    hidden.value = ids.join(',');
-  });
 
-  // ═══════════════════════════════════════════════════════════
-  // VIDEO INFO MODAL
-  // ═══════════════════════════════════════════════════════════
-  window.showVideoInfo = async function(videoId) {
-    if (!videoId) {
-      alert('Invalid video ID');
-      return;
-    }
+    async function poll() {
+      const res = await fetch(`/vod-channels/${channelId}/engine/encoding-jobs`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json.status !== 'success') return;
 
-    try {
-      const response = await fetch(`/videos/${videoId}/info`);
-      const data = await response.json();
+      if (runningEl && typeof json.running_jobs === 'number') runningEl.textContent = String(json.running_jobs);
+      // queued jobs count isn't provided; approximate from jobs list
+      const jobs = Array.isArray(json.jobs) ? json.jobs : [];
+      if (queuedEl) {
+        const q = jobs.filter(j => String(j.status || '').toLowerCase() === 'queued').length;
+        queuedEl.textContent = String(q);
+      }
 
-      if (!data.success) {
-        alert('Error loading video info: ' + data.error);
+      const mapByPlaylistItemId = new Map();
+      const mapByVideoId = new Map();
+      for (const j of jobs) {
+        const pid = Number(j.playlist_item_id || 0);
+        const vid = Number(j.video_id || 0);
+        if (pid > 0) mapByPlaylistItemId.set(pid, j);
+        if (vid > 0) {
+          const prev = mapByVideoId.get(vid);
+          if (!prev || Number(j.id) > Number(prev.id)) mapByVideoId.set(vid, j);
+        }
+      }
+
+      for (const row of statusEls()) {
+        const pid = Number(row.getAttribute('data-playlist-item-id') || 0);
+        const vid = Number(row.getAttribute('data-video-id') || 0);
+        const job = (pid > 0 && mapByPlaylistItemId.get(pid)) || (vid > 0 && mapByVideoId.get(vid)) || null;
+
+        const st = job ? String(job.status || '').toUpperCase() : 'NOT STARTED';
+        const stCell = row.querySelector('.js-enc-status');
+        if (stCell) stCell.textContent = st;
+
+        const cells = row.querySelectorAll('td');
+        const progressCell = cells.length >= 4 ? cells[3] : null;
+        if (progressCell) progressCell.textContent = formatProgress(job);
+      }
+
+      const signature = jobs.map(j => `${j.id}:${j.status}:${j.progress}`).join('|');
+      const completed = typeof json.completed_jobs === 'number' ? json.completed_jobs : null;
+
+      if (lastSignature === null) lastSignature = signature;
+      if (lastCompleted === null) lastCompleted = completed;
+
+      // If something completed, reload so items move from queue -> encoded table.
+      if (completed !== null && lastCompleted !== null && completed > lastCompleted) {
+        location.reload();
         return;
       }
 
-      const video = data.video;
-      const modal = document.getElementById('videoInfoModal');
-      const content = document.getElementById('videoInfoContent');
-
-      let videoHtml = '';
-      let audioHtml = '';
-
-      if (video.metadata && video.metadata.video) {
-        const v = video.metadata.video;
-        videoHtml = `
-          <div class="mt-4">
-            <h4 class="font-semibold text-slate-300 mb-2">🎬 Video Stream</h4>
-            <dl class="grid grid-cols-2 gap-2 text-sm">
-              <dt class="text-slate-400">Codec:</dt>
-              <dd class="text-white font-mono">${v.codec || 'unknown'}</dd>
-              <dt class="text-slate-400">Resolution:</dt>
-              <dd class="text-white font-mono">${v.width || 0}×${v.height || 0}</dd>
-              <dt class="text-slate-400">FPS:</dt>
-              <dd class="text-white font-mono">${v.fps || 0}</dd>
-              <dt class="text-slate-400">Bitrate:</dt>
-              <dd class="text-white font-mono">${v.bitrate ? Math.round(v.bitrate/1000) + ' kbps' : 'N/A'}</dd>
-            </dl>
-          </div>
-        `;
-      }
-
-      if (video.metadata && video.metadata.audio) {
-        const a = video.metadata.audio;
-        audioHtml = `
-          <div class="mt-4">
-            <h4 class="font-semibold text-slate-300 mb-2">🔊 Audio Stream</h4>
-            <dl class="grid grid-cols-2 gap-2 text-sm">
-              <dt class="text-slate-400">Codec:</dt>
-              <dd class="text-white font-mono">${a.codec || 'unknown'}</dd>
-              <dt class="text-slate-400">Channels:</dt>
-              <dd class="text-white font-mono">${a.channels || 0}</dd>
-              <dt class="text-slate-400">Sample Rate:</dt>
-              <dd class="text-white font-mono">${a.sample_rate || 'unknown'}</dd>
-              <dt class="text-slate-400">Bitrate:</dt>
-              <dd class="text-white font-mono">${a.bitrate || 'N/A'}</dd>
-            </dl>
-          </div>
-        `;
-      }
-
-      content.innerHTML = `
-        <div class="space-y-4">
-          <div>
-            <h3 class="text-lg font-bold text-white mb-2">${video.title}</h3>
-            <p class="text-xs text-slate-500 mb-2">ID: ${video.id}</p>
-            <p class="text-sm text-slate-400">Duration: <span class="text-white font-mono">${video.duration || '--:--:--'}</span></p>
-            <p class="text-sm text-slate-400">Category: <span class="text-white font-mono">${video.category}</span></p>
-          </div>
-          <div class="border-t border-slate-700/50 pt-4">
-            <p class="text-xs text-slate-500 mb-2">File path:</p>
-            <p class="text-xs text-slate-300 font-mono bg-slate-900/50 p-2 rounded overflow-x-auto">${video.file_path}</p>
-          </div>
-          ${videoHtml}
-          ${audioHtml}
-        </div>
-      `;
-
-      modal.classList.remove('hidden');
-    } catch (error) {
-      alert('Error fetching video info: ' + error.message);
+      lastSignature = signature;
+      lastCompleted = completed;
     }
-  };
 
-  document.getElementById('videoInfoModal')?.addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) {
-      e.currentTarget.classList.add('hidden');
+    // Poll only if the queue section exists
+    if (document.querySelector('tr.js-enc-row')) {
+      setInterval(() => { poll().catch(() => {}); }, 2000);
+      poll().catch(() => {});
     }
-  });
-
-  document.getElementById('closeVideoInfoBtn')?.addEventListener('click', () => {
-    document.getElementById('videoInfoModal').classList.add('hidden');
-  });
-
-  // ═══════════════════════════════════════════════════════════
-  // ENCODE ALL VIDEOS TO TS
-  // ═══════════════════════════════════════════════════════════
-  window.startEncodingAll = async function(channelId) {
-    const btn = document.getElementById('encodeAllBtn');
-    const progress = document.getElementById('encodingProgress');
-    const progressBar = document.getElementById('encodeProgressBar');
-    const status = document.getElementById('encodeStatus');
-    const message = document.getElementById('encodeMessage');
-
-    btn.disabled = true;
-    progress.classList.remove('hidden');
-    message.textContent = 'Starting encode jobs for all videos in playlist...';
-
-    try {
-      const response = await fetch(`/vod-channels/${channelId}/engine/start-encoding`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-TOKEN': '{{ csrf_token() }}',
-        },
-        body: JSON.stringify({}),
-      });
-
-      const data = await response.json();
-
-      if (data.status === 'success') {
-        message.textContent = `✅ ${data.message}. Encoding in background...`;
-        status.textContent = `${data.total_jobs} jobs queued`;
-        
-        // Poll for progress
-        let completed = 0;
-        const pollInterval = setInterval(async () => {
-          try {
-            const statusResp = await fetch(`/vod-channels/${channelId}/engine/encoding-jobs`);
-            const statusData = await statusResp.json();
-            
-            if (statusData.jobs) {
-              const total = statusData.jobs.length;
-              completed = statusData.jobs.filter(j => j.status === 'completed').length;
-              const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
-              
-              progressBar.style.width = percent + '%';
-              status.textContent = `${completed}/${total} complete`;
-              
-              if (completed === total && total > 0) {
-                clearInterval(pollInterval);
-                message.textContent = `✅ All videos encoded successfully!`;
-                setTimeout(() => {
-                  progress.classList.add('hidden');
-                  btn.disabled = false;
-                  location.reload();
-                }, 2000);
-              }
-            }
-          } catch (err) {
-            console.error('Poll error:', err);
-          }
-        }, 2000);
-
-        // Stop polling after 5 minutes
-        setTimeout(() => clearInterval(pollInterval), 300000);
-      } else {
-        message.textContent = '❌ ' + (data.message || 'Failed to start encoding');
-        btn.disabled = false;
-      }
-    } catch (error) {
-      message.textContent = '❌ Error: ' + error.message;
-      btn.disabled = false;
-    }
-  };
-});
+  })();
 </script>
 
-<!-- Video Info Modal -->
-<div id="videoInfoModal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 overflow-y-auto">
-  <div class="bg-slate-800 border border-slate-700 rounded-lg max-w-2xl w-full my-6">
-    <div class="sticky top-0 bg-slate-800 border-b border-slate-700 px-6 py-4 flex items-center justify-between">
-      <h3 class="text-lg font-semibold text-white">📊 Video Information</h3>
-      <button 
-        id="closeVideoInfoBtn"
-        type="button"
-        class="text-slate-400 hover:text-white text-2xl transition"
-      >×</button>
-    </div>
-    <div id="videoInfoContent" class="p-6 max-h-96 overflow-y-auto">
-      <!-- Content loaded by JS -->
+<div class="card">
+  <div class="card-h">
+    <div class="card-t">Encoded Items</div>
+  </div>
+  <div class="card-b table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:70px;">#</th>
+          <th>Title</th>
+          <th style="width:130px;">Duration</th>
+          <th style="width:120px;">Resolution</th>
+          <th style="width:140px;">Format</th>
+          <th style="width:110px;">Bitrate</th>
+          <th style="width:110px;">Status</th>
+          <th class="cell-actions">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        @forelse($playlistItems as $index => $item)
+          @php($video = $item->video)
+          @php($duration = (int) ($video?->duration_seconds ?? 0))
+          @php($durationText = $duration > 0 ? gmdate('H:i:s', $duration) : '—')
+          @php($posterUrl = ($video && !empty($video->tmdb_poster_path)) ? ('https://image.tmdb.org/t/p/w92' . $video->tmdb_poster_path) : '')
+          @php($tsFile = $item->ts_file ?? ("video_" . (int) $item->id . ".ts"))
+          @php($tsUrl = url("/streams/{$channel->id}/{$tsFile}"))
+          @php($popupUrl = route('vod-channels.playlist.player', [$channel, $item]))
+          @php($job = ($video && isset($jobByVideoId)) ? ($jobByVideoId->get($video->id) ?? null) : null)
+          @php($jobStatus = $job ? strtoupper((string)($job->status ?? '')) : '')
+          <tr data-duration="{{ $duration }}">
+            <td class="muted">{{ $index + 1 }}</td>
+            <td class="title-cell">
+              <div class="title-wrap">
+                @if($posterUrl !== '')
+                  <img class="poster" src="{{ $posterUrl }}" alt="">
+                @endif
+                <span>{{ $video?->title ?? 'Unknown' }}</span>
+              </div>
+            </td>
+            <td class="muted">{{ $durationText }}</td>
+            <td class="muted">{{ $video?->resolution ?: '—' }}</td>
+            <td class="muted">{{ $video?->format ?: '—' }}</td>
+            <td class="muted">{{ $video?->bitrate_kbps ? ($video->bitrate_kbps . ' kbps') : '—' }}</td>
+            <td>
+              <span class="status-ok">TS READY</span>
+              @if($jobStatus !== '' && $jobStatus !== 'COMPLETED')
+                <span class="muted">({{ $jobStatus }})</span>
+              @endif
+            </td>
+            <td class="cell-actions">
+              <div class="btn-col">
+                <button
+                  type="button"
+                  class="btn btn-green btn-sm js-play"
+                  data-title="{{ e($video?->title ?? 'Unknown') }}"
+                  data-duration="{{ $duration }}"
+                  data-popup-url="{{ $popupUrl }}"
+                >
+                  Play
+                </button>
+
+                <button type="button" class="btn btn-outline btn-sm js-watch" data-popup-url="{{ $popupUrl }}">Watch</button>
+
+                @if($video)
+                  <button
+                    type="button"
+                    class="btn btn-blue btn-sm js-video-info"
+                    data-video-id="{{ (int) $video->id }}"
+                  >Info</button>
+                  <a class="btn btn-outline btn-sm" href="{{ route('videos.edit', $video) }}">Edit</a>
+                @else
+                  <button class="btn btn-blue btn-sm" type="button" disabled>Info</button>
+                  <button class="btn btn-outline btn-sm" type="button" disabled>Edit</button>
+                @endif
+
+                <form method="POST" action="{{ route('vod-channels.playlist.move-up', [$channel, $item]) }}" style="margin:0;">
+                  @csrf
+                  <button class="btn btn-blue btn-sm" type="submit">↑</button>
+                </form>
+
+                <form method="POST" action="{{ route('vod-channels.playlist.move-down', [$channel, $item]) }}" style="margin:0;">
+                  @csrf
+                  <button class="btn btn-blue btn-sm" type="submit">↓</button>
+                </form>
+
+                <form method="POST" action="{{ route('vod-channels.playlist.remove', [$channel, $item]) }}" style="margin:0;" onsubmit="return confirm('Remove this item from playlist?');">
+                  @csrf
+                  @method('DELETE')
+                  <button class="btn btn-red btn-sm" type="submit">Delete</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        @empty
+          <tr>
+            <td colspan="8" class="muted" style="padding:18px;">No encoded items found for this channel.</td>
+          </tr>
+        @endforelse
+      </tbody>
+    </table>
+  </div>
+
+  <div id="jsVideoInfoModal" class="fox-modal" style="display:none; position:fixed; inset:0; z-index: 9999;">
+    <div class="fox-modal-backdrop" style="position:absolute; inset:0; background: rgba(0,0,0,.55);"></div>
+    <div class="fox-modal-panel" style="position:relative; max-width: 980px; margin: 6vh auto; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; box-shadow: var(--shadow-lg); overflow:hidden;">
+      <div style="padding: 12px 14px; border-bottom: 1px solid var(--border-light); display:flex; align-items:center; justify-content:space-between; gap: 10px;">
+        <div style="font-size: 14px; font-weight: 900; color: var(--text-primary);">TMDB Info</div>
+        <button type="button" class="btn btn-outline btn-sm" id="jsVideoInfoClose">Close</button>
+      </div>
+      <div style="padding: 14px;">
+        <div id="jsVideoInfoBody" class="muted" style="font-size: 13px;">Loading…</div>
+      </div>
     </div>
   </div>
 </div>
+
+<div class="bottom-bar">
+  <div class="bottom-actions">
+    <form method="POST" action="{{ route('vod-channels.sync-playlist-from-category', $channel) }}" style="margin:0; flex:1 1 220px;">
+      @csrf
+      <button class="btn btn-green" type="submit">Update Playlist</button>
+    </form>
+
+    <a class="btn btn-dark" href="{{ route('vod-channels.index') }}">Channels</a>
+
+    <a class="btn btn-blue" href="{{ route('create-video.show', $channel) }}">Create Video</a>
+  </div>
+
+  <div class="total-pill">
+    <div>
+      <div class="label">Total Time</div>
+      <div class="value" id="bottomTotalTime">—</div>
+    </div>
+    <div class="muted" style="font-weight:900;">Playlist length</div>
+  </div>
+ </div>
+
 <script>
-function loadFromCategory() {
-    if (!confirm('Replace entire playlist with all videos from category?')) {
-        return;
+(function () {
+  const totalTime = document.getElementById('totalTime');
+  const bottomTotalTime = document.getElementById('bottomTotalTime');
+
+  function fmtTotal(seconds) {
+    if (!Number.isFinite(seconds) || seconds <= 0) return '—';
+    const s = Math.floor(seconds);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const r = s % 60;
+    const pad = (n) => String(n).padStart(2, '0');
+    return pad(h) + ':' + pad(m) + ':' + pad(r);
+  }
+
+  // Total time (encoded-only list)
+  try {
+    let sum = 0;
+    document.querySelectorAll('tbody tr[data-duration]').forEach((tr) => {
+      const d = Number(tr.getAttribute('data-duration') || '0');
+      if (Number.isFinite(d) && d > 0) sum += d;
+    });
+    const t = fmtTotal(sum);
+    totalTime.textContent = 'Total Time: ' + t;
+    if (bottomTotalTime) bottomTotalTime.textContent = t;
+  } catch (e) {
+    totalTime.textContent = 'Total Time: —';
+    if (bottomTotalTime) bottomTotalTime.textContent = '—';
+  }
+
+
+  function openPopup(url) {
+    if (!url) return;
+    const w = 980;
+    const h = 620;
+    const left = Math.max(0, Math.floor((window.screen.width - w) / 2));
+    const top = Math.max(0, Math.floor((window.screen.height - h) / 2));
+    const win = window.open(url, 'encoded_player', `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=no`);
+    if (win) win.focus();
+  }
+
+  document.querySelectorAll('.js-play, .js-watch').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const url = btn.getAttribute('data-popup-url') || '';
+      openPopup(url);
+    });
+  });
+})();
+</script>
+
+<script>
+  (function () {
+    const modal = document.getElementById('jsVideoInfoModal');
+    const body = document.getElementById('jsVideoInfoBody');
+    const closeBtn = document.getElementById('jsVideoInfoClose');
+    const backdrop = modal ? modal.querySelector('.fox-modal-backdrop') : null;
+
+    function close() {
+      if (!modal) return;
+      modal.style.display = 'none';
+      if (body) body.innerHTML = '';
     }
 
-    const btn = event.target;
-    btn.disabled = true;
-    btn.textContent = '⏳ Loading...';
+    async function open(videoId) {
+      if (!modal || !body) return;
+      modal.style.display = 'block';
+      body.textContent = 'Loading…';
 
-    fetch('{{ route("vod-channels.sync-playlist-from-category", $channel) }}', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-        },
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            alert('✓ ' + data.message);
-            setTimeout(() => location.reload(), 1000);
-        } else {
-            alert('❌ ' + data.message);
-            btn.disabled = false;
-            btn.textContent = '📌 Load from category';
+      try {
+        const res = await fetch(`/videos/${videoId}/info`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok || !json.success) {
+          body.textContent = (json && (json.error || json.message)) ? (json.error || json.message) : 'Failed to load info.';
+          return;
         }
-    })
-    .catch(e => {
-        alert('❌ Error: ' + e.message);
-        btn.disabled = false;
-        btn.textContent = '📌 Load from category';
+
+        const v = json.video || {};
+        const t = json.tmdb;
+        const tmdbOk = t && t.ok === true;
+
+        const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        const line = (k, val) => `<div style="display:flex; gap:10px; padding:6px 0; border-bottom:1px solid var(--border-light);"><div style="width:140px; font-size:11px; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.4px;">${esc(k)}</div><div style="flex:1; color:var(--text-primary);">${val}</div></div>`;
+
+        let html = '';
+        html += `<div style="display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap;">`;
+        const poster = tmdbOk && t.poster_url ? `<img src="${esc(t.poster_url)}" alt="" style="width:160px; border-radius:6px; border:1px solid var(--border-color);" />` : (v.tmdb_poster_url ? `<img src="${esc(v.tmdb_poster_url)}" alt="" style="width:160px; border-radius:6px; border:1px solid var(--border-color);" />` : '');
+        if (poster) {
+          html += `<div style="flex:0 0 auto;">${poster}</div>`;
+        }
+        html += `<div style="flex:1; min-width: 320px;">`;
+
+        html += `<div style="font-size:16px; font-weight:900; color:var(--text-primary); margin-bottom:8px;">${esc(v.title || '')}</div>`;
+        html += `<div class="muted" style="font-size:12px; margin-bottom:10px;">Video ID: ${esc(v.id)}${v.tmdb_id ? ` · TMDB: #${esc(v.tmdb_id)}` : ''}${v.duration ? ` · Duration: ${esc(v.duration)}` : ''}</div>`;
+
+        if (tmdbOk) {
+          html += line('TMDB Title', esc(t.title || '—'));
+          html += line('Original Title', esc(t.original_title || '—'));
+          html += line('Release Date', esc(t.release_date || '—'));
+          html += line('Runtime', t.runtime ? esc(String(t.runtime) + ' min') : '—');
+          html += line('Genres', Array.isArray(t.genres) && t.genres.length ? esc(t.genres.join(', ')) : '—');
+          html += line('Rating', (t.vote_average != null) ? esc(String(t.vote_average)) + (t.vote_count ? ` <span class="muted">(${esc(String(t.vote_count))} votes)</span>` : '') : '—');
+          if (t.imdb_id) {
+            html += line('IMDB', `<a href="https://www.imdb.com/title/${esc(t.imdb_id)}/" target="_blank" rel="noopener" style="color: var(--fox-blue); text-decoration:none; font-weight:900;">${esc(t.imdb_id)}</a>`);
+          }
+          if (t.overview) {
+            html += `<div style="margin-top:10px; padding:10px 12px; border:1px solid var(--border-color); border-radius:6px; background: var(--card-bg);">
+              <div style="font-size:11px; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.4px; margin-bottom:6px;">Overview</div>
+              <div style="color:var(--text-primary); line-height:1.45;">${esc(t.overview)}</div>
+            </div>`;
+          }
+        } else {
+          const msg = t && t.message ? String(t.message) : (v.tmdb_id ? 'TMDB details unavailable.' : 'This video has no TMDB ID yet.');
+          html += `<div class="muted" style="padding:10px 12px; border:1px solid var(--border-color); border-radius:6px;">${esc(msg)}</div>`;
+        }
+
+        html += `</div></div>`;
+        body.innerHTML = html;
+      } catch (e) {
+        body.textContent = 'Failed to load info.';
+      }
+    }
+
+    document.addEventListener('click', function (e) {
+      const btn = e.target && e.target.closest ? e.target.closest('.js-video-info') : null;
+      if (!btn) return;
+      const videoId = Number(btn.getAttribute('data-video-id') || 0);
+      if (!videoId) return;
+      open(videoId);
     });
-}
+
+    closeBtn?.addEventListener('click', close);
+    backdrop?.addEventListener('click', close);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') close();
+    });
+  })();
 </script>
+@endsection

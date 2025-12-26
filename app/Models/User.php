@@ -24,6 +24,14 @@ class User extends Authenticatable
     ];
 
     /**
+     * Override the method to use 'name' for authentication instead of 'email'.
+     */
+    public function getAuthIdentifierName()
+    {
+        return 'name';
+    }
+
+    /**
      * The attributes that should be hidden for serialization.
      *
      * @var list<string>

@@ -3,10 +3,13 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AppSetting;
 use App\Models\Video;
 use App\Models\VideoCategory;
+use App\Services\TmdbService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Symfony\Component\Mime\MimeTypes;
 
 class VideoController extends Controller
 {
@@ -223,25 +226,70 @@ class VideoController extends Controller
     /**
      * Get video metadata for modal display
      */
-    public function getInfo(Video $video)
+    public function getInfo(Video $video, TmdbService $tmdb)
     {
         try {
-            $metadata = [];
+            $video->loadMissing('category');
 
-            if ($video->metadata) {
-                $metadata = is_string($video->metadata) ? json_decode($video->metadata, true) : $video->metadata;
+            $durationSeconds = (int) ($video->duration_seconds ?? 0);
+            $sizeBytes = (int) ($video->size_bytes ?? 0);
+
+            $tmdbPayload = null;
+            $tmdbId = (int) ($video->tmdb_id ?? 0);
+
+            if ($tmdbId > 0) {
+                $apiKey = (string) AppSetting::getValue('tmdb_api_key', (string) env('TMDB_API_KEY', ''));
+                if (trim($apiKey) !== '') {
+                    $res = $tmdb->getMovieDetails($apiKey, $tmdbId);
+                    if (($res['ok'] ?? false) === true) {
+                        $tmdbPayload = [
+                            'ok' => true,
+                            'id' => $res['id'] ?? $tmdbId,
+                            'title' => $res['title'] ?? null,
+                            'original_title' => $res['original_title'] ?? null,
+                            'overview' => $res['overview'] ?? null,
+                            'release_date' => $res['release_date'] ?? null,
+                            'runtime' => $res['runtime'] ?? null,
+                            'genres' => $res['genres'] ?? [],
+                            'vote_average' => $res['vote_average'] ?? null,
+                            'vote_count' => $res['vote_count'] ?? null,
+                            'homepage' => $res['homepage'] ?? null,
+                            'imdb_id' => $res['imdb_id'] ?? null,
+                            'poster_url' => !empty($res['poster_path']) ? ('https://image.tmdb.org/t/p/w342' . $res['poster_path']) : null,
+                            'backdrop_url' => !empty($res['backdrop_path']) ? ('https://image.tmdb.org/t/p/w780' . $res['backdrop_path']) : null,
+                        ];
+                    } else {
+                        $tmdbPayload = [
+                            'ok' => false,
+                            'message' => $res['message'] ?? 'TMDB fetch failed',
+                        ];
+                    }
+                } else {
+                    $tmdbPayload = [
+                        'ok' => false,
+                        'message' => 'TMDB key missing. Set it in TMDB Settings.',
+                    ];
+                }
             }
 
             return response()->json([
                 'success' => true,
                 'video' => [
-                    'id' => $video->id,
-                    'title' => $video->title,
-                    'file_path' => $video->file_path,
-                    'duration' => $video->duration,
-                    'category' => $video->category?->name ?? 'Uncategorized',
-                    'metadata' => $metadata,
+                    'id' => (int) $video->id,
+                    'title' => (string) ($video->title ?? ''),
+                    'file_path' => (string) ($video->file_path ?? ''),
+                    'category' => (string) ($video->category?->name ?? 'Uncategorized'),
+                    'duration_seconds' => $durationSeconds,
+                    'duration' => $durationSeconds > 0 ? gmdate('H:i:s', $durationSeconds) : null,
+                    'bitrate_kbps' => $video->bitrate_kbps !== null ? (int) $video->bitrate_kbps : null,
+                    'resolution' => $video->resolution,
+                    'size_bytes' => $sizeBytes > 0 ? $sizeBytes : null,
+                    'format' => $video->format,
+                    'tmdb_id' => $tmdbId > 0 ? $tmdbId : null,
+                    'tmdb_poster_url' => !empty($video->tmdb_poster_path) ? ('https://image.tmdb.org/t/p/w185' . $video->tmdb_poster_path) : null,
+                    'tmdb_backdrop_url' => !empty($video->tmdb_backdrop_path) ? ('https://image.tmdb.org/t/p/w780' . $video->tmdb_backdrop_path) : null,
                 ],
+                'tmdb' => $tmdbPayload,
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -249,5 +297,28 @@ class VideoController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Stream/play the original video file.
+     * This is auth-protected via routes/web.php.
+     */
+    public function play(Video $video)
+    {
+        $path = (string) ($video->file_path ?? '');
+        if ($path === '' || !file_exists($path)) {
+            abort(404);
+        }
+
+        $mime = MimeTypes::getDefault()->guessMimeType($path) ?? 'application/octet-stream';
+        $filename = basename($path) ?: 'video';
+
+        return response()->file($path, [
+            'Content-Type' => $mime,
+            'Content-Disposition' => 'inline; filename="' . addslashes($filename) . '"',
+            'Accept-Ranges' => 'bytes',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+        ]);
     }
 }

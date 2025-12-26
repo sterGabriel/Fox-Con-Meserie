@@ -37,6 +37,13 @@
       <span>Dashboard</span>
     </a>
 
+    {{-- Users --}}
+    <a href="{{ route('fox.users') }}"
+       class="sidebar-link" style="background: {{ $isActive('users*') ? '#b31217' : 'transparent' }};">
+      <span class="sidebar-icon">👥</span>
+      <span>Users</span>
+    </a>
+
     {{-- VOD Section Header --}}
     <div style="margin-top: 16px; padding: 0 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; color: #64748b;">VOD</div>
 
@@ -47,97 +54,62 @@
       <span>VOD Channels</span>
     </a>
 
-    {{-- Categories --}}
-    <a href="{{ route('video-categories.index') }}"
-       class="sidebar-link">
-      <span class="sidebar-icon">🏷️</span>
-      <span>Categories</span>
-    </a>
-
-    {{-- Videos --}}
-    <a href="{{ route('videos.index') }}"
-       class="sidebar-link">
-      <span class="sidebar-icon">🎞️</span>
-      <span>Videos</span>
-    </a>
-
-    {{-- Encoding Jobs --}}
-    <a href="{{ route('encoding-jobs.index') }}"
-       class="sidebar-link">
-      <span class="sidebar-icon">⚙️</span>
-      <span>Encoding Jobs</span>
-    </a>
-
     <hr style="margin: 16px 8px; border: 0; height: 1px; background: rgba(255,255,255,.1);">
 
     {{-- VOD Radio Channels --}}
-    <a href="#"
+    <a href="{{ route('fox.vod-radio-channels') }}"
        class="sidebar-link">
       <span class="sidebar-icon">📻</span>
       <span>Vod Radio Channels</span>
     </a>
 
     {{-- Live Radio Channels --}}
-    <a href="#"
+    <a href="{{ route('fox.live-radio-channels') }}"
        class="sidebar-link">
       <span class="sidebar-icon">📡</span>
       <span>Live Radio Channels</span>
     </a>
 
     {{-- Live Channels --}}
-    <a href="#"
+    <a href="{{ route('fox.live-channels') }}"
        class="sidebar-link">
       <span class="sidebar-icon">📺</span>
       <span>Live Channels</span>
     </a>
 
     {{-- Youtube Video Channels --}}
-    <a href="#"
+    <a href="{{ route('fox.youtube-video-channels') }}"
        class="sidebar-link">
       <span class="sidebar-icon">▶️</span>
       <span>Youtube Video Channels</span>
     </a>
 
     {{-- Youtube Live Channels --}}
-    <a href="#"
+    <a href="{{ route('fox.youtube-live-channels') }}"
        class="sidebar-link">
       <span class="sidebar-icon">🔴</span>
       <span>Youtube Live Channels</span>
     </a>
 
     {{-- Codec Channels --}}
-    <a href="#"
+    <a href="{{ route('fox.codec-channels') }}"
        class="sidebar-link">
       <span class="sidebar-icon">🧩</span>
       <span>Codec Channels</span>
     </a>
 
     {{-- VOD Movies --}}
-    <a href="#"
+    <a href="{{ route('fox.vod-movies') }}"
        class="sidebar-link">
       <span class="sidebar-icon">🎬</span>
       <span>Vod Movies</span>
     </a>
 
     {{-- Series --}}
-    <a href="#"
+    <a href="{{ route('fox.series') }}"
        class="sidebar-link">
       <span class="sidebar-icon">📺</span>
       <span>Series</span>
-    </a>
-
-    {{-- Trailer Channels --}}
-    <a href="#"
-       class="sidebar-link">
-      <span class="sidebar-icon">🎞️</span>
-      <span>Trailer Channels</span>
-    </a>
-
-    {{-- IMDB Trailer Channels --}}
-    <a href="#"
-       class="sidebar-link">
-      <span class="sidebar-icon">⭐</span>
-      <span>Imdb Trailer Channels</span>
     </a>
   </nav>
 

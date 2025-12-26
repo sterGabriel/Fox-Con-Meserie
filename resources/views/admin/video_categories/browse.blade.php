@@ -1,61 +1,80 @@
-@extends('layouts.app')
+@extends('layouts.panel')
 
 @section('content')
-<div class="container mx-auto px-4 py-6">
-    <!-- Header -->
-    <div class="flex items-center justify-between mb-6">
-        <h1 class="text-3xl font-bold">Import Videos into: <span class="text-blue-600">{{ $category->name }}</span></h1>
-        <a href="{{ route('video-categories.index') }}" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded">Back</a>
+<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px;">
+    <div>
+        <h1 style="margin:0;font-size:24px;font-weight:800;">Import Videos</h1>
+        <div style="margin-top:4px;font-size:13px;color:var(--text-secondary);">Category: <span style="font-weight:800;color:var(--text-primary);">{{ $category->name }}</span></div>
     </div>
+    <a href="{{ route('video-categories.index') }}" style="font-size:13px;font-weight:700;">← Back</a>
+</div>
 
-    <!-- Instructions -->
-    <div class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-        <h3 class="font-semibold text-blue-900 mb-2">📌 How to import:</h3>
-        <ol class="text-sm text-blue-800 space-y-1 ml-4 list-decimal">
-            <li>Browse the folders and find your video files</li>
-            <li>Check the boxes next to the videos you want to import</li>
-            <li>Click <strong>"📥 Import Selected"</strong> button</li>
-            <li>Wait for the page to reload with a success message</li>
-        </ol>
-    </div>    <!-- Breadcrumb Navigation -->
-    <div class="mb-4 p-3 bg-gray-100 rounded-lg flex items-center gap-2 overflow-x-auto">
+@if ($message = session('success'))
+    <div class="fox-table-container" style="padding:12px 16px;margin-bottom:16px;">
+        <span class="fox-status-led green"></span>
+        <span style="font-size:13px;font-weight:700;color:var(--text-primary);">{{ $message }}</span>
+    </div>
+@endif
+
+@if ($message = session('error'))
+    <div class="fox-table-container" style="padding:12px 16px;margin-bottom:16px;">
+        <span class="fox-status-led red"></span>
+        <span style="font-size:13px;font-weight:700;color:var(--text-primary);">{{ $message }}</span>
+    </div>
+@endif
+
+<div class="fox-table-container" style="padding:16px;margin-bottom:16px;">
+    <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">How to import</div>
+    <ol style="margin:0;padding-left:18px;color:var(--text-secondary);font-size:13px;">
+        <li>Browse folders and find video files</li>
+        <li>Select files (checkboxes)</li>
+        <li>Click “Import Selected”</li>
+        <li>Page reloads with success message</li>
+    </ol>
+</div>
+
+<div class="fox-table-container" style="padding:12px 16px;margin-bottom:16px;">
+    <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Path</div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         @foreach ($breadcrumb as $crumb)
             @if ($loop->last)
-                <span class="text-gray-700 font-semibold">{{ $crumb['name'] }}</span>
+                <span style="color:var(--text-primary);font-weight:800;">{{ $crumb['name'] }}</span>
             @else
-                <a href="?path={{ urlencode($crumb['path']) }}" class="text-blue-600 hover:underline">{{ $crumb['name'] }}</a>
-                <span class="text-gray-400">/</span>
+                <a href="?path={{ urlencode($crumb['path']) }}" style="font-weight:700;">{{ $crumb['name'] }}</a>
+                <span style="color:var(--text-muted);">/</span>
             @endif
         @endforeach
     </div>
+</div>
 
     <!-- Navigation Buttons -->
-    <div class="mb-4 flex gap-2">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
         @if ($parentPath !== $basePath || $currentPath !== $basePath)
-            <a href="?path={{ urlencode($parentPath) }}" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded inline-flex items-center gap-2">
-                <span>⬆</span> Up
+            <a href="?path={{ urlencode($parentPath) }}" style="background:var(--btn-msg);color:var(--card-bg);padding:10px 14px;border-radius:4px;font-size:13px;font-weight:700;display:inline-flex;align-items:center;gap:8px;">
+                <span>⬆</span>
+                <span>Up</span>
             </a>
         @endif
-        <button type="button" onclick="selectAllFiles()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">✓ Select All</button>
-        <button type="button" onclick="deselectAllFiles()" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded">✗ Deselect All</button>
+        <button type="button" onclick="selectAllFiles()" style="background:var(--btn-start);color:var(--card-bg);padding:10px 14px;border-radius:4px;font-size:13px;font-weight:700;">✓ Select All</button>
+        <button type="button" onclick="deselectAllFiles()" style="background:var(--btn-restart);color:var(--card-bg);padding:10px 14px;border-radius:4px;font-size:13px;font-weight:700;">✗ Deselect All</button>
     </div>
 
     <!-- File Browser Form -->
-    <form id="browser-form" method="POST" action="{{ route('admin.video_categories.import', $category) }}" enctype="multipart/form-data">
+    <form id="browser-form" method="POST" action="{{ route('admin.video_categories.import', $category) }}">
         @csrf
-        <div class="grid grid-cols-1 gap-4">
+        <div style="display:grid;grid-template-columns:1fr;gap:16px;">
             <!-- Folders Section -->
             @if (!empty($dirs))
-            <div>
-                <h2 class="text-lg font-semibold mb-2">📁 Folders</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div class="fox-table-container" style="padding:16px;">
+                <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">📁 Folders</div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:10px;">
                     @foreach ($dirs as $dir)
-                    <a href="?path={{ urlencode($dir['path']) }}" class="border border-gray-300 rounded-lg p-4 hover:bg-gray-50 cursor-pointer transition">
-                        <div class="flex items-center gap-3">
-                            <span class="text-2xl">📂</span>
-                            <div class="flex-1">
-                                <div class="font-semibold text-gray-700">{{ $dir['name'] }}</div>
-                                <div class="text-xs text-gray-500">Open folder</div>
+                    <a href="?path={{ urlencode($dir['path']) }}" style="border:1px solid var(--border-color);border-radius:6px;padding:12px 14px;background:var(--card-bg);">
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <span style="font-size:18px;">📂</span>
+                            <div style="min-width:0;">
+                                <div style="font-weight:800;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $dir['name'] }}</div>
+                                <div style="font-size:12px;color:var(--text-muted);">Open folder</div>
                             </div>
                         </div>
                     </a>
@@ -66,111 +85,93 @@
 
             <!-- Videos Section -->
             @if (!empty($files))
-            <div>
-                <h2 class="text-lg font-semibold mb-2">🎬 Video Files</h2>
-                <div class="space-y-3">
-                    @foreach ($files as $file)
-                    <div class="border border-gray-300 rounded-lg p-4 hover:bg-gray-50 transition {{ $file['imported'] ? 'bg-green-50 opacity-60' : '' }}">
-                        <div class="flex items-start gap-3">
-                            <!-- Checkbox -->
-                            <input 
-                                type="checkbox" 
-                                class="mt-1 file-checkbox" 
-                                name="files[]"
-                                value="{{ $file['path'] }}"
-                                {{ $file['imported'] ? 'disabled' : '' }}
-                            >
-
-                            <!-- File Info -->
-                            <div class="flex-1 min-w-0">
-                                <div class="flex items-center gap-2 mb-1">
-                                    <span class="font-semibold text-gray-700 truncate">{{ $file['name'] }}</span>
-                                    @if ($file['imported'])
-                                    <span class="bg-green-600 text-white text-xs px-2 py-1 rounded">✓ Imported</span>
-                                    @endif
-                                </div>
-                                <div class="text-xs text-gray-500 space-y-1">
-                                    <div>📏 {{ $file['size_formatted'] }} | ⏱️ {{ $file['duration'] }}</div>
-                                    @if ($file['metadata'] && isset($file['metadata']['video']))
-                                    <div>
-                                        <span class="bg-gray-200 px-2 py-0.5 rounded text-xs">
-                                            {{ $file['metadata']['video']['width'] }}x{{ $file['metadata']['video']['height'] }}
-                                        </span>
-                                        @if ($file['metadata']['audio'])
-                                        <span class="bg-gray-200 px-2 py-0.5 rounded text-xs">
-                                            {{ $file['metadata']['audio']['channels'] }} ch
-                                        </span>
-                                        @endif
-                                    </div>
-                                    @endif
-                                </div>
-                            </div>
-
-                            <!-- Actions -->
-                            <div class="flex gap-1 flex-shrink-0">
-                                @if (!$file['imported'])
-                                <button type="button" onclick="previewVideo('{{ $file['path'] }}', '{{ $file['name'] }}')" class="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded text-sm">🎥 Preview</button>
-                                
-                                <!-- Import Form (POST) -->
-                                <form method="POST" action="{{ route('admin.video_categories.import', $category) }}" class="inline" style="display: inline;">
-                                    @csrf
-                                    <input type="hidden" name="files[]" value="{{ $file['path'] }}">
-                                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm">📥 Import</button>
-                                </form>
-                                @endif
-                            </div>
-                        </div>
+            <div class="fox-table-container" style="padding:0;">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--border-light);">
+                    <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">🎬 Video Files</div>
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <button type="submit" id="import-btn" style="background:var(--btn-msg);color:var(--card-bg);padding:10px 14px;border-radius:4px;font-size:13px;font-weight:800;">📥 Import Selected</button>
+                        <span id="selected-count" style="font-size:12px;color:var(--text-secondary);font-weight:700;">(0 selected)</span>
                     </div>
-                    @endforeach
+                </div>
+
+                <div style="overflow-x:auto;">
+                    <table class="fox-table">
+                        <thead>
+                            <tr>
+                                <th style="width:80px;">Select</th>
+                                <th>Name</th>
+                                <th style="width:240px;">Info</th>
+                                <th style="width:140px;text-align:center;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach ($files as $file)
+                            <tr style="{{ $file['imported'] ? 'opacity:0.6;' : '' }}">
+                                <td>
+                                    <input type="checkbox" class="file-checkbox" name="files[]" value="{{ $file['path'] }}" {{ $file['imported'] ? 'disabled' : '' }}>
+                                </td>
+                                <td>
+                                    <div style="font-weight:700;color:var(--text-primary);">{{ $file['name'] }}</div>
+                                    @if ($file['imported'])
+                                        <span class="fox-badge green">IMPORTED</span>
+                                    @endif
+                                </td>
+                                <td style="font-size:12px;color:var(--text-secondary);">
+                                    <div>📏 {{ $file['size_formatted'] }} · ⏱️ {{ $file['duration'] }}</div>
+                                    @if ($file['metadata'] && isset($file['metadata']['video']))
+                                        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
+                                            <span class="fox-badge blue">{{ $file['metadata']['video']['width'] }}x{{ $file['metadata']['video']['height'] }}</span>
+                                            @if ($file['metadata']['audio'])
+                                                <span class="fox-badge yellow">{{ $file['metadata']['audio']['channels'] }} ch</span>
+                                            @endif
+                                        </div>
+                                    @endif
+                                </td>
+                                <td style="text-align:center;white-space:nowrap;">
+                                    @if (!$file['imported'])
+                                        <button type="button" class="fox-action-btn edit" onclick="previewVideo('{{ $file['path'] }}', '{{ $file['name'] }}')" title="Preview">🎥</button>
+                                        <button type="button" class="fox-action-btn start" onclick="importSingle('{{ $file['path'] }}')" title="Import">📥</button>
+                                    @else
+                                        <span style="color:var(--text-muted);font-size:12px;font-weight:700;">—</span>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                        </tbody>
+                    </table>
                 </div>
             </div>
             @endif
 
             @if (empty($dirs) && empty($files))
-            <div class="text-center py-8 text-gray-500">
-                <p class="text-lg">📭 No video files found in this folder</p>
+            <div class="fox-table-container" style="padding:16px;">
+                <div style="font-size:13px;color:var(--text-secondary);">📭 No video files found in this folder</div>
             </div>
             @endif
-        </div>
-
-        <!-- Import Selected Button -->
-        <div class="mt-4 flex gap-2">
-            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-semibold" id="import-btn" onclick="document.getElementById('browser-form').submit(); return false;">
-                📥 Import Selected
-            </button>
-            <span class="text-sm text-gray-600 self-center" id="selected-count">(0 selected)</span>
         </div>
     </form>
 </div>
 
-<!-- Success Message -->
-@if ($message = session('success'))
-<div class="mt-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded">
-    ✅ {{ $message }}
-</div>
-@endif
-
-@if ($message = session('error'))
-<div class="mt-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
-    ❌ {{ $message }}
-</div>
-@endif
+<form id="single-import-form" method="POST" action="{{ route('admin.video_categories.import', $category) }}" style="display:none;">
+    @csrf
+    <input type="hidden" name="files[]" id="single-import-path" value="">
+</form>
 
 <!-- Modal for Previews -->
-<div id="preview-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-    <div class="bg-white rounded-lg w-full max-w-2xl max-h-96 flex flex-col">
-        <div class="flex items-center justify-between p-4 border-b">
-            <h3 class="text-lg font-semibold" id="preview-title">Preview</h3>
-            <button type="button" onclick="closePreview()" class="text-gray-500 hover:text-gray-700 text-2xl">×</button>
+<div id="preview-modal" class="fox-modal-backdrop" aria-hidden="true">
+    <div class="fox-modal" role="dialog" aria-modal="true" aria-labelledby="preview-title">
+        <div class="fox-modal-header">
+            <h3 class="fox-modal-title" id="preview-title">Preview</h3>
+            <button type="button" onclick="closePreview()" class="fox-modal-close" aria-label="Close">×</button>
         </div>
-        <div class="flex-1 overflow-auto p-4">
-            <video id="preview-video" controls class="w-full rounded" style="max-height: 300px;">
+        <div class="fox-modal-body">
+            <video id="preview-video" controls class="fox-modal-video">
                 <source id="preview-source" src="" type="video/mp4">
                 Your browser does not support the video tag.
             </video>
         </div>
-        <div class="p-4 border-t flex justify-end gap-2">
-            <button type="button" onclick="closePreview()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded">Close</button>
+        <div class="fox-modal-footer">
+            <button type="button" onclick="closePreview()" class="fox-modal-secondary">Close</button>
         </div>
     </div>
 </div>
@@ -188,7 +189,7 @@ function deselectAllFiles() {
 }
 
 function updateSelectedCount() {
-    const selected = document.querySelectorAll('.file-checkbox:checked').length;
+    const selected = document.querySelectorAll('.file-checkbox:checked:not(:disabled)').length;
     const span = document.getElementById('selected-count');
     if (span) span.textContent = '(' + selected + ' selected)';
 }
@@ -196,7 +197,7 @@ function updateSelectedCount() {
 // Preview function
 function previewVideo(path, name) {
     document.getElementById('preview-title').textContent = '⏳ Loading...';
-    document.getElementById('preview-modal').classList.remove('hidden');
+    document.getElementById('preview-modal').classList.add('is-open');
     
     fetch('{{ route("video-categories.preview") }}', {
         method: 'POST',
@@ -226,8 +227,16 @@ function previewVideo(path, name) {
 }
 
 function closePreview() {
-    document.getElementById('preview-modal').classList.add('hidden');
+    document.getElementById('preview-modal').classList.remove('is-open');
     document.getElementById('preview-video').pause();
+}
+
+function importSingle(path) {
+    const input = document.getElementById('single-import-path');
+    const form = document.getElementById('single-import-form');
+    if (!input || !form) return;
+    input.value = path;
+    form.submit();
 }
 
 // Setup on page load
@@ -241,7 +250,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('browser-form');
     if (form) {
         form.addEventListener('submit', function(e) {
-            const selected = document.querySelectorAll('.file-checkbox:checked').length;
+            const selected = document.querySelectorAll('.file-checkbox:checked:not(:disabled)').length;
             if (selected === 0) {
                 e.preventDefault();
                 alert('Please select at least one file');
@@ -256,6 +265,86 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <style>
+.fox-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.55);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.fox-modal-backdrop.is-open {
+    display: flex;
+}
+
+.fox-modal {
+    width: 100%;
+    max-width: 900px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+}
+
+.fox-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.fox-modal-title {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--text-primary);
+}
+
+.fox-modal-close {
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 22px;
+    line-height: 1;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.fox-modal-close:hover {
+    background: rgba(0, 0, 0, 0.06);
+}
+
+.fox-modal-body {
+    padding: 16px;
+}
+
+.fox-modal-video {
+    width: 100%;
+    max-height: 420px;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.9);
+}
+
+.fox-modal-footer {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border-light);
+    display: flex;
+    justify-content: flex-end;
+}
+
+.fox-modal-secondary {
+    background: var(--btn-restart);
+    color: var(--card-bg);
+    padding: 10px 14px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 700;
+}
+
 #import-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;

@@ -10,6 +10,7 @@ class PlaylistItem extends Model
     use HasFactory;
 
     protected $fillable = [
+        'live_channel_id',
         'vod_channel_id',
         'video_id',
         'sort_order',
@@ -19,7 +20,8 @@ class PlaylistItem extends Model
 
     public function channel()
     {
-        return $this->belongsTo(LiveChannel::class, 'vod_channel_id');
+        // Canonical FK is live_channel_id
+        return $this->belongsTo(LiveChannel::class, 'live_channel_id');
     }
 
     public function video()

@@ -58,7 +58,7 @@ class CategoryScanController extends Controller
             $videos = $this->scanFolder($sourcePath);
 
             // Get already imported videos
-            $importedPaths = Video::where('category_id', $category->id)
+            $importedPaths = Video::where('video_category_id', $category->id)
                 ->pluck('file_path')
                 ->toArray();
 
@@ -137,7 +137,7 @@ class CategoryScanController extends Controller
     {
         try {
             $cmd = sprintf(
-                'ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1:noprint_wrappers=1 "%s" 2>/dev/null',
+                'ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 %s 2>/dev/null',
                 escapeshellarg($filePath)
             );
 
@@ -159,7 +159,7 @@ class CategoryScanController extends Controller
     {
         try {
             $cmd = sprintf(
-                'ffprobe -v quiet -print_format json -show_format -show_streams "%s" 2>/dev/null',
+                'ffprobe -v quiet -print_format json -show_format -show_streams %s 2>/dev/null',
                 escapeshellarg($filePath)
             );
 
@@ -184,8 +184,8 @@ class CategoryScanController extends Controller
                     'codec' => $videoStream['codec_name'] ?? 'unknown',
                     'width' => $videoStream['width'] ?? 0,
                     'height' => $videoStream['height'] ?? 0,
-                    'fps' => isset($videoStream['r_frame_rate']) 
-                        ? round(eval('return ' . $videoStream['r_frame_rate'] . ';'), 2)
+                    'fps' => isset($videoStream['r_frame_rate'])
+                        ? $this->parseFps($videoStream['r_frame_rate'])
                         : 0,
                     'bitrate' => $videoStream['bit_rate'] ?? 0,
                 ] : null,
@@ -199,6 +199,29 @@ class CategoryScanController extends Controller
         } catch (\Exception $e) {
             return [];
         }
+    }
+
+    private function parseFps(string $rFrameRate): float
+    {
+        $rFrameRate = trim($rFrameRate);
+        if ($rFrameRate === '') {
+            return 0;
+        }
+
+        // Common form: "30000/1001"
+        if (str_contains($rFrameRate, '/')) {
+            [$num, $den] = array_pad(explode('/', $rFrameRate, 2), 2, '0');
+            $num = (float) $num;
+            $den = (float) $den;
+            if ($den > 0) {
+                return round($num / $den, 2);
+            }
+            return 0;
+        }
+
+        // Fallback: a single number
+        $val = (float) $rFrameRate;
+        return $val > 0 ? round($val, 2) : 0;
     }
 
     /**
@@ -237,14 +260,16 @@ class CategoryScanController extends Controller
             try {
                 $metadata = $this->getVideoMetadata($filePath);
                 $duration = $this->getVideoDuration($filePath);
+                $ext = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
 
                 Video::create([
                     'title' => pathinfo($filePath, PATHINFO_FILENAME),
                     'file_path' => $filePath,
-                    'duration' => $duration,
-                    'category_id' => $category->id,
+                    'duration_seconds' => $this->parseDurationToSeconds($duration),
+                    'video_category_id' => $category->id,
                     'metadata' => json_encode($metadata),
-                    'status' => 'pending',
+                    'format' => $ext,
+                    'size_bytes' => @filesize($filePath) ?: null,
                 ]);
 
                 $imported[] = basename($filePath);
@@ -265,6 +290,21 @@ class CategoryScanController extends Controller
                 'errors' => $errors,
             ],
         ]);
+    }
+
+    private function parseDurationToSeconds(string $duration): int
+    {
+        $duration = trim($duration);
+        if ($duration === '') {
+            return 0;
+        }
+
+        $parts = array_map('intval', explode(':', $duration));
+        if (count($parts) === 3) {
+            return ($parts[0] * 3600) + ($parts[1] * 60) + $parts[2];
+        }
+
+        return 0;
     }
 
     /**

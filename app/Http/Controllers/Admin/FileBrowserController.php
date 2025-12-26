@@ -231,7 +231,7 @@ class FileBrowserController extends Controller
     {
         try {
             $cmd = sprintf(
-                'ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "%s" 2>/dev/null',
+                'ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 %s 2>/dev/null',
                 escapeshellarg($filePath)
             );
             $duration = (float) shell_exec($cmd);
@@ -254,7 +254,7 @@ class FileBrowserController extends Controller
     {
         try {
             $cmd = sprintf(
-                'ffprobe -v quiet -print_format json -show_format -show_streams "%s" 2>/dev/null',
+                'ffprobe -v quiet -print_format json -show_format -show_streams %s 2>/dev/null',
                 escapeshellarg($filePath)
             );
             $json = shell_exec($cmd);

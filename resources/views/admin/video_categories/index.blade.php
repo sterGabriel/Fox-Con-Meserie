@@ -1,25 +1,25 @@
 @extends('layouts.panel')
 
 @section('content')
-    <div class="flex items-center justify-between mb-6">
-        <h1 class="text-2xl font-semibold">Video Categories</h1>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px;">
+        <h1 style="margin:0;font-size:24px;font-weight:800;">Video Categories</h1>
 
-        <a href="{{ route('vod-channels.index') }}"
-           class="text-sm text-slate-400 hover:text-slate-200">
+        <a href="{{ route('vod-channels.index') }}" style="font-size:13px;color:#2563eb;text-decoration:none;">
             ← Back to Vod Channels
         </a>
     </div>
 
-    {{-- Mesaje flash --}}
+    {{-- Flash messages --}}
     @if(session('success'))
-        <div class="mb-4 rounded-xl bg-emerald-900/40 border border-emerald-700 px-4 py-3 text-sm text-emerald-100">
-            {{ session('success') }}
+        <div class="fox-table-container" style="padding:12px 16px;margin-bottom:16px;border-left:4px solid #16a34a;">
+            <div style="font-size:13px;color:#166534;font-weight:600;">{{ session('success') }}</div>
         </div>
     @endif
 
     @if($errors->any())
-        <div class="mb-4 rounded-xl bg-red-900/40 border border-red-700 px-4 py-3 text-sm text-red-100">
-            <ul class="list-disc list-inside space-y-1">
+        <div class="fox-table-container" style="padding:12px 16px;margin-bottom:16px;border-left:4px solid #dc2626;">
+            <div style="font-size:13px;color:#991b1b;font-weight:700;margin-bottom:6px;">Fix the following:</div>
+            <ul style="margin:0;padding-left:18px;color:#991b1b;font-size:13px;">
                 @foreach($errors->all() as $error)
                     <li>{{ $error }}</li>
                 @endforeach
@@ -27,92 +27,63 @@
         </div>
     @endif
 
-    {{-- FORM: ADD CATEGORY --}}
-    <div class="mb-8 rounded-2xl border border-slate-800 bg-slate-900/80 p-6">
-        <h2 class="text-lg font-semibold mb-4">Add Category</h2>
+    {{-- ADD CATEGORY --}}
+    <div class="fox-table-container" style="padding:20px;margin-bottom:20px;">
+        <h2 style="margin:0 0 12px 0;font-size:16px;font-weight:800;">Add Category</h2>
 
-        <form action="{{ route('video-categories.store') }}" method="POST" class="space-y-4">
+        <form action="{{ route('video-categories.store') }}" method="POST">
             @csrf
 
-            <div>
-                <label class="block text-sm font-medium text-slate-300 mb-1">
-                    Name
-                </label>
-                <input type="text"
-                       name="name"
-                       class="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
-                       value="{{ old('name') }}"
-                       required>
+            <div style="margin-bottom:12px;">
+                <label for="category_name" style="display:block;font-size:12px;font-weight:700;color:#666;margin-bottom:6px;">Name</label>
+                <input id="category_name" type="text" name="name" value="{{ old('name') }}" required
+                       style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:4px;background:#fff;color:#333;">
             </div>
 
-            <div>
-                <label class="block text-sm font-medium text-slate-300 mb-1">
-                    Description (optional)
-                </label>
-                <textarea name="description"
-                          rows="3"
-                          class="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100">{{ old('description') }}</textarea>
+            <div style="margin-bottom:14px;">
+                <label for="category_description" style="display:block;font-size:12px;font-weight:700;color:#666;margin-bottom:6px;">Description (optional)</label>
+                <textarea id="category_description" name="description" rows="3"
+                          style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:4px;background:#fff;color:#333;resize:vertical;">{{ old('description') }}</textarea>
             </div>
 
-            <div class="pt-2">
-                {{-- BUTON VIZIBIL --}}
-                <button type="submit"
-                        style="background:#f97316;color:white;border:none;padding:8px 16px;border-radius:6px;font-size:14px;cursor:pointer;">
-                    Save Category
-                </button>
-            </div>
+            <button type="submit"
+                    style="background:var(--fox-blue);color:#fff;border:0;padding:10px 14px;border-radius:4px;font-size:13px;font-weight:700;cursor:pointer;">
+                Save Category
+            </button>
         </form>
     </div>
 
     {{-- EXISTING CATEGORIES --}}
-    <div class="rounded-2xl border border-slate-800 bg-slate-900/80 p-6">
-        <h2 class="text-lg font-semibold mb-4">Existing Categories ({{ $categories->count() }})</h2>
+    <div class="fox-table-container" style="padding:20px;">
+        <h2 style="margin:0 0 12px 0;font-size:16px;font-weight:800;">Existing Categories ({{ $categories->count() }})</h2>
 
         @if($categories->isEmpty())
-            <p class="text-sm text-slate-400">No categories yet. <a href="{{ route('video-categories.create') }}" class="text-blue-400 hover:text-blue-300">Create one</a></p>
+            <div style="font-size:13px;color:#666;">No categories yet.</div>
         @else
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm">
-                    <thead class="bg-slate-800/50 border-b border-slate-700">
+            <div style="overflow-x:auto;">
+                <table class="fox-table">
+                    <thead>
                     <tr>
-                        <th class="px-4 py-3 text-left text-slate-400 font-semibold w-12">ID</th>
-                        <th class="px-4 py-3 text-left text-slate-400 font-semibold w-40">Name</th>
-                        <th class="px-4 py-3 text-left text-slate-400 font-semibold flex-1">Description</th>
-                        <th class="px-4 py-3 text-center text-slate-400 font-semibold w-32">Actions</th>
+                        <th style="width:80px;">ID</th>
+                        <th style="width:240px;">Name</th>
+                        <th>Description</th>
+                        <th style="width:160px;text-align:center;">Actions</th>
                     </tr>
                     </thead>
-                    <tbody class="divide-y divide-slate-700/50">
+                    <tbody>
                     @foreach($categories as $category)
-                        <tr class="hover:bg-slate-800/20 transition">
-                            <td class="px-4 py-3 text-slate-500">{{ $category->id }}</td>
-                            <td class="px-4 py-3 text-slate-200 font-semibold">{{ $category->name }}</td>
-                            <td class="px-4 py-3 text-slate-400">
-                                {{ Str::limit($category->description ?? '—', 60) }}
-                            </td>
-                            <td class="px-4 py-3 text-center">
-                                <div class="flex gap-2 justify-center">
-                                    <a href="{{ route('video-categories.edit', $category) }}"
-                                       class="px-3 py-1 text-xs text-blue-400 hover:text-blue-300 transition">
-                                        Edit
-                                    </a>
-
-                                    <a href="{{ route('admin.video_categories.browse', $category) }}"
-                                       class="px-3 py-1 text-xs text-green-400 hover:text-green-300 transition">
-                                        📁 Browse & Import
-                                    </a>
-
-                                    <form action="{{ route('video-categories.destroy', $category) }}"
-                                          method="POST"
-                                          style="display:inline"
-                                          onsubmit="return confirm('Delete &quot;{{ $category->name }}&quot;? All videos will lose this category.');">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit"
-                                                class="px-3 py-1 text-xs text-red-400 hover:text-red-300 transition">
-                                            Delete
-                                        </button>
-                                    </form>
-                                </div>
+                        <tr>
+                            <td>{{ $category->id }}</td>
+                            <td style="font-weight:700;">{{ $category->name }}</td>
+                            <td style="color:#666;">{{ Str::limit($category->description ?? '—', 60) }}</td>
+                            <td style="text-align:center;white-space:nowrap;">
+                                <a href="{{ route('video-categories.edit', $category) }}" class="fox-action-btn edit" title="Edit">✎</a>
+                                <a href="{{ route('admin.video_categories.browse', $category) }}" class="fox-action-btn start" title="Browse & Import">📁</a>
+                                <form action="{{ route('video-categories.destroy', $category) }}" method="POST" style="display:inline;" onsubmit="return confirm('Delete &quot;{{ $category->name }}&quot;? All videos will lose this category.');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="fox-action-btn delete" title="Delete">🗑</button>
+                                </form>
                             </td>
                         </tr>
                     @endforeach

@@ -1,155 +1,268 @@
-@extends('layouts.app')
+@extends('layouts.panel')
 
 @section('title', 'Import Videos - ' . $category->name)
 
 @section('content')
-<div class="min-h-screen bg-gradient-to-b from-slate-950 to-slate-900 p-6">
-    <div class="max-w-7xl mx-auto">
-        <!-- Header -->
-        <div class="mb-8">
-            <a href="{{ route('video-categories.index') }}" class="text-blue-400 hover:text-blue-300 text-sm mb-4 inline-block">
-                ← Back to Categories
-            </a>
-            <h1 class="text-4xl font-bold text-white mb-2">
-                Import Videos to <span class="text-blue-400">{{ $category->name }}</span>
-            </h1>
-            <p class="text-slate-400">Scan server folder for videos and import them to your library</p>
+<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px;">
+    <div>
+        <h1 style="margin:0;font-size:24px;font-weight:800;">Scan & Import</h1>
+        <div style="margin-top:4px;font-size:13px;color:var(--text-secondary);">Category: <span style="font-weight:800;color:var(--text-primary);">{{ $category->name }}</span></div>
+    </div>
+    <a href="{{ route('video-categories.index') }}" style="font-size:13px;font-weight:700;">← Back to Categories</a>
+</div>
+
+<div data-scan-grid style="display:grid;grid-template-columns:320px 1fr;gap:16px;align-items:start;">
+    <div class="fox-table-container" style="padding:16px;">
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">📁 Scan Settings</div>
+
+        <label for="sourcePath" style="display:block;font-size:12px;font-weight:700;color:var(--text-secondary);margin-bottom:6px;">Server Folder Path</label>
+        <input
+            type="text"
+            id="sourcePath"
+            placeholder="/mnt/media/MUZICA"
+            value="{{ $category->source_path ?? '' }}"
+            style="width:100%;padding:10px 12px;border:1px solid var(--border-color);border-radius:4px;background:var(--card-bg);color:var(--text-primary);"
+        />
+        <div style="margin-top:6px;font-size:12px;color:var(--text-muted);">Full path to folder on server (e.g. /mnt/media/...)</div>
+
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+            <button id="scanBtn" type="button" style="background:var(--btn-msg);color:var(--card-bg);padding:10px 14px;border-radius:4px;font-size:13px;font-weight:800;flex:1;">🔍 Scan Folder</button>
         </div>
 
-        <!-- Main Container -->
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            <!-- Sidebar -->
-            <div class="lg:col-span-1">
-                <div class="bg-slate-800/50 border border-slate-700 rounded-lg p-6">
-                    <h3 class="text-lg font-semibold text-white mb-4">📁 Scan Settings</h3>
-                    
-                    <!-- Path Input -->
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-slate-300 mb-2">
-                            Server Folder Path
-                        </label>
-                        <input 
-                            type="text" 
-                            id="sourcePath"
-                            placeholder="/mnt/media/MUZICA"
-                            class="w-full px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm"
-                            value="{{ $category->source_path ?? '' }}"
-                        />
-                        <p class="text-xs text-slate-500 mt-2">Full path to folder on server (e.g. /mnt/media/...)</p>
-                    </div>
+        <div style="height:1px;background:var(--border-light);margin:14px 0;"></div>
 
-                    <!-- Scan Button -->
-                    <button 
-                        id="scanBtn"
-                        class="w-full px-4 py-2 bg-blue-600/80 text-white rounded-lg hover:bg-blue-600 transition font-medium text-sm flex items-center justify-center gap-2"
-                    >
-                        <span>🔍 Scan Folder</span>
-                    </button>
-
-                    <hr class="border-slate-700/50 my-6">
-
-                    <!-- Stats -->
-                    <div class="space-y-3">
-                        <div class="text-center">
-                            <p class="text-2xl font-bold text-white" id="foundCount">0</p>
-                            <p class="text-xs text-slate-400">Videos found</p>
-                        </div>
-                        <div class="text-center">
-                            <p class="text-2xl font-bold text-green-400" id="selectedCount">0</p>
-                            <p class="text-xs text-slate-400">Selected for import</p>
-                        </div>
-                        <div class="text-center">
-                            <p class="text-2xl font-bold text-slate-400" id="totalSize">0 MB</p>
-                            <p class="text-xs text-slate-400">Total size</p>
-                        </div>
-                    </div>
-
-                    <hr class="border-slate-700/50 my-6">
-
-                    <!-- Import Button -->
-                    <button 
-                        id="importBtn"
-                        disabled
-                        class="w-full px-4 py-2 bg-green-600/80 text-white rounded-lg hover:bg-green-600 transition font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                        <span>⬆️ Import Selected</span>
-                    </button>
-
-                    <!-- Select All Toggle -->
-                    <label class="flex items-center gap-2 mt-4 text-sm text-slate-300 cursor-pointer">
-                        <input 
-                            type="checkbox" 
-                            id="selectAll"
-                            disabled
-                            class="w-4 h-4 rounded border-slate-500 text-blue-600 cursor-pointer"
-                        />
-                        Select All
-                    </label>
-                </div>
+        <div style="display:grid;grid-template-columns:1fr;gap:10px;">
+            <div class="fox-table-container" style="padding:12px 14px;">
+                <div style="font-size:12px;color:var(--text-muted);font-weight:700;">Videos found</div>
+                <div style="font-size:22px;font-weight:800;color:var(--text-primary);" id="foundCount">0</div>
             </div>
+            <div class="fox-table-container" style="padding:12px 14px;">
+                <div style="font-size:12px;color:var(--text-muted);font-weight:700;">Selected for import</div>
+                <div style="font-size:22px;font-weight:800;color:var(--text-primary);" id="selectedCount">0</div>
+            </div>
+            <div class="fox-table-container" style="padding:12px 14px;">
+                <div style="font-size:12px;color:var(--text-muted);font-weight:700;">Total size</div>
+                <div style="font-size:22px;font-weight:800;color:var(--text-primary);" id="totalSize">0 MB</div>
+            </div>
+        </div>
 
-            <!-- Main Content -->
-            <div class="lg:col-span-3">
-                <!-- Search Bar -->
-                <div class="mb-6">
-                    <input 
-                        type="text" 
-                        id="searchInput"
-                        placeholder="Search videos by filename..."
-                        class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                    />
-                </div>
+        <div style="height:1px;background:var(--border-light);margin:14px 0;"></div>
 
-                <!-- Video List -->
-                <div class="bg-slate-800/50 border border-slate-700 rounded-lg overflow-hidden">
-                    <div id="videoList" class="divide-y divide-slate-700/50">
-                        <!-- Placeholder -->
-                        <div class="p-8 text-center text-slate-400">
-                            <p>👇 Enter folder path and click "Scan Folder" to start</p>
-                        </div>
-                    </div>
-                </div>
+        <button id="importBtn" type="button" disabled style="background:var(--btn-start);color:var(--card-bg);padding:10px 14px;border-radius:4px;font-size:13px;font-weight:800;width:100%;">⬆️ Import Selected</button>
 
-                <!-- Loading Indicator -->
-                <div id="loading" class="hidden p-8 text-center">
-                    <div class="inline-block">
-                        <div class="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                    </div>
-                    <p class="text-slate-400 mt-2">Scanning folder...</p>
-                </div>
+        <label style="display:flex;align-items:center;gap:10px;margin-top:12px;font-size:13px;color:var(--text-secondary);font-weight:700;">
+            <input type="checkbox" id="selectAll" disabled>
+            Select All
+        </label>
+    </div>
+
+    <div>
+        <div class="fox-table-container" style="padding:12px 16px;margin-bottom:16px;">
+            <input
+                type="text"
+                id="searchInput"
+                placeholder="Search videos by filename..."
+                style="width:100%;padding:10px 12px;border:1px solid var(--border-color);border-radius:4px;background:var(--card-bg);color:var(--text-primary);"
+            />
+        </div>
+
+        <div id="loading" class="fox-loading" aria-hidden="true">
+            <div class="fox-loading-box">
+                <div class="fox-loading-spinner" aria-hidden="true"></div>
+                <div style="margin-top:8px;font-size:13px;color:var(--text-secondary);font-weight:700;">Scanning folder...</div>
+            </div>
+        </div>
+
+        <div class="fox-table-container" style="padding:0;overflow:hidden;">
+            <div style="overflow-x:auto;">
+                <table class="fox-table">
+                    <thead>
+                        <tr>
+                            <th style="width:80px;">Select</th>
+                            <th>Filename</th>
+                            <th style="width:260px;">Info</th>
+                            <th style="width:140px;text-align:center;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="videoList">
+                        <tr>
+                            <td colspan="4" style="padding:18px 16px;color:var(--text-secondary);">👇 Enter folder path and click “Scan Folder” to start</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
 </div>
 
 <!-- Info Modal -->
-<div id="infoModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-    <div class="bg-slate-800 border border-slate-700 rounded-lg max-w-2xl w-full max-h-96 overflow-y-auto">
-        <div class="sticky top-0 bg-slate-800 border-b border-slate-700 px-6 py-4 flex items-center justify-between">
-            <h3 class="text-lg font-semibold text-white">📊 Video Information</h3>
-            <button onclick="document.getElementById('infoModal').classList.add('hidden')" class="text-slate-400 hover:text-white text-2xl">×</button>
+<div id="infoModal" class="fox-modal-backdrop" aria-hidden="true">
+    <div class="fox-modal" role="dialog" aria-modal="true" aria-labelledby="infoModalTitle">
+        <div class="fox-modal-header">
+            <h3 class="fox-modal-title" id="infoModalTitle">📊 Video Information</h3>
+            <button type="button" onclick="closeInfo()" class="fox-modal-close" aria-label="Close">×</button>
         </div>
-        <div id="infoContent" class="p-6 space-y-4">
+        <div id="infoContent" class="fox-modal-body">
             <!-- Content loaded by JS -->
+        </div>
+        <div class="fox-modal-footer">
+            <button type="button" onclick="closeInfo()" class="fox-modal-secondary">Close</button>
         </div>
     </div>
 </div>
 
 <!-- Toast Notifications -->
-<div id="toastContainer" class="fixed bottom-6 right-6 space-y-3 z-50"></div>
+<div id="toastContainer" class="fox-toast-container" aria-live="polite" aria-atomic="true"></div>
 
 <style>
+    .fox-loading {
+        display: none;
+        margin-bottom: 16px;
+    }
+
+    .fox-loading.is-open {
+        display: block;
+    }
+
+    .fox-loading-box {
+        padding: 16px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        background: var(--card-bg);
+        box-shadow: var(--shadow-sm);
+        display: inline-block;
+    }
+
+    .fox-loading-spinner {
+        width: 18px;
+        height: 18px;
+        border: 2px solid rgba(37, 99, 235, 0.35);
+        border-top-color: var(--fox-blue);
+        border-radius: 999px;
+        animation: foxSpin 0.9s linear infinite;
+        margin: 0 auto;
+    }
+
+    @keyframes foxSpin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+
+    .fox-toast-container {
+        position: fixed;
+        right: 24px;
+        bottom: 24px;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        max-width: 420px;
+    }
+
     .toast {
-        @apply bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-sm text-white shadow-lg animate-pulse;
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        padding: 10px 12px;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--text-primary);
+        box-shadow: var(--shadow-md);
     }
+
     .toast.success {
-        @apply bg-green-900/30 border-green-700 text-green-300;
+        border-color: rgba(22, 163, 74, 0.25);
+        background: rgba(22, 163, 74, 0.08);
+        color: rgba(22, 163, 74, 1);
     }
+
     .toast.error {
-        @apply bg-red-900/30 border-red-700 text-red-300;
+        border-color: rgba(220, 38, 38, 0.25);
+        background: rgba(220, 38, 38, 0.08);
+        color: rgba(220, 38, 38, 1);
     }
+
     .toast.info {
-        @apply bg-blue-900/30 border-blue-700 text-blue-300;
+        border-color: rgba(37, 99, 235, 0.25);
+        background: rgba(37, 99, 235, 0.08);
+        color: rgba(37, 99, 235, 1);
+    }
+
+    .fox-modal-backdrop {
+        position: fixed;
+        inset: 0;
+        padding: 16px;
+        background: rgba(0, 0, 0, 0.55);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    }
+
+    .fox-modal-backdrop.is-open {
+        display: flex;
+    }
+
+    .fox-modal {
+        width: 100%;
+        max-width: 900px;
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        box-shadow: var(--shadow-md);
+        overflow: hidden;
+        max-height: 80vh;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .fox-modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border-light);
+    }
+
+    .fox-modal-title {
+        font-size: 14px;
+        font-weight: 800;
+        color: var(--text-primary);
+    }
+
+    .fox-modal-close {
+        background: transparent;
+        color: var(--text-secondary);
+        font-size: 22px;
+        line-height: 1;
+        padding: 4px 8px;
+        border-radius: 4px;
+    }
+
+    .fox-modal-close:hover {
+        background: rgba(0, 0, 0, 0.06);
+    }
+
+    .fox-modal-body {
+        padding: 16px;
+        overflow: auto;
+    }
+
+    .fox-modal-footer {
+        padding: 12px 16px;
+        border-top: 1px solid var(--border-light);
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    .fox-modal-secondary {
+        background: var(--btn-restart);
+        color: var(--card-bg);
+        padding: 10px 14px;
+        border-radius: 4px;
+        font-size: 13px;
+        font-weight: 700;
     }
 </style>
 
@@ -157,6 +270,10 @@
     const categoryId = {{ $category->id }};
     const csrfToken = '{{ csrf_token() }}';
     let videos = [];
+
+    function closeInfo() {
+        document.getElementById('infoModal').classList.remove('is-open');
+    }
 
     // Scan folder
     document.getElementById('scanBtn').addEventListener('click', async () => {
@@ -168,7 +285,7 @@
 
         const btn = document.getElementById('scanBtn');
         btn.disabled = true;
-        document.getElementById('loading').classList.remove('hidden');
+        document.getElementById('loading').classList.add('is-open');
 
         try {
             const response = await fetch(`/video-categories/${categoryId}/scan`, {
@@ -189,6 +306,8 @@
                 toast(data.message, 'success');
                 document.getElementById('selectAll').disabled = false;
                 document.getElementById('importBtn').disabled = videos.filter(v => !v.imported).length === 0;
+                document.getElementById('selectAll').checked = false;
+                updateImportBtn();
             } else {
                 toast(data.message, 'error');
             }
@@ -196,74 +315,100 @@
             toast('Error scanning folder: ' + error.message, 'error');
         } finally {
             btn.disabled = false;
-            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('loading').classList.remove('is-open');
         }
     });
 
     // Render video list
     function renderVideos(videosToRender) {
         const list = document.getElementById('videoList');
-        
+        list.innerHTML = '';
+
         if (videosToRender.length === 0) {
-            list.innerHTML = '<div class="p-8 text-center text-slate-400">No videos found</div>';
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td colspan="4" style="padding:18px 16px;color:var(--text-secondary);">No videos found</td>`;
+            list.appendChild(tr);
             return;
         }
 
-        list.innerHTML = videosToRender.map((video, idx) => `
-            <div class="flex items-center gap-4 p-4 hover:bg-slate-700/20 transition ${video.imported ? 'opacity-50' : ''}">
-                <input 
-                    type="checkbox" 
-                    class="video-checkbox w-5 h-5 rounded border-slate-600 text-blue-600 cursor-pointer"
-                    data-index="${idx}"
-                    ${video.imported ? 'disabled' : ''}
-                />
-                <div class="flex-1 min-w-0">
-                    <div class="font-medium text-white truncate">${escapeHtml(video.filename)}</div>
-                    <div class="text-xs text-slate-400 space-y-1">
-                        <div>📏 ${video.size_formatted} • ⏱️ ${video.duration}</div>
-                        <div>${video.modified_formatted}</div>
-                        ${video.imported ? '<div class="text-green-400">✓ Already imported</div>' : ''}
-                    </div>
-                </div>
-                <div class="flex gap-2">
-                    <button 
-                        class="px-3 py-1 text-xs bg-blue-600/20 text-blue-300 rounded hover:bg-blue-600/30 transition"
-                        onclick="showInfo(${idx})"
-                    >
-                        ℹ️ Info
-                    </button>
-                    ${!video.imported ? `
-                        <button 
-                            class="px-3 py-1 text-xs bg-red-600/20 text-red-300 rounded hover:bg-red-600/30 transition"
-                            onclick="deleteFile(${idx})"
-                        >
-                            🗑️ Delete
-                        </button>
-                    ` : ''}
-                </div>
-            </div>
-        `).join('');
+        for (const video of videosToRender) {
+            const tr = document.createElement('tr');
+            if (video.imported) tr.style.opacity = '0.6';
 
-        // Add checkboxes event listeners
-        document.querySelectorAll('.video-checkbox').forEach(cb => {
-            cb.addEventListener('change', updateImportBtn);
-        });
+            const checkboxTd = document.createElement('td');
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.className = 'video-checkbox';
+            cb.dataset.path = video.file_path;
+            cb.disabled = !!video.imported;
+            checkboxTd.appendChild(cb);
+
+            const nameTd = document.createElement('td');
+            const nameDiv = document.createElement('div');
+            nameDiv.style.fontWeight = '700';
+            nameDiv.textContent = video.filename;
+            nameTd.appendChild(nameDiv);
+            if (video.imported) {
+                const badge = document.createElement('span');
+                badge.className = 'fox-badge green';
+                badge.style.marginTop = '6px';
+                badge.textContent = 'IMPORTED';
+                nameTd.appendChild(badge);
+            }
+
+            const infoTd = document.createElement('td');
+            infoTd.style.fontSize = '12px';
+            infoTd.style.color = 'var(--text-secondary)';
+            const modified = video.modified_formatted ? ('<div style="margin-top:4px;">' + escapeHtml(video.modified_formatted) + '</div>') : '';
+            infoTd.innerHTML = `${escapeHtml('📏 ' + video.size_formatted + ' · ⏱️ ' + video.duration)}${modified}`;
+
+            const actionsTd = document.createElement('td');
+            actionsTd.style.textAlign = 'center';
+            actionsTd.style.whiteSpace = 'nowrap';
+
+            const infoBtn = document.createElement('button');
+            infoBtn.type = 'button';
+            infoBtn.className = 'fox-action-btn edit';
+            infoBtn.dataset.action = 'info';
+            infoBtn.dataset.path = video.file_path;
+            infoBtn.title = 'Info';
+            infoBtn.textContent = 'ℹ️';
+            actionsTd.appendChild(infoBtn);
+
+            if (!video.imported) {
+                const delBtn = document.createElement('button');
+                delBtn.type = 'button';
+                delBtn.className = 'fox-action-btn delete';
+                delBtn.dataset.action = 'delete';
+                delBtn.dataset.path = video.file_path;
+                delBtn.title = 'Delete';
+                delBtn.textContent = '🗑️';
+                actionsTd.appendChild(delBtn);
+            }
+
+            tr.appendChild(checkboxTd);
+            tr.appendChild(nameTd);
+            tr.appendChild(infoTd);
+            tr.appendChild(actionsTd);
+            list.appendChild(tr);
+        }
     }
 
     // Update import button state
     function updateImportBtn() {
-        const selected = document.querySelectorAll('.video-checkbox:checked').length;
-        document.getElementById('selectedCount').textContent = selected;
-        
-        const size = videos.reduce((sum, v, i) => {
-            if (document.querySelector(`.video-checkbox[data-index="${i}"]:checked`)) {
-                return sum + v.size;
-            }
-            return sum;
+        const selectedPaths = Array.from(document.querySelectorAll('.video-checkbox:checked:not(:disabled)'))
+            .map(cb => cb.dataset.path)
+            .filter(Boolean);
+
+        document.getElementById('selectedCount').textContent = selectedPaths.length;
+
+        const size = selectedPaths.reduce((sum, path) => {
+            const v = videos.find(x => x.file_path === path);
+            return sum + (v?.size || 0);
         }, 0);
+
         document.getElementById('totalSize').textContent = (size / 1024 / 1024).toFixed(2) + ' MB';
-        
-        document.getElementById('importBtn').disabled = selected === 0;
+        document.getElementById('importBtn').disabled = selectedPaths.length === 0;
     }
 
     // Select all
@@ -279,15 +424,15 @@
         const query = e.target.value.toLowerCase();
         const filtered = videos.filter(v => v.filename.toLowerCase().includes(query));
         renderVideos(filtered);
+        document.getElementById('selectAll').checked = false;
+        updateImportBtn();
     });
 
     // Import selected
     document.getElementById('importBtn').addEventListener('click', async () => {
-        const selected = Array.from(document.querySelectorAll('.video-checkbox:checked'))
-            .map(cb => {
-                const idx = cb.dataset.index;
-                return videos[idx].file_path;
-            });
+        const selected = Array.from(document.querySelectorAll('.video-checkbox:checked:not(:disabled)'))
+            .map(cb => cb.dataset.path)
+            .filter(Boolean);
 
         if (selected.length === 0) return;
 
@@ -320,6 +465,26 @@
         }
     });
 
+    document.getElementById('videoList').addEventListener('change', (e) => {
+        if (e.target && e.target.classList && e.target.classList.contains('video-checkbox')) {
+            updateImportBtn();
+        }
+    });
+
+    document.getElementById('videoList').addEventListener('click', (e) => {
+        const btn = e.target?.closest?.('button[data-action]');
+        if (!btn) return;
+        const action = btn.dataset.action;
+        const path = btn.dataset.path;
+        if (!path) return;
+
+        const idx = videos.findIndex(v => v.file_path === path);
+        if (idx < 0) return;
+
+        if (action === 'info') showInfo(idx);
+        if (action === 'delete') deleteFile(idx);
+    });
+
     // Show info modal
     function showInfo(idx) {
         const video = videos[idx];
@@ -333,12 +498,12 @@
             const v = video.metadata.video;
             videoInfo = `
                 <div>
-                    <p class="font-semibold text-slate-300">🎬 Video</p>
-                    <ul class="text-sm text-slate-400 space-y-1 pl-4">
-                        <li>Codec: <span class="text-white">${v.codec}</span></li>
-                        <li>Resolution: <span class="text-white">${v.width}x${v.height}</span></li>
-                        <li>FPS: <span class="text-white">${v.fps}</span></li>
-                        <li>Bitrate: <span class="text-white">${(v.bitrate / 1000).toFixed(0)} kbps</span></li>
+                    <div style="font-weight:800;color:var(--text-primary);margin-bottom:6px;">🎬 Video</div>
+                    <ul style="margin:0;padding-left:18px;font-size:13px;color:var(--text-secondary);display:grid;gap:4px;">
+                        <li>Codec: <span style="font-weight:800;color:var(--text-primary);">${escapeHtml(v.codec || '')}</span></li>
+                        <li>Resolution: <span style="font-weight:800;color:var(--text-primary);">${v.width}x${v.height}</span></li>
+                        <li>FPS: <span style="font-weight:800;color:var(--text-primary);">${v.fps}</span></li>
+                        <li>Bitrate: <span style="font-weight:800;color:var(--text-primary);">${(v.bitrate / 1000).toFixed(0)} kbps</span></li>
                     </ul>
                 </div>
             `;
@@ -348,32 +513,32 @@
             const a = video.metadata.audio;
             audioInfo = `
                 <div>
-                    <p class="font-semibold text-slate-300">🔊 Audio</p>
-                    <ul class="text-sm text-slate-400 space-y-1 pl-4">
-                        <li>Codec: <span class="text-white">${a.codec}</span></li>
-                        <li>Channels: <span class="text-white">${a.channels}</span></li>
-                        <li>Sample Rate: <span class="text-white">${(a.sample_rate / 1000).toFixed(0)} kHz</span></li>
-                        <li>Bitrate: <span class="text-white">${(a.bitrate / 1000).toFixed(0)} kbps</span></li>
+                    <div style="font-weight:800;color:var(--text-primary);margin-bottom:6px;">🔊 Audio</div>
+                    <ul style="margin:0;padding-left:18px;font-size:13px;color:var(--text-secondary);display:grid;gap:4px;">
+                        <li>Codec: <span style="font-weight:800;color:var(--text-primary);">${escapeHtml(a.codec || '')}</span></li>
+                        <li>Channels: <span style="font-weight:800;color:var(--text-primary);">${a.channels}</span></li>
+                        <li>Sample Rate: <span style="font-weight:800;color:var(--text-primary);">${(a.sample_rate / 1000).toFixed(0)} kHz</span></li>
+                        <li>Bitrate: <span style="font-weight:800;color:var(--text-primary);">${(a.bitrate / 1000).toFixed(0)} kbps</span></li>
                     </ul>
                 </div>
             `;
         }
 
         content.innerHTML = `
-            <div class="text-sm space-y-3">
+            <div style="font-size:13px;display:flex;flex-direction:column;gap:10px;">
                 <div>
-                    <p class="font-semibold text-white">📄 File</p>
-                    <p class="text-slate-400 truncate">${escapeHtml(video.filename)}</p>
+                    <div style="font-weight:800;color:var(--text-primary);">📄 File</div>
+                    <div style="color:var(--text-secondary);word-break:break-word;">${escapeHtml(video.filename)}</div>
                 </div>
-                <div>
-                    <p class="text-xs text-slate-500">📏 Size: ${video.size_formatted} | ⏱️ Duration: ${video.duration}</p>
+                <div style="font-size:12px;color:var(--text-muted);font-weight:700;">📏 Size: ${escapeHtml(video.size_formatted)} · ⏱️ Duration: ${escapeHtml(video.duration)}</div>
+                <div style="display:grid;grid-template-columns:1fr;gap:10px;">
+                    ${videoInfo}
+                    ${audioInfo}
                 </div>
-                ${videoInfo}
-                ${audioInfo}
             </div>
         `;
 
-        modal.classList.remove('hidden');
+        modal.classList.add('is-open');
     }
 
     // Delete file
@@ -396,6 +561,9 @@
                 toast('File deleted: ' + video.filename, 'success');
                 videos.splice(idx, 1);
                 renderVideos(videos);
+                document.getElementById('foundCount').textContent = videos.length;
+                document.getElementById('selectAll').checked = false;
+                updateImportBtn();
             } else {
                 toast(data.message, 'error');
             }

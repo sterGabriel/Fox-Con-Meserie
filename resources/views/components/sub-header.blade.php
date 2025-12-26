@@ -1,10 +1,19 @@
+@php
+  $serverId = request('server_id') ?? 'MQ';
+  $servers = [
+    'MQ' => 'Server 1',
+    'Mg' => 'Server 2',
+    'Mw' => 'Server 3',
+  ];
+@endphp
+
 <div class="fox-subheader">
   <div class="fox-subheader-left">
     <span class="fox-subheader-label">>> Server</span>
     <select class="fox-server-select" onchange="onServerChange(this.value)">
-      <option value="1" selected>Server 1</option>
-      <option value="2">Server 2</option>
-      <option value="3">Server 3</option>
+      @foreach($servers as $value => $label)
+        <option value="{{ $value }}" {{ $serverId === $value ? 'selected' : '' }}>{{ $label }}</option>
+      @endforeach
     </select>
   </div>
 
@@ -17,15 +26,15 @@
 
 <script>
 function onServerChange(serverId) {
-  console.log('Server changed to:', serverId);
-  // TODO: Load server data
-  location.href = '?server=' + serverId;
+  const url = new URL(window.location.href);
+  url.searchParams.set('server_id', serverId);
+  window.location.href = url.toString();
 }
 
 function onRestartServer() {
   if (confirm('Restart server?')) {
-    console.log('Restarting server...');
     // TODO: API call to restart
+    console.log('Restarting server...');
   }
 }
 </script>

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\LiveChannel;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class LiveChannelApiController extends Controller
 {
@@ -76,26 +77,37 @@ class LiveChannelApiController extends Controller
             'logo' => ['nullable', 'image', 'max:5120'],
         ]);
 
-        // Store logo if provided
-        $logoPath = null;
-        if ($request->hasFile('logo')) {
-            $logoPath = $request->file('logo')->store('channel-logos');
-        }
-
-        // Create channel with only existing database columns
+        // Create channel first (we need the ID to store the logo in a per-channel folder)
         $channel = LiveChannel::create([
             'name' => $data['channel_name'],
             'slug' => \Str::slug($data['channel_name']) . '-' . uniqid(),
-            'logo_path' => $logoPath,
+            'logo_path' => null,
             'enabled' => true,
             'status' => 'idle',
-            'created_by' => auth()->id(),
+            // auth()->id() returns username (string) in this project; DB expects numeric user id.
+            'created_by' => auth()->user()?->id,
             'resolution' => $data['video_size'] === '720p' ? '1280x720' : '1920x1080',
             'video_bitrate' => 2500,
             'audio_bitrate' => 128,
             'fps' => 25,
             'audio_codec' => 'aac',
         ]);
+
+        // Store logo if provided (canonical path used everywhere in the panel)
+        if ($request->hasFile('logo')) {
+            $logoFile = $request->file('logo');
+
+            // local disk root is storage/app/private in this project, so don't prefix with "private/"
+            $dir = 'logos/channels/' . $channel->id;
+            $name = 'channel_logo_' . date('Ymd_His') . '.' . $logoFile->getClientOriginalExtension();
+            $relative = Storage::disk('local')->putFileAs($dir, $logoFile, $name);
+
+            $channel->update([
+                'logo_path' => $relative,
+                // keep overlay logo in sync (single logo per channel)
+                'overlay_logo_path' => $relative,
+            ]);
+        }
 
         return response()->json([
             'id' => $channel->id,

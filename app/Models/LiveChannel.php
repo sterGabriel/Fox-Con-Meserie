@@ -15,7 +15,8 @@ class LiveChannel extends Model
     // Relație cu playlist items (dacă o folosești)
     public function playlistItems()
     {
-        return $this->hasMany(PlaylistItem::class, 'vod_channel_id');
+        // Canonical FK in DB is live_channel_id; keep code aligned with schema.
+        return $this->hasMany(PlaylistItem::class, 'live_channel_id');
     }
 
     // Relație cu video category

@@ -11,8 +11,8 @@ html, body { overflow-x: hidden; }
 .server-highlight { color: #f1c40f; font-weight: 900; }
 .page-subtitle { font-size: 13px; color: #6b7280; margin: 6px 0 0; }
 
-.btn-new { background: #3b82f6; color: #fff; border: 0; padding: 10px 16px; border-radius: 8px; font-weight: 700; cursor: pointer; }
-.btn-new:hover { background: #2563eb; }
+.btn-new { background: var(--fox-blue); color: #fff; border: 0; padding: 10px 16px; border-radius: 8px; font-weight: 700; cursor: pointer; }
+.btn-new:hover { filter: brightness(0.95); }
 
 /* KPI Grid */
 .kpi-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-bottom: 24px; }
@@ -36,11 +36,11 @@ html, body { overflow-x: hidden; }
 /* Toolbar */
 .toolbar { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
 .btn-toolbar { border: 0; padding: 10px 14px; border-radius: 8px; font-weight: 700; color: #fff; cursor: pointer; font-size: 14px; }
-.btn-stop { background: #dc2626; }
-.btn-start { background: #16a34a; }
-.btn-epg { background: #f59e0b; }
-.btn-fast { background: #d32f2f; }
-.btn-msg { background: #2563eb; }
+.btn-stop { background: var(--btn-stop); }
+.btn-start { background: var(--btn-start); }
+.btn-epg { background: var(--btn-epg); }
+.btn-fast { background: var(--btn-stop); }
+.btn-msg { background: var(--btn-msg); }
 
 /* Warning */
 .warning { background: #3f4a58; color: #fff; border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; position: relative; }
@@ -63,6 +63,10 @@ html, body { overflow-x: hidden; }
 
 .name-cell { font-weight: 700; }
 
+.channel-name-wrap { display: flex; align-items: center; gap: 10px; min-width: 220px; }
+.channel-logo-box { width: 64px; height: 36px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--border-light); flex: 0 0 auto; overflow: hidden; }
+.channel-logo-box img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
 .pill { display: inline-flex; align-items: center; justify-content: center; height: 22px; padding: 0 8px; border-radius: 999px; font-weight: 700; font-size: 12px; border: 1px solid; }
 .pill-blue { background: #dbeafe; color: #1e40af; border-color: #bfdbfe; }
 .pill-pink { background: #fce7f3; color: #be185d; border-color: #fbcfe8; }
@@ -80,19 +84,12 @@ html, body { overflow-x: hidden; }
 .mono { font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums; }
 
 /* Actions */
-.actions-row { display: flex; gap: 8px; justify-content: flex-end; }
-.btn-icon { width: 34px; height: 34px; border: 0; border-radius: 8px; color: #fff; cursor: pointer; font-weight: 700; }
-.btn-icon-stop { background: #dc2626; }
-.btn-icon-edit { background: #f59e0b; }
-.btn-icon-del { background: #dc2626; }
+.actions-row { display: flex; gap: 6px; justify-content: flex-end; }
 
-/* Dropdown */
-.dropdown { position: relative; display: inline-block; }
-.dropdown-btn { background: #fff; border: 1px solid rgba(0,0,0,.15); border-radius: 8px; padding: 8px 12px; cursor: pointer; font-weight: 600; }
-.dropdown-menu { position: absolute; right: 0; top: calc(100% + 6px); min-width: 200px; background: #fff; border: 1px solid rgba(0,0,0,.1); border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,.15); display: none; z-index: 50; }
-.dropdown-menu.active { display: block; }
-.dropdown-menu button { width: 100%; text-align: left; padding: 10px 12px; border: 0; background: #fff; cursor: pointer; font-weight: 500; font-size: 14px; }
-.dropdown-menu button:hover { background: #f3f4f6; }
+/* Dropdown (FOX) */
+.dropdown-item-btn { width: 100%; text-align: left; padding: 10px 14px; border: 0; background: #fff; cursor: pointer; font-weight: 500; font-size: 12px; color: #666; border-bottom: 1px solid var(--border-light); }
+.dropdown-item-btn:last-child { border-bottom: 0; }
+.dropdown-item-btn:hover { background: #f8f8f8; color: var(--fox-red); }
 </style>
 
 <!-- PAGE HEADER -->
@@ -219,7 +216,16 @@ html, body { overflow-x: hidden; }
           @endphp
 
           <tr>
-            <td class="name-cell">{{ $channel->name }}</td>
+            <td class="name-cell">
+              <div class="channel-name-wrap">
+                <span class="channel-logo-box" aria-hidden="true">
+                  @if(!empty($channel->logo_path))
+                    <img src="{{ route('vod-channels.logo.preview', $channel) }}?v={{ urlencode((string) optional($channel->updated_at)->timestamp) }}" alt="" loading="lazy" decoding="async" onerror="this.style.visibility='hidden'" />
+                  @endif
+                </span>
+                <span>{{ $channel->name }}</span>
+              </div>
+            </td>
             <td>
               <div class="pill-row">
                 <span class="pill pill-blue">{{ $videos->count() }}</span>
@@ -235,26 +241,27 @@ html, body { overflow-x: hidden; }
             <td class="mono">{{ $sizeStr }}</td>
             <td class="mono">{{ $hours }}h {{ $minutes }}m {{ $seconds }}s</td>
             <td>
-              <div class="dropdown">
-                <button class="dropdown-btn" onclick="toggleDropdown(this)">Actions ▼</button>
-                <div class="dropdown-menu">
-                  <button onclick="handleRowAction('create-video', {{ $channel->id }})">Create Video</button>
-                  <button onclick="handleRowAction('edit-playlist', {{ $channel->id }})">Edit Playlist ({{ $videos->count() }})</button>
-                  <button onclick="handleRowAction('edit-video-epg', {{ $channel->id }})">Edit Video Epg</button>
-                  <button onclick="handleRowAction('epg-link', {{ $channel->id }})">Channel Epg Link</button>
-                  <button onclick="handleRowAction('converted-videos', {{ $channel->id }})">Converted Videos</button>
-                  <button onclick="handleRowAction('send-message', {{ $channel->id }})">Send Message</button>
-                  <button onclick="handleRowAction('error-videos', {{ $channel->id }})">Error Videos</button>
+              <div class="fox-dropdown">
+                <button type="button" class="fox-dropdown-btn" onclick="toggleDropdown(this)">Actions ▼</button>
+                <div class="fox-dropdown-menu">
+                  <button type="button" class="dropdown-item-btn" onclick="handleRowAction('create-video', {{ $channel->id }})">Create Video</button>
+                  <button type="button" class="dropdown-item-btn" onclick="handleRowAction('edit-playlist', {{ $channel->id }})">Edit Playlist ({{ $videos->count() }})</button>
+                  <button type="button" class="dropdown-item-btn" onclick="handleRowAction('encoding', {{ $channel->id }})">Encoding / Import</button>
+                  <button type="button" class="dropdown-item-btn" onclick="handleRowAction('edit-video-epg', {{ $channel->id }})">Edit Video Epg</button>
+                  <button type="button" class="dropdown-item-btn" onclick="handleRowAction('epg-link', {{ $channel->id }})">Channel Epg Link</button>
+                  <button type="button" class="dropdown-item-btn" onclick="handleRowAction('converted-videos', {{ $channel->id }})">Converted Videos</button>
+                  <button type="button" class="dropdown-item-btn" onclick="handleRowAction('send-message', {{ $channel->id }})">Send Message</button>
+                  <button type="button" class="dropdown-item-btn" onclick="handleRowAction('error-videos', {{ $channel->id }})">Error Videos</button>
                 </div>
               </div>
             </td>
             <td>
               <div class="actions-row">
                 @if($channel->enabled)
-                  <button class="btn-icon btn-icon-stop" onclick="handleRowAction('stop', {{ $channel->id }})" title="Stop">⏹</button>
+                  <button type="button" class="fox-action-btn stop" onclick="handleRowAction('stop', {{ $channel->id }})" title="Stop">⏹</button>
                 @endif
-                <button class="btn-icon btn-icon-edit" onclick="handleRowAction('edit', {{ $channel->id }})" title="Edit">✎</button>
-                <button class="btn-icon btn-icon-del" onclick="handleRowAction('delete', {{ $channel->id }})" title="Delete">✕</button>
+                <button type="button" class="fox-action-btn edit" onclick="handleRowAction('edit', {{ $channel->id }})" title="Edit">✎</button>
+                <button type="button" class="fox-action-btn delete" onclick="handleRowAction('delete', {{ $channel->id }})" title="Delete">✕</button>
               </div>
             </td>
           </tr>
@@ -274,15 +281,15 @@ html, body { overflow-x: hidden; }
 <script>
 function toggleDropdown(btn) {
   const menu = btn.nextElementSibling;
-  document.querySelectorAll('.dropdown-menu').forEach(m => {
-    if (m !== menu) m.classList.remove('active');
+  document.querySelectorAll('.fox-dropdown-menu').forEach(m => {
+    if (m !== menu) m.classList.remove('is-open');
   });
-  menu.classList.toggle('active');
+  menu.classList.toggle('is-open');
 }
 
 document.addEventListener('click', function(e) {
-  if (!e.target.closest('.dropdown')) {
-    document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('active'));
+  if (!e.target.closest('.fox-dropdown')) {
+    document.querySelectorAll('.fox-dropdown-menu').forEach(m => m.classList.remove('is-open'));
   }
 });
 
@@ -314,18 +321,45 @@ function handleRowAction(action, id) {
       // TODO: POST /vod-channels/{id}/stop
       break;
     case 'edit':
-      // TODO: GET /vod-channels/{id}/edit
+      window.location = @json(url('/vod-channels')) + '/' + id + '/settings';
+      break;
+    case 'encoding':
+      window.location = @json(url('/vod-channels')) + '/' + id + '/encoding';
       break;
     case 'delete':
       if (confirm('Delete this channel?')) {
-        // TODO: DELETE /vod-channels/{id}
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        fetch(@json(url('/vod-channels')) + '/' + id, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: {
+            'X-CSRF-TOKEN': csrfToken,
+            'Accept': 'application/json',
+          },
+        })
+          .then(async (r) => {
+            if (r.ok) return { ok: true };
+            let payload = null;
+            try { payload = await r.json(); } catch (e) {}
+            return { ok: false, status: r.status, message: payload?.message };
+          })
+          .then((res) => {
+            if (res.ok) {
+              window.location.reload();
+              return;
+            }
+            alert('❌ Delete failed' + (res.message ? (': ' + res.message) : ''));
+          })
+          .catch((e) => {
+            alert('❌ Network error: ' + (e?.message || e));
+          });
       }
       break;
     case 'create-video':
       // TODO: GET /create-video/{id}
       break;
     case 'edit-playlist':
-      // TODO: GET /vod-channels/{id}/playlist
+      window.location = @json(url('/vod-channels')) + '/' + id + '/playlist';
       break;
     case 'edit-video-epg':
       // TODO: GET /vod-channels/{id}/video-epg

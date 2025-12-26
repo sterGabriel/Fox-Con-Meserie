@@ -13,6 +13,7 @@ class EncodingJob extends Model
         'playlist_item_id',
         'input_path',
         'output_path',
+        'settings',
         'status',
         'progress',
         'started_at',

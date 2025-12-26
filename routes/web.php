@@ -16,6 +16,7 @@ use App\Http\Controllers\Admin\CategoryScanController;
 use App\Http\Controllers\Api\VideoApiController;
 use App\Http\Controllers\Api\EncodingJobApiController;
 use App\Http\Controllers\Api\LiveChannelApiController;
+use App\Http\Controllers\Admin\TmdbSettingsController;
 
 // ROOT → redirect to dashboard
 Route::get('/', function () {
@@ -33,6 +34,32 @@ Route::get('/', function () {
 Route::get('/vod-channels/{channel}/logo-preview', [LiveChannelController::class, 'logoPreview'])
     ->name('vod-channels.logo.preview');
 
+// Master M3U8 playlist (all VOD channels) for external players / Xtream apps
+Route::get('/streams/all.m3u8', function () {
+    $domain = rtrim((string) config('app.streaming_domain', ''), '/');
+    if ($domain === '' || str_contains($domain, 'localhost')) {
+        $domain = rtrim((string) request()->getSchemeAndHttpHost(), '/');
+    }
+    $channels = \App\Models\LiveChannel::query()
+        ->orderBy('id')
+        ->get(['id', 'name']);
+
+    $out = "#EXTM3U\n";
+    foreach ($channels as $ch) {
+        $name = str_replace(["\n", "\r"], ' ', (string) $ch->name);
+        $url = $domain . "/streams/{$ch->id}/hls/stream.m3u8";
+        $out .= "#EXTINF:-1," . $name . "\n";
+        $out .= $url . "\n";
+    }
+
+    return response($out, 200, [
+        'Content-Type' => 'application/x-mpegURL; charset=utf-8',
+        'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+        'Pragma' => 'no-cache',
+        'Access-Control-Allow-Origin' => '*',
+    ]);
+});
+
 // Streaming outputs (TS + HLS)
 Route::get('/streams/{channel}/{file}', function ($channel, $file) {
     $path = storage_path("app/streams/{$channel}/{$file}");
@@ -40,7 +67,12 @@ Route::get('/streams/{channel}/{file}', function ($channel, $file) {
         $mime = 'application/octet-stream';
         if (str_ends_with($file, '.ts')) $mime = 'video/mp2t';
         if (str_ends_with($file, '.m3u8')) $mime = 'application/vnd.apple.mpegurl';
-        return response()->file($path, ['Content-Type' => $mime]);
+        return response()->file($path, [
+            'Content-Type' => $mime,
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+            'Access-Control-Allow-Origin' => '*',
+        ]);
     }
     abort(404);
 });
@@ -52,7 +84,12 @@ Route::get('/streams/{channel}/{subdir}/{file}', function ($channel, $subdir, $f
         $mime = 'application/octet-stream';
         if (str_ends_with($file, '.ts')) $mime = 'video/mp2t';
         if (str_ends_with($file, '.m3u8')) $mime = 'application/vnd.apple.mpegurl';
-        return response()->file($path, ['Content-Type' => $mime]);
+        return response()->file($path, [
+            'Content-Type' => $mime,
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+            'Access-Control-Allow-Origin' => '*',
+        ]);
     }
     abort(404);
 });
@@ -63,6 +100,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // DASHBOARD
     Route::get('/dashboard', [DashboardController::class, 'index'])
         ->name('dashboard');
+
+    // ───────────── FOX NAV PLACEHOLDERS (Spec parity) ─────────────
+    Route::view('/users', 'admin.fox.placeholder', ['title' => 'Users'])->name('fox.users');
+    Route::view('/fonts', 'admin.fox.placeholder', ['title' => 'Fonts'])->name('fox.fonts');
+    Route::view('/advertisements', 'admin.fox.placeholder', ['title' => 'Advertisements'])->name('fox.advertisements');
+    Route::view('/broadcast', 'admin.fox.placeholder', ['title' => 'Broadcast'])->name('fox.broadcast');
+
+    Route::view('/vod-radio-channels', 'admin.fox.placeholder', ['title' => 'Vod Radio Channels'])->name('fox.vod-radio-channels');
+    Route::view('/live-radio-channels', 'admin.fox.placeholder', ['title' => 'Live Radio Channels'])->name('fox.live-radio-channels');
+    Route::view('/live-channels', 'admin.fox.placeholder', ['title' => 'Live Channels'])->name('fox.live-channels');
+    Route::view('/youtube-video-channels', 'admin.fox.placeholder', ['title' => 'Youtube Video Channels'])->name('fox.youtube-video-channels');
+    Route::view('/youtube-live-channels', 'admin.fox.placeholder', ['title' => 'Youtube Live Channels'])->name('fox.youtube-live-channels');
+    Route::view('/codec-channels', 'admin.fox.placeholder', ['title' => 'Codec Channels'])->name('fox.codec-channels');
+    Route::view('/vod-movies', 'admin.fox.placeholder', ['title' => 'Vod Movies'])->name('fox.vod-movies');
+    Route::view('/series', 'admin.fox.placeholder', ['title' => 'Series'])->name('fox.series');
 
     // ───────────── VOD CHANNELS ─────────────
 
@@ -82,9 +134,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/vod-channels', [LiveChannelController::class, 'store'])
         ->name('vod-channels.store');
 
+    Route::delete('/vod-channels/{channel}', [LiveChannelController::class, 'destroy'])
+        ->name('vod-channels.destroy');
+
     // PLAYLIST - PROTECTED
     Route::get('/vod-channels/{channel}/playlist', [LiveChannelController::class, 'playlist'])
         ->name('vod-channels.playlist');
+
+    // Popup player (encoded TS)
+    Route::get('/vod-channels/{channel}/playlist/{item}/player', [LiveChannelController::class, 'playlistPlayer'])
+        ->name('vod-channels.playlist.player');
 
     Route::post('/vod-channels/{channel}/playlist', [LiveChannelController::class, 'addToPlaylist'])
         ->name('vod-channels.playlist.add');
@@ -108,6 +167,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/vod-channels/{channel}/settings', [LiveChannelController::class, 'settings'])
         ->name('vod-channels.settings');
 
+    // ENCODING / IMPORT - PROTECTED
+    Route::get('/vod-channels/{channel}/encoding', [LiveChannelController::class, 'encoding'])
+        ->name('vod-channels.encoding')
+        ->missing(function () {
+            return redirect()
+                ->route('vod-channels.index')
+                ->with('error', 'Canalul nu a fost găsit (posibil a fost șters).');
+        });
+
     Route::post('/vod-channels/{channel}/settings', [LiveChannelController::class, 'updateSettings'])
         ->name('vod-channels.settings.update');
 
@@ -128,6 +196,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/vod-channels/{channel}/engine/test-preview', [LiveChannelController::class, 'testPreview'])
         ->name('vod-channels.engine.test-preview');
 
+    Route::post('/vod-channels/{channel}/engine/test-encode', [LiveChannelController::class, 'testEncode'])
+        ->name('vod-channels.engine.test-encode');
+
+    Route::post('/vod-channels/{channel}/engine/delete-test', [LiveChannelController::class, 'deleteTestOutput'])
+        ->name('vod-channels.engine.delete-test');
+
     Route::get('/vod-channels/{channel}/engine/outputs', [LiveChannelController::class, 'outputStreams'])
         ->name('vod-channels.engine.outputs');
 
@@ -139,6 +213,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('/vod-channels/{channel}/engine/encoding-jobs', [LiveChannelController::class, 'getEncodingJobs'])
         ->name('vod-channels.engine.encoding-jobs');
+
+    Route::post('/vod-channels/{channel}/engine/encoding-jobs/{job}/cancel', [LiveChannelController::class, 'cancelEncodingJob'])
+        ->name('vod-channels.engine.encoding-jobs.cancel');
 
     Route::get('/vod-channels/{channel}/engine/check-encoded', [LiveChannelController::class, 'checkEncodedFiles'])
         ->name('vod-channels.engine.check-encoded');
@@ -152,6 +229,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('vod-channels.sync-playlist-from-category');
 
     // ───────────── VIDEO CATEGORIES ─────────────
+    // Compatibility redirects (old URLs)
+    Route::redirect('/category', '/video-categories', 302)->name('category.redirect');
+    Route::redirect('/categories', '/video-categories', 302);
+    Route::redirect('/video_categories', '/video-categories', 302);
+
     Route::get('/video-categories', [VideoCategoryController::class, 'index'])
         ->name('video-categories.index');
 
@@ -176,6 +258,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::post('/video-categories/preview', [FileBrowserController::class, 'generatePreview'])
         ->name('video-categories.preview');
+
+    // ───────────── CATEGORY SCAN (FOX) ─────────────
+    Route::get('/video-categories/{category}/scan', [CategoryScanController::class, 'showCategory'])
+        ->name('admin.video_categories.scan');
+
+    Route::post('/video-categories/{category}/scan', [CategoryScanController::class, 'scan'])
+        ->name('admin.video_categories.scan.run');
+
+    Route::post('/video-categories/{category}/scan/import', [CategoryScanController::class, 'import'])
+        ->name('admin.video_categories.scan.import');
+
+    Route::post('/video-categories/{category}/scan/delete-file', [CategoryScanController::class, 'deleteFile'])
+        ->name('admin.video_categories.scan.delete-file');
     // ───────────── VIDEO LIBRARY ─────────────
     Route::get('/videos', [VideoController::class, 'index'])
         ->name('videos.index');
@@ -201,6 +296,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // FFPROBE - Get video metadata
     Route::get('/videos/{video}/probe', [VideoController::class, 'probe'])
         ->name('videos.probe');
+
+    // PLAY - Stream original video file (auth protected)
+    Route::get('/videos/{video}/play', [VideoController::class, 'play'])
+        ->name('videos.play');
 
     // ───────────── ENCODING QUEUE ─────────────
 
@@ -248,6 +347,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
+    // SETTINGS
+    Route::get('/settings/tmdb', [TmdbSettingsController::class, 'edit'])
+        ->name('settings.tmdb');
+    Route::post('/settings/tmdb', [TmdbSettingsController::class, 'update'])
+        ->name('settings.tmdb.update');
+
     // ═══════════════════════════════════════════════════════════════
     // CREATE VIDEO API ENDPOINTS (NEW)
     // ═══════════════════════════════════════════════════════════════
@@ -255,6 +360,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Get videos by category
     Route::get('/api/videos', [VideoApiController::class, 'index'])
         ->name('api.videos.index');
+
+    Route::post('/api/videos/probe', [VideoApiController::class, 'probe'])
+        ->name('api.videos.probe');
+
+    Route::post('/api/videos/tmdb-scan', [VideoApiController::class, 'tmdbScan'])
+        ->name('api.videos.tmdb-scan');
 
     // Delete video
     Route::delete('/api/videos/{video}', [VideoApiController::class, 'destroy'])
