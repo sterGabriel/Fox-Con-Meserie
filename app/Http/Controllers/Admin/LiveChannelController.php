@@ -939,6 +939,16 @@ class LiveChannelController extends Controller
         try {
             $engine = new \App\Services\ChannelEngineService($channel);
 
+            // Strong duplicate protection: detect ffmpeg already writing into this channel output dir.
+            $detectedPid = $engine->detectRunningFfmpegPid();
+            if ($detectedPid) {
+                $channel->update(['encoder_pid' => $detectedPid, 'status' => 'live']);
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Channel is already running (detected ffmpeg PID ' . $detectedPid . ')'
+                ], 400);
+            }
+
             // Check if already running
             if ($engine->isRunning($channel->encoder_pid)) {
                 return response()->json([
@@ -1637,6 +1647,16 @@ class LiveChannelController extends Controller
     {
         try {
             $engine = new \App\Services\ChannelEngineService($channel);
+
+            // Strong duplicate protection: detect ffmpeg already writing into this channel output dir.
+            $detectedPid = $engine->detectRunningFfmpegPid();
+            if ($detectedPid) {
+                $channel->update(['encoder_pid' => $detectedPid, 'status' => 'live']);
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Channel already running (detected ffmpeg PID ' . $detectedPid . ')',
+                ], 409);
+            }
 
             // Check if already running
             if ($engine->isRunning($channel->encoder_pid)) {

@@ -41,6 +41,71 @@ class ChannelEngineService
         @mkdir(dirname($this->pidFile), 0755, true);
     }
 
+    /**
+     * Detect a running ffmpeg process for this channel by scanning the process list.
+     * This is used to prevent duplicate ffmpeg instances when PID tracking is stale
+     * (e.g. after reboot or when the process is owned by a different user).
+     */
+    public function detectRunningFfmpegPid(): ?int
+    {
+        try {
+            $p = new Process(['ps', '-eo', 'pid=,args=']);
+            $p->setTimeout(2);
+            $p->run();
+
+            if (!$p->isSuccessful()) {
+                return null;
+            }
+
+            $needle = $this->outputDir;
+            $lines = preg_split('/\r?\n/', (string) $p->getOutput()) ?: [];
+            foreach ($lines as $line) {
+                $line = trim($line);
+                if ($line === '') continue;
+                if (stripos($line, 'ffmpeg') === false) continue;
+                if (strpos($line, $needle) === false) continue;
+
+                // Expected forms include output to stream.ts or hls/stream.m3u8, or input FIFO.
+                if (
+                    strpos($line, $needle . '/stream.ts') === false
+                    && strpos($line, $needle . '/hls/stream.m3u8') === false
+                    && strpos($line, $needle . '/play_stream.fifo') === false
+                ) {
+                    continue;
+                }
+
+                if (preg_match('/^(\d+)\s+/', $line, $m)) {
+                    $pid = (int) $m[1];
+                    if ($pid > 1) {
+                        return $pid;
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        return null;
+    }
+
+    protected function syncDetectedPidToChannel(?int $pid): void
+    {
+        if (!$pid || $pid <= 1) {
+            return;
+        }
+
+        if ((int) ($this->channel->encoder_pid ?? 0) !== $pid) {
+            try {
+                $this->channel->update([
+                    'encoder_pid' => $pid,
+                    'status' => 'live',
+                ]);
+            } catch (\Throwable $e) {
+                // ignore
+            }
+        }
+    }
+
     protected function playlistFifoPath(): string
     {
         return $this->outputDir . '/play_playlist.fifo';
@@ -150,9 +215,19 @@ class ChannelEngineService
     public function start(string $ffmpegCommand): array
     {
         try {
-            // Check if already running
-            if ($this->isRunning()) {
+            // Check if already running (PID file, stored PID, or detected ffmpeg writing into this channel output dir)
+            $storedPid = (int) ($this->channel->encoder_pid ?? 0);
+            if ($this->isRunning() || ($storedPid > 1 && $this->isRunning($storedPid))) {
                 return ['status' => 'error', 'message' => 'Channel already running'];
+            }
+
+            $detectedPid = $this->detectRunningFfmpegPid();
+            if ($detectedPid) {
+                $this->syncDetectedPidToChannel($detectedPid);
+                return [
+                    'status' => 'error',
+                    'message' => 'Channel already running (detected ffmpeg PID ' . $detectedPid . ')',
+                ];
             }
 
             // Create encoding job record
@@ -436,7 +511,23 @@ class ChannelEngineService
         }
 
         // Check if process exists
-        return posix_getpid() === $pid || posix_kill($pid, 0);
+        if (posix_getpid() === $pid) {
+            return true;
+        }
+
+        $ok = @posix_kill($pid, 0);
+        if ($ok) {
+            return true;
+        }
+
+        // If we don't have permission to signal the process, it still exists.
+        // This prevents false negatives that lead to duplicate ffmpeg instances.
+        $err = function_exists('posix_get_last_error') ? (int) @posix_get_last_error() : 0;
+        if ($err === 1 /* EPERM */) {
+            return true;
+        }
+
+        return false;
     }
 
     /**

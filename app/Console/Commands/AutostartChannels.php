@@ -48,7 +48,17 @@ class AutostartChannels extends Command
 
         foreach ($channels as $channel) {
             $engine = new ChannelEngineService($channel);
-            $isRunning = $engine->isRunning($channel->encoder_pid);
+
+            // Detect running ffmpeg even if encoder_pid is missing/stale (or signal permission is denied).
+            $detectedPid = $engine->detectRunningFfmpegPid();
+            if ($detectedPid) {
+                $channel->update([
+                    'encoder_pid' => $detectedPid,
+                    'status' => 'live',
+                ]);
+            }
+
+            $isRunning = $detectedPid ? true : $engine->isRunning($channel->encoder_pid);
 
             if ($onlyMissing && $isRunning) {
                 $this->line("SKIP #{$channel->id} {$channel->name} (already running)");
