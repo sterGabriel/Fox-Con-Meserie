@@ -10,3 +10,6 @@ Artisan::command('inspire', function () {
 
 // Automatic metadata sync (keeps playlist fields up to date)
 Schedule::command('videos:sync-metadata')->hourly();
+
+// Keep encoding queue progressing automatically (marks completed jobs and starts next queued per channel).
+Schedule::command('encoding:monitor')->everyMinute();

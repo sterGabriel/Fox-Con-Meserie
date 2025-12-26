@@ -4,6 +4,8 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use App\Models\EncodingJob;
+use App\Models\LiveChannel;
+use App\Services\EncodingService;
 use Carbon\Carbon;
 
 class MonitorEncodingJobs extends Command
@@ -13,35 +15,184 @@ class MonitorEncodingJobs extends Command
 
     public function handle()
     {
-        // Get all running jobs
-        $jobs = EncodingJob::where('status', 'running')->get();
+        $now = Carbon::now();
+
+        $isPidAlive = function ($pid): bool {
+            $p = (int) ($pid ?? 0);
+            if ($p <= 0) return false;
+            if (function_exists('posix_kill')) {
+                return @posix_kill($p, 0);
+            }
+            return is_dir('/proc/' . $p);
+        };
+
+        $parseProgressFile = function (?string $path): array {
+            $out = ['progress' => null];
+            $p = trim((string) ($path ?? ''));
+            if ($p === '' || !is_file($p)) return $out;
+            $data = @file_get_contents($p);
+            if (!is_string($data) || $data === '') return $out;
+            if (preg_match_all('/^progress=([^\r\n]+)$/m', $data, $m) && !empty($m[1])) {
+                $out['progress'] = (string) end($m[1]);
+            }
+            return $out;
+        };
+
+        // 1) Mark running jobs done/failed when appropriate.
+        $jobs = EncodingJob::query()->where('status', 'running')->get();
+        $touchedChannelIds = [];
 
         foreach ($jobs as $job) {
-            // Check if output file exists and has content
-            if (file_exists($job->output_path)) {
-                $fileSize = filesize($job->output_path);
-                
-                // If file is > 1MB, likely encoding completed
-                if ($fileSize > 1048576) {
-                    // Mark as done
-                    $job->update([
-                        'status' => 'done',
-                        'completed_at' => Carbon::now(),
-                        'progress' => 100,
-                    ]);
-                    
-                    $this->info("✅ Job {$job->id} completed - {$fileSize} bytes");
+            $channelId = (int) ($job->live_channel_id ?? $job->channel_id ?? 0);
+            if ($channelId > 0) {
+                $touchedChannelIds[$channelId] = true;
+            }
+
+            $outputPath = (string) ($job->output_path ?? '');
+            $hasOutput = $outputPath !== '' && is_file($outputPath);
+            $fileSize = $hasOutput ? ((int) @filesize($outputPath)) : 0;
+
+            $pid = (int) ($job->pid ?? 0);
+            $alive = $isPidAlive($pid);
+
+            $settings = $job->settings;
+            if (!is_array($settings)) $settings = [];
+            $progressFile = $settings['_progress_file'] ?? null;
+            $progressMeta = $parseProgressFile(is_string($progressFile) ? $progressFile : null);
+            $ffmpegEnded = ($progressMeta['progress'] === 'end');
+
+            // Completed:
+            // - ffmpeg progress indicates end and output exists, OR
+            // - process is dead and output exists (and is non-trivial)
+            if (($ffmpegEnded && $hasOutput) || (!$alive && $hasOutput && $fileSize > 1048576)) {
+                $job->update([
+                    'status' => 'done',
+                    'progress' => 100,
+                    'finished_at' => $now,
+                    'completed_at' => $now,
+                    'error_message' => null,
+                ]);
+
+                $this->info("✅ Job {$job->id} completed" . ($hasOutput ? " - {$fileSize} bytes" : ''));
+                continue;
+            }
+
+            // Failed:
+            // - process is dead and output missing, or
+            // - output missing for too long after start
+            if (!$alive && !$hasOutput && $job->started_at) {
+                $job->update([
+                    'status' => 'failed',
+                    'error_message' => 'FFmpeg exited without producing output',
+                    'finished_at' => $now,
+                    'completed_at' => $now,
+                ]);
+                $this->error("❌ Job {$job->id} failed (no output) ");
+                continue;
+            }
+
+            if (!$hasOutput && $job->started_at && $job->started_at->diffInMinutes($now) > 10) {
+                $job->update([
+                    'status' => 'failed',
+                    'error_message' => 'Output file not created within 10 minutes',
+                    'finished_at' => $now,
+                    'completed_at' => $now,
+                ]);
+                $this->error("❌ Job {$job->id} timed out");
+                continue;
+            }
+        }
+
+        // 2) Start the next queued job for channels that are idle.
+        $channelIdsWithQueued = EncodingJob::query()
+            ->where('status', 'queued')
+            ->where('video_id', '>', 0)
+            ->whereNotNull('playlist_item_id')
+            ->where('playlist_item_id', '>', 0)
+            ->pluck('live_channel_id')
+            ->filter(fn ($v) => (int) $v > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        foreach ($channelIdsWithQueued as $channelId) {
+            $touchedChannelIds[(int) $channelId] = true;
+        }
+
+        foreach (array_keys($touchedChannelIds) as $channelId) {
+            $channelId = (int) $channelId;
+            if ($channelId <= 0) continue;
+
+            $claimed = null;
+
+            \DB::transaction(function () use ($channelId, $now, &$claimed) {
+                $scope = function ($q) use ($channelId) {
+                    return $q->where(function ($qq) use ($channelId) {
+                        $qq->where('encoding_jobs.live_channel_id', $channelId)
+                           ->orWhere('encoding_jobs.channel_id', $channelId);
+                    })
+                    ->where('encoding_jobs.video_id', '>', 0)
+                    ->whereNotNull('encoding_jobs.playlist_item_id')
+                    ->where('encoding_jobs.playlist_item_id', '>', 0);
+                };
+
+                $hasRunning = $scope(EncodingJob::query())
+                    ->where('encoding_jobs.status', 'running')
+                    ->lockForUpdate()
+                    ->exists();
+
+                if ($hasRunning) {
+                    $claimed = null;
+                    return;
                 }
-            } else {
-                // File doesn't exist - check if process crashed
-                // Mark as failed if no progress in 5 minutes
-                if ($job->started_at && $job->started_at->diffInMinutes(Carbon::now()) > 5) {
-                    $job->update([
+
+                $next = $scope(EncodingJob::query())
+                    ->where('encoding_jobs.status', 'queued')
+                    ->leftJoin('playlist_items', 'encoding_jobs.playlist_item_id', '=', 'playlist_items.id')
+                    ->orderByRaw('COALESCE(playlist_items.sort_order, 2147483647) asc')
+                    ->orderBy('encoding_jobs.created_at')
+                    ->select('encoding_jobs.*')
+                    ->lockForUpdate()
+                    ->first();
+
+                if (!$next) {
+                    $claimed = null;
+                    return;
+                }
+
+                $next->update([
+                    'status' => 'running',
+                    'started_at' => $now,
+                    'pid' => null,
+                    'error_message' => null,
+                ]);
+
+                $claimed = $next;
+            });
+
+            if ($claimed) {
+                $channel = LiveChannel::query()->whereKey($channelId)->first();
+                if (!$channel) {
+                    $claimed->update([
                         'status' => 'failed',
-                        'error_message' => 'Output file not created within 5 minutes',
+                        'error_message' => 'Missing channel',
+                        'finished_at' => $now,
+                        'completed_at' => $now,
                     ]);
-                    
-                    $this->error("❌ Job {$job->id} timed out");
+                    continue;
+                }
+
+                try {
+                    (new EncodingService($claimed, $channel))->startAsync();
+                    $this->info("▶️ Started next queued job #{$claimed->id} for channel {$channelId}");
+                } catch (\Throwable $e) {
+                    $claimed->update([
+                        'status' => 'failed',
+                        'error_message' => $e->getMessage(),
+                        'finished_at' => $now,
+                        'completed_at' => $now,
+                    ]);
+                    $this->error("❌ Failed starting job #{$claimed->id}: {$e->getMessage()}");
                 }
             }
         }

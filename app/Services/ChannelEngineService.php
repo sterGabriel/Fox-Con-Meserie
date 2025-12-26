@@ -26,6 +26,7 @@ class ChannelEngineService
     protected string $logPath;
     protected string $pidFile;
     protected string $outputDir;
+    protected string $feederPidFile;
 
     public function __construct(LiveChannel $channel)
     {
@@ -33,10 +34,113 @@ class ChannelEngineService
         $this->outputDir = storage_path("app/streams/{$channel->id}");
         $this->logPath = storage_path("logs/channel_{$channel->id}.log");
         $this->pidFile = storage_path("app/pids/{$channel->id}.pid");
+        $this->feederPidFile = storage_path("app/pids/{$channel->id}.feeder.pid");
         
         // Ensure directories exist
         @mkdir($this->outputDir, 0755, true);
         @mkdir(dirname($this->pidFile), 0755, true);
+    }
+
+    protected function playlistFifoPath(): string
+    {
+        return $this->outputDir . '/play_playlist.fifo';
+    }
+
+    protected function streamFifoPath(): string
+    {
+        return $this->outputDir . '/play_stream.fifo';
+    }
+
+    protected function ensureStreamFifo(): string
+    {
+        $fifo = $this->streamFifoPath();
+
+        if (file_exists($fifo) && !@is_link($fifo) && !@is_dir($fifo)) {
+            $type = @filetype($fifo);
+            if ($type !== 'fifo') {
+                @unlink($fifo);
+            }
+        }
+
+        $type = file_exists($fifo) ? @filetype($fifo) : null;
+        if ($type !== 'fifo') {
+            if (function_exists('posix_mkfifo')) {
+                @posix_mkfifo($fifo, 0644);
+            } else {
+                try {
+                    $p = new Process(['mkfifo', $fifo]);
+                    $p->setTimeout(2);
+                    $p->run();
+                } catch (\Throwable $e) {
+                    // ignore
+                }
+            }
+        }
+
+        if (!file_exists($fifo) || @filetype($fifo) !== 'fifo') {
+            throw new \RuntimeException('Failed to create stream FIFO: ' . $fifo);
+        }
+
+        return $fifo;
+    }
+
+    protected function ensurePlaylistFifo(): string
+    {
+        $fifo = $this->playlistFifoPath();
+
+        // If a regular file exists at this path, remove it.
+        if (file_exists($fifo) && !@is_link($fifo) && !@is_dir($fifo)) {
+            $type = @filetype($fifo);
+            if ($type !== 'fifo') {
+                @unlink($fifo);
+            }
+        }
+
+        $type = file_exists($fifo) ? @filetype($fifo) : null;
+        if ($type !== 'fifo') {
+            // Create FIFO (named pipe)
+            if (function_exists('posix_mkfifo')) {
+                @posix_mkfifo($fifo, 0644);
+            } else {
+                try {
+                    $p = new Process(['mkfifo', $fifo]);
+                    $p->setTimeout(2);
+                    $p->run();
+                } catch (\Throwable $e) {
+                    // ignore
+                }
+            }
+        }
+
+        if (!file_exists($fifo) || @filetype($fifo) !== 'fifo') {
+            throw new \RuntimeException('Failed to create playlist FIFO: ' . $fifo);
+        }
+
+        return $fifo;
+    }
+
+    protected function startPlaylistFeeder(): ?int
+    {
+        // Start feeder only if stream FIFO exists.
+        $fifo = $this->streamFifoPath();
+        if (!file_exists($fifo) || @filetype($fifo) !== 'fifo') {
+            return null;
+        }
+
+        $cmd = 'php ' . escapeshellarg(base_path('artisan')) . ' channel:feed-stream ' . (int) $this->channel->id;
+        $launch = "nohup {$cmd} >> " . escapeshellarg($this->logPath) . " 2>&1 < /dev/null & echo $!";
+        $p = Process::fromShellCommandline($launch);
+        $p->setTimeout(5);
+        $p->run();
+        $pid = (int) trim((string) $p->getOutput());
+
+        if ($pid > 1 && $this->isRunning($pid)) {
+            @file_put_contents($this->feederPidFile, (string) $pid);
+            $this->appendLog("[System] Stream feeder started (PID {$pid})\n");
+            return $pid;
+        }
+
+        return null;
     }
 
     /**
@@ -101,6 +205,14 @@ class ChannelEngineService
             // Save PID
             $this->savePid($pidNow);
 
+            // If this channel is started in FIFO playlist mode, start the feeder.
+            // This enables appending new TS-ready items without restarting FFmpeg.
+            try {
+                $this->startPlaylistFeeder();
+            } catch (\Throwable $e) {
+                $this->appendLog('[System] Playlist feeder failed: ' . $e->getMessage() . "\n");
+            }
+
             // Update job
             $job->update([
                 'status' => 'running',
@@ -142,6 +254,20 @@ class ChannelEngineService
     public function stop(): array
     {
         try {
+            // Stop feeder first (so it doesn't keep the FIFO open).
+            $feederPid = null;
+            if (is_file($this->feederPidFile)) {
+                $feederPid = (int) trim((string) @file_get_contents($this->feederPidFile));
+            }
+            if ($feederPid && $this->isRunning($feederPid)) {
+                @posix_kill($feederPid, SIGTERM);
+                usleep(200000);
+                if ($this->isRunning($feederPid)) {
+                    @posix_kill($feederPid, SIGKILL);
+                }
+            }
+            @unlink($this->feederPidFile);
+
             $pid = $this->readPid();
 
             // Fallback: if pidfile is stale (shell wrapper exited), try the PID stored on the channel.
@@ -249,6 +375,53 @@ class ChannelEngineService
                 'message' => $e->getMessage(),
             ];
         }
+    }
+
+    /**
+     * Generate a FIFO-based play command.
+     * The FIFO is fed by `channel:feed-playlist` in an infinite loop.
+     * This allows new TS-ready items to be appended without stopping the channel.
+     */
+    public function generatePlayCommandFromFilesFifo(bool $includeOverlay = false): string
+    {
+        $outputDir = $this->outputDir;
+
+        // Ensure stream FIFO exists.
+        $fifoPath = $this->ensureStreamFifo();
+
+        $tsOutput = "{$outputDir}/stream.ts";
+
+        $cmd = [
+            'ffmpeg',
+            '-nostdin',
+            '-y',
+            '-re',
+            '-i', escapeshellarg($fifoPath),
+        ];
+
+        // No re-encoding - just copy streams
+        $cmd = array_merge($cmd, ['-c:v', 'copy', '-c:a', 'copy']);
+
+        // Output 1: MPEGTS stream
+        $cmd = array_merge($cmd, [
+            '-f', 'mpegts',
+            '-muxdelay', '0.1',
+            '-muxpreload', '0.1',
+            escapeshellarg($tsOutput),
+        ]);
+
+        // Output 2: HLS
+        @mkdir("{$outputDir}/hls", 0755, true);
+        $cmd = array_merge($cmd, [
+            '-f', 'hls',
+            '-hls_time', '10',
+            '-hls_list_size', '6',
+            '-hls_flags', 'delete_segments',
+            '-start_number', '0',
+            escapeshellarg("{$outputDir}/hls/stream.m3u8"),
+        ]);
+
+        return implode(' ', $cmd);
     }
 
     /**

@@ -1668,7 +1668,9 @@ class LiveChannelController extends Controller
             }
 
             if (!empty($encodedPaths)) {
-                $ffmpegCommand = $engine->generatePlayCommandFromFiles($encodedPaths, loop: true);
+                // FIFO playlist mode: do not stop channel; feeder will append new TS-ready items
+                // at the end of each cycle.
+                $ffmpegCommand = $engine->generatePlayCommandFromFilesFifo();
             } else {
                 if ($request->expectsJson()) {
                     return response()->json([
