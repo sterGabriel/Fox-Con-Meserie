@@ -1,0 +1,28 @@
+[Unit]
+Description=IPTV Panel - Laravel Queue Worker (queue:work)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/var/www/iptv-panel
+# IMPORTANT: change User/Group if your deployment uses a different account
+User=www-data
+Group=www-data
+
+# NOTE: queue:work is optional for the TS encoding flow (we start ffmpeg directly),
+# but recommended if you use any Laravel queued jobs.
+ExecStart=/usr/bin/php8.4 artisan queue:work --sleep=1 --tries=1 --timeout=0
+Restart=always
+RestartSec=2
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/www/iptv-panel/storage /var/www/iptv-panel/bootstrap/cache
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

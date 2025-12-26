@@ -1,0 +1,28 @@
+[Unit]
+Description=IPTV Panel - Laravel Scheduler (schedule:work)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/var/www/iptv-panel
+# IMPORTANT: change User/Group if your deployment uses a different account
+User=www-data
+Group=www-data
+
+ExecStart=/usr/bin/php8.4 artisan schedule:work
+Restart=always
+RestartSec=2
+
+# Optional hardening (safe defaults)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/www/iptv-panel/storage /var/www/iptv-panel/bootstrap/cache
+
+# Logs go to journald (view with: journalctl -u iptv-panel-schedule -f)
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
