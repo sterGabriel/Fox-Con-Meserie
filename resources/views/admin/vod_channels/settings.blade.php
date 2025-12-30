@@ -236,14 +236,14 @@ ffmpeg -re -i input.mp4 ... (loading)
                 <div>
                     <label class="block text-sm font-semibold text-slate-300 mb-2">📤 Encoded Output Path</label>
                     <input type="text" name="encoded_output_path"
-                           value="{{ old('encoded_output_path', $channel->encoded_output_path ?? '/home/encoded/channel-'.$channel->id) }}"
+                           value="{{ old('encoded_output_path', $channel->encoded_output_path ?? storage_path('app/encoded/channel-'.$channel->id)) }}"
                            class="w-full px-4 py-2 rounded-xl border border-slate-500/20 bg-slate-950/30 focus:border-blue-400 text-slate-200 font-mono text-xs focus:outline-none transition-all focus:ring-2 focus:ring-blue-500/20">
                 </div>
 
                 <div>
                     <label class="block text-sm font-semibold text-slate-300 mb-2">📤 HLS Output Path</label>
                     <input type="text" name="hls_output_path"
-                           value="{{ old('hls_output_path', $channel->hls_output_path ?? '/home/hls/channel-'.$channel->id) }}"
+                           value="{{ old('hls_output_path', $channel->hls_output_path ?? storage_path('app/hls/channel-'.$channel->id)) }}"
                            class="w-full px-4 py-2 rounded-xl border border-slate-500/20 bg-slate-950/30 focus:border-blue-400 text-slate-200 font-mono text-xs focus:outline-none transition-all focus:ring-2 focus:ring-blue-500/20">
                 </div>
             </div>

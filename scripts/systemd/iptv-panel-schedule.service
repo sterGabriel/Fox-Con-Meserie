@@ -5,7 +5,7 @@ After=network.target redis-server.service
 
 [Service]
 Type=simple
-WorkingDirectory=/var/www/iptv-panel
+WorkingDirectory=__IPTV_PANEL_DIR__
 # IMPORTANT: change User/Group if your deployment uses a different account
 User=www-data
 Group=www-data
@@ -18,8 +18,9 @@ RestartSec=2
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
-ProtectHome=true
-ReadWritePaths=/var/www/iptv-panel/storage /var/www/iptv-panel/bootstrap/cache
+# NOTE: ProtectHome=true can block access when the project is under a user home directory.
+ProtectHome=false
+ReadWritePaths=__IPTV_PANEL_DIR__/storage __IPTV_PANEL_DIR__/bootstrap/cache
 
 # Logs go to journald (view with: journalctl -u iptv-panel-schedule -f)
 StandardOutput=journal

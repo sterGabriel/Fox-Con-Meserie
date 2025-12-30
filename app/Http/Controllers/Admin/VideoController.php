@@ -17,16 +17,16 @@ class VideoController extends Controller
      * VIDEO LIBRARY
      *
      * - când intri pe /videos:
-     *   1. scanează /home/videos pentru fișiere .mp4
+     *   1. scanează directorul configurat (env: IPTV_VIDEO_DIR) pentru fișiere .mp4
      *   2. pentru fiecare fișier care NU există în DB, îl adaugă automat
      *   3. apoi afișează lista de video-uri din tabelul `videos`
      */
     public function index()
     {
-        $videoDir = '/home/videos';
+        $videoDir = rtrim(env('IPTV_VIDEO_DIR', storage_path('app/videos')), '/');
 
         if (is_dir($videoDir)) {
-            // toate fișierele .mp4 din /home/videos
+            // toate fișierele .mp4 din director
             $files = glob($videoDir . '/*.mp4');
 
             foreach ($files as $path) {

@@ -206,6 +206,38 @@ class EncodingService
             if ($mAudioBitrate > 0) $audioBitrateK = $mAudioBitrate;
         }
 
+        // Per-job UI keys (Create Video page) compatibility
+        // If user provided these keys, treat them as manual overrides even if flags are missing.
+        $uiCodec = (string) $this->setting('encoder', '');
+        if ($uiCodec !== '') {
+            $videoCodec = $uiCodec;
+        }
+        $uiPreset = (string) $this->setting('preset', '');
+        if ($uiPreset !== '') {
+            $preset = $uiPreset;
+        }
+        $uiBitrate = (int) $this->setting('video_bitrate', 0);
+        if ($uiBitrate > 0) {
+            $videoBitrateK = $uiBitrate;
+            $maxrateK = max($maxrateK, (int) round($videoBitrateK * 1.25));
+            $bufsizeK = max($bufsizeK, (int) round($videoBitrateK * 2.5));
+        }
+        $uiAudioBitrate = (int) $this->setting('audio_bitrate', 0);
+        if ($uiAudioBitrate > 0) {
+            $audioBitrateK = $uiAudioBitrate;
+        }
+
+        $tune = trim((string) $this->setting('manual_tune', (string) $this->setting('tune', '')));
+        $fpsRaw = trim((string) $this->setting('manual_fps', (string) $this->setting('frame_rate', '')));
+        $fps = (int) $fpsRaw;
+        if ($fps < 0) $fps = 0;
+
+        $crfMode = strtolower(trim((string) $this->setting('crf_mode', '')));
+        $crfEnabled = $this->settingBool('manual_crf_enabled', false) || in_array($crfMode, ['manual', 'enabled', 'crf'], true);
+        $crf = (int) $this->setting('manual_crf', (int) $this->setting('crf_value', 23));
+        if ($crf < 0) $crf = 0;
+        if ($crf > 51) $crf = 51;
+
         // Build filter complex for overlay
         $filterComplex = $this->buildFilterComplex();
 
@@ -248,17 +280,44 @@ class EncodingService
         }
 
         // Encoding settings
-        $cmd = array_merge($cmd, [
+        $videoArgs = [
             '-c:v', $videoCodec,
             '-preset', $preset,
-            '-b:v', $videoBitrateK . 'k',
-            '-maxrate', $maxrateK . 'k',
-            '-bufsize', $bufsizeK . 'k',
+        ];
+
+        // Tune (use only for libx264 to avoid codec-specific incompatibilities)
+        if ($tune !== '' && $videoCodec === 'libx264') {
+            $videoArgs = array_merge($videoArgs, ['-tune', $tune]);
+        }
+
+        // FPS override
+        if ($fps > 0) {
+            $videoArgs = array_merge($videoArgs, ['-r', (string) $fps]);
+        }
+
+        // CRF or bitrate
+        if ($crfEnabled) {
+            $videoArgs = array_merge($videoArgs, [
+                '-crf', (string) $crf,
+                '-maxrate', $maxrateK . 'k',
+                '-bufsize', $bufsizeK . 'k',
+            ]);
+        } else {
+            $videoArgs = array_merge($videoArgs, [
+                '-b:v', $videoBitrateK . 'k',
+                '-maxrate', $maxrateK . 'k',
+                '-bufsize', $bufsizeK . 'k',
+            ]);
+        }
+
+        $audioArgs = [
             '-c:a', $audioCodec,
             '-b:a', $audioBitrateK . 'k',
             '-ar', $audioRate,
             '-ac', $audioChannels,
-        ]);
+        ];
+
+        $cmd = array_merge($cmd, $videoArgs, $audioArgs);
 
         // Output container
         if ($outputContainer === 'mp4') {
@@ -344,6 +403,20 @@ class EncodingService
             $logoH = (int) $this->setting('overlay_logo_height', (int) ($this->channel->overlay_logo_height ?? ($this->channel->logo_height ?? 100)));
             $logoX = (int) $this->setting('overlay_logo_x', (int) ($this->channel->overlay_logo_x ?? ($this->channel->logo_position_x ?? 20)));
             $logoY = (int) $this->setting('overlay_logo_y', (int) ($this->channel->overlay_logo_y ?? ($this->channel->logo_position_y ?? 20)));
+            $logoPos = strtoupper(trim((string) $this->setting('overlay_logo_position', (string) ($this->channel->overlay_logo_position ?? ($this->channel->logo_position ?? 'TL')))));
+            if ($logoPos === '') $logoPos = 'TL';
+            if (strlen($logoPos) === 2 && ctype_alpha($logoPos)) {
+                $logoPos = strtoupper($logoPos);
+            }
+            if (!in_array($logoPos, ['TL','TR','BL','BR','CUSTOM'], true)) {
+                // Accept legacy lowercase tl/tr/bl/br
+                $logoPos = strtoupper($logoPos);
+                if (in_array($logoPos, ['TL','TR','BL','BR'], true) === false) {
+                    $logoPos = 'TL';
+                }
+            }
+            if ($logoX < 0) $logoX = 0;
+            if ($logoY < 0) $logoY = 0;
 
             // overlay_logo_path este de obicei o cale relativă pe disk-ul local.
             // FFmpeg (movie=) are nevoie de o cale reală pe filesystem.
@@ -374,7 +447,29 @@ class EncodingService
             if ($logoAbs) {
                 $safeLogo = str_replace("'", "\\'", $logoAbs);
                 $filters[] = "movie='{$safeLogo}',scale={$logoW}:{$logoH}[logo]";
-                $filters[] = "{$lastLabel}[logo]overlay={$logoX}:{$logoY}[withlogo]";
+
+                $safeMargin = (int) $this->setting('overlay_safe_margin', (int) ($this->channel->overlay_safe_margin ?? 30));
+                if ($safeMargin < 0) $safeMargin = 0;
+
+                $logoXExpr = (string) $logoX;
+                $logoYExpr = (string) $logoY;
+                if ($logoPos !== 'CUSTOM') {
+                    // For TL/TR/BL/BR, treat overlay_logo_x/y as margins from that corner.
+                    $mX = $logoX > 0 ? $logoX : $safeMargin;
+                    $mY = $logoY > 0 ? $logoY : $safeMargin;
+                    $logoXExpr = match ($logoPos) {
+                        'TR', 'BR' => "W-w-{$mX}",
+                        default => (string) $mX,
+                    };
+                    $logoYExpr = match ($logoPos) {
+                        'BL', 'BR' => "H-h-{$mY}",
+                        default => (string) $mY,
+                    };
+                }
+
+                $this->appendLog("Overlay logo: enabled=1 pos={$logoPos} x={$logoX} y={$logoY} expr={$logoXExpr}:{$logoYExpr} size={$logoW}x{$logoH}");
+
+                $filters[] = "{$lastLabel}[logo]overlay={$logoXExpr}:{$logoYExpr}[withlogo]";
                 $lastLabel = '[withlogo]';
             }
         }
@@ -396,6 +491,8 @@ class EncodingService
             $textPos = strtoupper(trim((string) $this->setting('overlay_text_position', (string) ($this->channel->overlay_text_position ?? 'BL'))));
             $textX = (int) $this->setting('overlay_text_x', (int) ($this->channel->overlay_text_x ?? $safeMargin));
             $textY = (int) $this->setting('overlay_text_y', (int) ($this->channel->overlay_text_y ?? $safeMargin));
+            if ($textX < 0) $textX = 0;
+            if ($textY < 0) $textY = 0;
 
             $titlePos = $textPos;
             $titleX = $textX;
@@ -404,19 +501,25 @@ class EncodingService
             $xExpr = (string) $textX;
             $yExpr = (string) $textY;
             if ($textPos !== '' && $textPos !== 'CUSTOM') {
-                $m = $safeMargin;
+                // For corner anchors (TL/TR/BL/BR), treat overlay_text_x/y as margins from that corner.
+                // Fallback to overlay_safe_margin if not set.
+                $mX = $textX > 0 ? $textX : $safeMargin;
+                $mY = $textY > 0 ? $textY : $safeMargin;
+
                 $xExpr = match ($textPos) {
-                    'TR', 'BR' => "w-tw-{$m}",
-                    default => (string) $m,
+                    'TR', 'BR' => "w-tw-{$mX}",
+                    default => (string) $mX,
                 };
 
                 $yExpr = match ($textPos) {
-                    'BL', 'BR' => "h-th-{$m}",
-                    default => (string) $m,
+                    'BL', 'BR' => "h-th-{$mY}",
+                    default => (string) $mY,
                 };
             }
 
             $safeText = $this->escapeForDrawtext($text);
+
+            $this->appendLog("Overlay title: enabled=1 pos={$textPos} x={$textX} y={$textY} expr={$xExpr}:{$yExpr} fontsize={$fontSize}");
             $filters[] = "{$lastLabel}drawtext=text='{$safeText}':x={$xExpr}:y={$yExpr}:fontsize={$fontSize}:fontcolor={$color}[txt]";
             $lastLabel = '[txt]';
         }
@@ -434,18 +537,23 @@ class EncodingService
             $timerPos = strtoupper(trim((string) $this->setting('overlay_timer_position', (string) ($this->channel->overlay_timer_position ?? 'BL'))));
             $timerX = (int) $this->setting('overlay_timer_x', (int) ($this->channel->overlay_timer_x ?? $safeMargin));
             $timerY = (int) $this->setting('overlay_timer_y', (int) ($this->channel->overlay_timer_y ?? $safeMargin));
+            if ($timerX < 0) $timerX = 0;
+            if ($timerY < 0) $timerY = 0;
 
             $timerXExpr = (string) $timerX;
             $timerYExpr = (string) $timerY;
             if ($timerPos !== '' && $timerPos !== 'CUSTOM') {
-                $m = $safeMargin;
+                // For corner anchors (TL/TR/BL/BR), treat overlay_timer_x/y as margins from that corner.
+                $mX = $timerX > 0 ? $timerX : $safeMargin;
+                $mY = $timerY > 0 ? $timerY : $safeMargin;
+
                 $timerXExpr = match ($timerPos) {
-                    'TR', 'BR' => "w-tw-{$m}",
-                    default => (string) $m,
+                    'TR', 'BR' => "w-tw-{$mX}",
+                    default => (string) $mX,
                 };
                 $timerYExpr = match ($timerPos) {
-                    'BL', 'BR' => "h-th-{$m}",
-                    default => (string) $m,
+                    'BL', 'BR' => "h-th-{$mY}",
+                    default => (string) $mY,
                 };
             }
 
@@ -497,6 +605,8 @@ class EncodingService
                     $timeExpr = "%{eif\\:floor(max(0\\,{$D}-t)/3600)\\:d\\:2}\\:%{eif\\:floor(mod(max(0\\,{$D}-t)\\,3600)/60)\\:d\\:2}\\:%{eif\\:floor(mod(max(0\\,{$D}-t)\\,60))\\:d\\:2}";
                 }
             }
+
+            $this->appendLog("Overlay timer: enabled=1 pos={$timerPos} x={$timerX} y={$timerY} expr={$timerXExpr}:{$timerYExpr} fontsize={$timerFont} mode={$mode}");
 
             $filters[] = "{$lastLabel}drawtext=text='{$timeExpr}':x={$timerXExpr}:y={$timerYExpr}:fontsize={$timerFont}:fontcolor={$timerColor}[timer]";
             $lastLabel = '[timer]';

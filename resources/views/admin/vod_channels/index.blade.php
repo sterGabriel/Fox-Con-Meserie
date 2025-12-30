@@ -144,19 +144,11 @@ html, body { overflow-x: hidden; }
 
   <!-- TOOLBAR -->
   <div class="toolbar">
-    <button class="btn-toolbar btn-stop" onclick="handleAction('stop-all')">Stop</button>
-    <button class="btn-toolbar btn-start" onclick="handleAction('start-all')">Start</button>
-    <button class="btn-toolbar btn-epg" onclick="handleAction('channels-epg')">Channels Epg</button>
-    <button class="btn-toolbar btn-fast" onclick="handleAction('fast-channel')">Fast Channel</button>
-    <button class="btn-toolbar btn-msg" onclick="handleAction('send-message')">Send Message</button>
-  </div>
-
-  <!-- WARNING -->
-  <div class="warning">
-    <span class="warning-hl">Important warning !!!</span>
-    You would create more than <span class="warning-hl">[50]</span> channels.
-    There may be slowdowns in the panel, your server's hard drive may crash, please consider these.
-    There is no channel creation limit.
+    <button type="button" class="btn-toolbar btn-stop" onclick="handleAction('stop-all')" title="Stop ALL channels (bulk action on this server). Not wired on this page yet.">Stop</button>
+    <button type="button" class="btn-toolbar btn-start" onclick="handleAction('start-all')" title="Start ALL channels (bulk action on this server). Not wired on this page yet.">Start</button>
+    <button type="button" class="btn-toolbar btn-epg" onclick="handleAction('channels-epg')" title="Open Channels EPG (Electronic Program Guide). Not wired on this page yet.">Channels Epg</button>
+    <button type="button" class="btn-toolbar btn-fast" onclick="handleAction('fast-channel')" title="Fast Channel (quick-start/fast mode). Not wired on this page yet.">Fast Channel</button>
+    <button type="button" class="btn-toolbar btn-msg" onclick="handleAction('send-message')" title="Send a message/announcement to channels. Not wired on this page yet.">Send Message</button>
   </div>
 
   <!-- TABLE CONTROLS -->
@@ -183,6 +175,8 @@ html, body { overflow-x: hidden; }
           <th>Transcoding</th>
           <th>Playing</th>
           <th>Bitrate</th>
+          <th>Speed</th>
+          <th>Redis</th>
           <th>Uptime</th>
           <th>Status</th>
           <th>Epg</th>
@@ -198,13 +192,27 @@ html, body { overflow-x: hidden; }
             $videos = $channel->playlistItems->map(fn($pi) => $pi->video)->filter();
             $totalDuration = $videos->sum(fn($v) => $v->duration_seconds ?? 0);
             $totalSize = $videos->sum(fn($v) => $v->size_bytes ?? 0);
-            $avgBitrate = $videos->isNotEmpty() ? round($videos->avg('bitrate_kbps') ?? 0) : 0;
+            $targetBitrateK = (int) (
+              $channel->encodeProfile?->video_bitrate_k
+              ?? $channel->video_bitrate
+              ?? 0
+            );
 
             $hours = intdiv($totalDuration, 3600);
             $minutes = intdiv($totalDuration % 3600, 60);
             $seconds = $totalDuration % 60;
 
-            $daysActive = max(1, now()->diffInDays($channel->updated_at));
+            $pid = (int) ($channel->encoder_pid ?? 0);
+            $isRunning = $pid > 0 && is_dir('/proc/' . $pid);
+            $uptimeStr = '—';
+            if ($isRunning && !empty($channel->started_at)) {
+              $elapsed = max(0, \Carbon\Carbon::parse($channel->started_at)->diffInSeconds(now()));
+              $d = intdiv($elapsed, 86400);
+              $h = intdiv($elapsed % 86400, 3600);
+              $m = intdiv($elapsed % 3600, 60);
+              $s = $elapsed % 60;
+              $uptimeStr = ($d > 0 ? ($d . 'd ') : '') . ($h > 0 ? ($h . 'h ') : '') . $m . 'm ' . $s . 's';
+            }
 
             if ($totalSize < 1024 * 1024) {
               $sizeStr = round($totalSize / 1024) . 'K';
@@ -234,9 +242,11 @@ html, body { overflow-x: hidden; }
               </div>
             </td>
             <td><span class="pill pill-yellow" title="{{ $videos->first()?->title }}">{{ substr($videos->first()?->title ?? '-', 0, 20) }}</span></td>
-            <td><span class="pill pill-gray">{{ $avgBitrate }}k</span></td>
-            <td><span class="pill pill-gray">{{ $daysActive }}d {{ $hours }}h {{ $minutes }}m</span></td>
-            <td><span class="status-dot {{ $channel->enabled ? 'dot-active' : 'dot-inactive' }}"></span></td>
+            <td><span class="pill pill-gray">{{ $targetBitrateK }}k</span></td>
+            <td><span class="pill pill-gray">{{ $channel->runtime_speed ?? '—' }}</span></td>
+            <td><span class="pill pill-gray">{{ $channel->runtime_redis ?? '—' }}</span></td>
+            <td><span class="pill pill-gray">{{ $uptimeStr }}</span></td>
+            <td><span class="status-dot {{ $isRunning ? 'dot-active' : 'dot-inactive' }}"></span></td>
             <td><span class="epg-badge">OPEN</span></td>
             <td class="mono">{{ $sizeStr }}</td>
             <td class="mono">{{ $hours }}h {{ $minutes }}m {{ $seconds }}s</td>
@@ -257,11 +267,12 @@ html, body { overflow-x: hidden; }
             </td>
             <td>
               <div class="actions-row">
-                @if($channel->enabled)
-                  <button type="button" class="fox-action-btn stop" onclick="handleRowAction('stop', {{ $channel->id }})" title="Stop">⏹</button>
-                @endif
-                <button type="button" class="fox-action-btn edit" onclick="handleRowAction('edit', {{ $channel->id }})" title="Edit">✎</button>
-                <button type="button" class="fox-action-btn delete" onclick="handleRowAction('delete', {{ $channel->id }})" title="Delete">✕</button>
+                <button type="button" class="fox-action-btn start" onclick="handleRowAction('start', {{ $channel->id }})" title="Start this channel stream (sends engine start).">▶</button>
+                <button type="button" class="fox-action-btn stop" onclick="handleRowAction('stop', {{ $channel->id }})" title="Stop this channel stream (sends engine stop).">⏹</button>
+                <button type="button" class="fox-action-btn edit" onclick="handleRowAction('edit-playlist', {{ $channel->id }})" title="Open Playlist editor for this channel.">📋</button>
+                <button type="button" class="fox-action-btn edit" onclick="handleRowAction('encoding', {{ $channel->id }})" title="Open Encoding / Import page for this channel.">⚙</button>
+                <button type="button" class="fox-action-btn edit" onclick="handleRowAction('edit', {{ $channel->id }})" title="Open Settings for this channel.">✎</button>
+                <button type="button" class="fox-action-btn delete" onclick="handleRowAction('delete', {{ $channel->id }})" title="Delete this channel.">✕</button>
               </div>
             </td>
           </tr>
@@ -317,8 +328,65 @@ function handleAction(action) {
 
 function handleRowAction(action, id) {
   switch(action) {
+    case 'start':
+      if (!confirm('Start this channel?')) return;
+      (function() {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        fetch(@json(url('/vod-channels')) + '/' + id + '/engine/start', {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'X-CSRF-TOKEN': csrfToken,
+            'Accept': 'application/json',
+          },
+        })
+          .then(async (r) => {
+            if (r.ok) return { ok: true };
+            let payload = null;
+            try { payload = await r.json(); } catch (e) {}
+            return { ok: false, status: r.status, message: payload?.message };
+          })
+          .then((res) => {
+            if (res.ok) {
+              window.location.reload();
+              return;
+            }
+            alert('❌ Start failed' + (res.message ? (': ' + res.message) : ''));
+          })
+          .catch((e) => {
+            alert('❌ Network error: ' + (e?.message || e));
+          });
+      })();
+      break;
     case 'stop':
-      // TODO: POST /vod-channels/{id}/stop
+      if (!confirm('Stop this channel?')) return;
+      (function() {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        fetch(@json(url('/vod-channels')) + '/' + id + '/engine/stop', {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'X-CSRF-TOKEN': csrfToken,
+            'Accept': 'application/json',
+          },
+        })
+          .then(async (r) => {
+            if (r.ok) return { ok: true };
+            let payload = null;
+            try { payload = await r.json(); } catch (e) {}
+            return { ok: false, status: r.status, message: payload?.message };
+          })
+          .then((res) => {
+            if (res.ok) {
+              window.location.reload();
+              return;
+            }
+            alert('❌ Stop failed' + (res.message ? (': ' + res.message) : ''));
+          })
+          .catch((e) => {
+            alert('❌ Network error: ' + (e?.message || e));
+          });
+      })();
       break;
     case 'edit':
       window.location = @json(url('/vod-channels')) + '/' + id + '/settings';

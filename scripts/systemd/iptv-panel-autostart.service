@@ -5,7 +5,7 @@ After=network.target redis-server.service
 
 [Service]
 Type=oneshot
-WorkingDirectory=/var/www/iptv-panel
+WorkingDirectory=__IPTV_PANEL_DIR__
 User=www-data
 Group=www-data
 
@@ -21,8 +21,9 @@ ExecStart=/usr/bin/php8.4 artisan channels:autostart --only-missing
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
-ProtectHome=true
-ReadWritePaths=/var/www/iptv-panel/storage /var/www/iptv-panel/bootstrap/cache
+# NOTE: ProtectHome=true can block access when the project is under a user home directory.
+ProtectHome=false
+ReadWritePaths=__IPTV_PANEL_DIR__/storage __IPTV_PANEL_DIR__/bootstrap/cache
 
 StandardOutput=journal
 StandardError=journal

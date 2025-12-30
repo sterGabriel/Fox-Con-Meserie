@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\TmdbSyncVideosJob;
+use App\Models\AppSetting;
 use App\Models\LiveChannel;
 use App\Models\PlaylistItem;
 use App\Models\Video;
@@ -14,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Redis;
 use Carbon\Carbon;
 
 class LiveChannelController extends Controller
@@ -27,8 +30,10 @@ class LiveChannelController extends Controller
         $pageSize = request()->get('pageSize', 60);
         $search = request()->get('search', '');
 
+        $redisStatus = $this->getRedisStatusLabel();
+
         // Get channels with pagination
-        $query = LiveChannel::with(['playlistItems.video'])
+        $query = LiveChannel::with(['playlistItems.video', 'encodeProfile'])
             ->orderBy('id', 'desc');
 
         if ($search) {
@@ -67,13 +72,42 @@ class LiveChannelController extends Controller
             $videos = $channel->playlistItems->map(fn($pi) => $pi->video)->filter();
             $totalDuration = $videos->sum(fn($v) => $v->duration_seconds ?? 0);
             $totalSize = $videos->sum(fn($v) => $v->size_bytes ?? 0);
-            $avgBitrate = $videos->isNotEmpty() ? round($videos->avg('bitrate_kbps') ?? 0) : 0;
+            $targetBitrateK = (int) (
+                $channel->encodeProfile?->video_bitrate_k
+                ?? $channel->video_bitrate
+                ?? 0
+            );
 
             $hours = intdiv($totalDuration, 3600);
             $minutes = intdiv($totalDuration % 3600, 60);
             $seconds = $totalDuration % 60;
 
-            $daysActive = max(1, now()->diffInDays($channel->updated_at));
+            $pid = (int) ($channel->encoder_pid ?? 0);
+            $isRunning = $pid > 0 && @is_dir('/proc/' . $pid);
+
+            $speed = '—';
+            if ($isRunning) {
+                try {
+                    $engine = new \App\Services\ChannelEngineService($channel);
+                    $s = $engine->getLastFfmpegSpeed();
+                    if (is_string($s) && $s !== '') {
+                        $speed = $s;
+                    }
+                } catch (\Throwable $e) {
+                    // ignore
+                }
+            }
+
+            $uptime = '—';
+            if ($isRunning && !empty($channel->started_at)) {
+                $startedAt = Carbon::parse($channel->started_at);
+                $elapsed = max(0, $startedAt->diffInSeconds(Carbon::now()));
+                $d = intdiv($elapsed, 86400);
+                $h = intdiv($elapsed % 86400, 3600);
+                $m = intdiv($elapsed % 3600, 60);
+                $s = $elapsed % 60;
+                $uptime = ($d > 0 ? ($d . 'd ') : '') . ($h > 0 ? ($h . 'h ') : '') . $m . 'm ' . $s . 's';
+            }
 
             // Size formatting
             if ($totalSize < 1024 * 1024) {
@@ -91,9 +125,11 @@ class LiveChannelController extends Controller
                 'transcodingB' => $videos->where('format', 'mp4')->count(),
                 'transcodingC' => $videos->where('format', 'mkv')->count(),
                 'playing' => $videos->first()?->title ? substr($videos->first()->title, 0, 20) : '-',
-                'bitrate' => $avgBitrate . 'k',
-                'uptime' => $daysActive . 'd ' . ($hours > 0 ? $hours . 'h ' : '') . $minutes . 'm ' . $seconds . 's',
-                'statusOk' => $channel->enabled,
+                'bitrate' => $targetBitrateK . 'k',
+                'speed' => $speed,
+                'redis' => $redisStatus,
+                'uptime' => $uptime,
+                'statusOk' => $isRunning,
                 'epg' => 'OPEN',
                 'size' => $sizeStr,
                 'totalTime' => $hours . 'h ' . $minutes . 'm ' . $seconds . 's',
@@ -113,9 +149,31 @@ class LiveChannelController extends Controller
     public function index()
     {
         $perPage = request()->get('per_page', 60);
-        $channels = LiveChannel::with(['playlistItems.video'])
+        $channels = LiveChannel::with(['playlistItems.video', 'encodeProfile'])
             ->orderBy('id', 'desc')
             ->paginate($perPage);
+
+        $redisStatus = $this->getRedisStatusLabel();
+
+        // Attach real-time speed factor for running channels (parsed from FFmpeg log tail).
+        foreach ($channels as $channel) {
+            $pid = (int) ($channel->encoder_pid ?? 0);
+            $isRunning = $pid > 0 && @is_dir('/proc/' . $pid);
+            $channel->runtime_speed = '—';
+            if ($isRunning) {
+                try {
+                    $engine = new \App\Services\ChannelEngineService($channel);
+                    $speed = $engine->getLastFfmpegSpeed();
+                    if (is_string($speed) && $speed !== '') {
+                        $channel->runtime_speed = $speed;
+                    }
+                } catch (\Throwable $e) {
+                    // keep default
+                }
+            }
+
+            $channel->runtime_redis = $redisStatus;
+        }
 
         // Calculate metrics
         $totalChannels = LiveChannel::count();
@@ -144,6 +202,21 @@ class LiveChannelController extends Controller
             'totalVideos' => $totalVideos,
             'diskStats' => $diskStats,
         ]);
+    }
+
+    private function getRedisStatusLabel(): string
+    {
+        try {
+            // If Redis isn't configured/available, this will throw.
+            $pong = Redis::connection()->ping();
+            $pongStr = is_string($pong) ? strtoupper(trim($pong)) : '';
+            if ($pong === true || $pongStr === 'PONG' || str_contains($pongStr, 'PONG')) {
+                return 'OK';
+            }
+            return 'OK';
+        } catch (\Throwable $e) {
+            return 'DOWN';
+        }
     }
 
     public function create()
@@ -259,6 +332,7 @@ class LiveChannelController extends Controller
 
         $videoIds = $allPlaylistItems->pluck('video_id')->filter()->unique()->values();
         $streamsDir = storage_path("app/streams/{$channel->id}");
+        $streamsRelLike = 'streams/' . $channel->id . '/video_%';
 
         // IMPORTANT: Expose only FULL TS encoding jobs on the playlist page.
         // Test preview jobs output to storage/app/public/previews/{channel}/test_video_{id}.mp4
@@ -269,14 +343,17 @@ class LiveChannelController extends Controller
                   ->orWhere('channel_id', $channel->id);
             })
             ->whereIn('video_id', $videoIds)
-            ->where(function ($q) use ($streamsDir) {
+            ->where(function ($q) use ($streamsDir, $streamsRelLike) {
                 $q->where(function ($q2) {
                     $q2->whereNotNull('playlist_item_id')
                        ->where('playlist_item_id', '>', 0);
                 })
-                ->orWhere(function ($q2) use ($streamsDir) {
+                ->orWhere(function ($q2) use ($streamsDir, $streamsRelLike) {
                     $q2->whereNotNull('output_path')
-                       ->where('output_path', 'like', $streamsDir . '/video_%');
+                       ->where(function ($q3) use ($streamsDir, $streamsRelLike) {
+                           $q3->where('output_path', 'like', $streamsDir . '/video_%')
+                              ->orWhere('output_path', 'like', $streamsRelLike);
+                       });
                 });
             })
             ->orderByDesc('created_at')
@@ -388,6 +465,38 @@ class LiveChannelController extends Controller
             'done'    => (int) $jobs->where('status', 'done')->count(),
             'total'   => (int) $jobs->count(),
         ];
+
+        // Auto TMDB sync (titles/posters/genres) for items shown on this page.
+        // Runs in background queue; safe to call repeatedly.
+        try {
+            $apiKey = (string) AppSetting::getValue('tmdb_api_key', (string) env('TMDB_API_KEY', ''));
+            if (trim($apiKey) !== '') {
+                $needs = [];
+                foreach ($allPlaylistItems as $item) {
+                    $video = $item->video;
+                    if (!$video) continue;
+
+                    $title = trim((string) ($video->title ?? ''));
+                    $numericTitle = ($title !== '' && preg_match('/^\d+$/', $title) === 1);
+                    $missingPoster = empty($video->tmdb_poster_path);
+                    $missingGenres = empty($video->tmdb_genres);
+                    $missingId = empty($video->tmdb_id);
+
+                    if ($missingId || $missingPoster || $missingGenres || $title === '' || $numericTitle) {
+                        $needs[(int) $video->id] = true;
+                    }
+                }
+
+                $ids = array_keys($needs);
+                if (!empty($ids)) {
+                    foreach (array_chunk($ids, 10) as $chunk) {
+                        TmdbSyncVideosJob::dispatch($chunk);
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            // never break the page
+        }
 
         return view('admin.vod_channels.playlist', [
             'channel'       => $channel,
@@ -982,8 +1091,8 @@ class LiveChannelController extends Controller
                 $ffmpegCommand = $engine->generatePlayCommandFromFiles($encodedPaths, loop: true);
                 $mode = 'PLAY LOOP (playlist encoded: ' . count($encodedPaths) . ' files)';
             } else {
-                $ffmpegCommand = $engine->generateCommand(includeOverlay: true);
-                $mode = 'DIRECT (real-time encode)';
+                $ffmpegCommand = $engine->generateLoopingCommand(includeOverlay: true);
+                $mode = 'ENCODE LOOP (concat playlist)';
             }
 
             // Start the channel
@@ -991,7 +1100,7 @@ class LiveChannelController extends Controller
             
             if ($result['status'] === 'success') {
                 $result['mode'] = $mode;
-                $result['encoded_count'] = count($encodedFiles ?? []);
+                $result['encoded_count'] = isset($encodedPaths) ? count($encodedPaths) : 0;
             }
 
             if ($request->expectsJson()) {
@@ -1979,6 +2088,7 @@ class LiveChannelController extends Controller
     protected function startNextQueuedEncodingJobIfIdle(LiveChannel $channel): ?\App\Models\EncodingJob
     {
         $outputDir = storage_path("app/streams/{$channel->id}");
+        $outputRelLike = 'streams/' . $channel->id . '/video_%';
 
         // NOTE: Do not rely solely on cache locks (can be "array" driver in prod).
         // Use a DB transaction + row locks to guarantee only one job becomes running.
@@ -1997,9 +2107,12 @@ class LiveChannelController extends Controller
                     $q2->whereNotNull('encoding_jobs.playlist_item_id')
                        ->where('encoding_jobs.playlist_item_id', '>', 0);
                 })
-                ->orWhere(function ($q2) use ($outputDir) {
+                  ->orWhere(function ($q2) use ($outputDir, $outputRelLike) {
                     $q2->whereNotNull('encoding_jobs.output_path')
-                       ->where('encoding_jobs.output_path', 'like', $outputDir . '/video_%');
+                      ->where(function ($q3) use ($outputDir, $outputRelLike) {
+                          $q3->where('encoding_jobs.output_path', 'like', $outputDir . '/video_%')
+                          ->orWhere('encoding_jobs.output_path', 'like', $outputRelLike);
+                      });
                 });
             });
         };
@@ -2065,6 +2178,7 @@ class LiveChannelController extends Controller
     {
         try {
             $outputDir = storage_path("app/streams/{$channel->id}");
+            $outputRelLike = 'streams/' . $channel->id . '/video_%';
             $jobs = \App\Models\EncodingJob::query()
                 ->where(function ($q) use ($channel) {
                     $q->where('live_channel_id', $channel->id)
@@ -2072,14 +2186,17 @@ class LiveChannelController extends Controller
                 })
                 // Only offline encoding jobs (exclude engine streaming jobs)
                 ->where('video_id', '>', 0)
-                ->where(function ($q) use ($outputDir) {
+                ->where(function ($q) use ($outputDir, $outputRelLike) {
                     $q->where(function ($q2) {
                         $q2->whereNotNull('playlist_item_id')
                            ->where('playlist_item_id', '>', 0);
                     })
-                    ->orWhere(function ($q2) use ($outputDir) {
+                    ->orWhere(function ($q2) use ($outputDir, $outputRelLike) {
                         $q2->whereNotNull('output_path')
-                           ->where('output_path', 'like', $outputDir . '/video_%');
+                           ->where(function ($q3) use ($outputDir, $outputRelLike) {
+                               $q3->where('output_path', 'like', $outputDir . '/video_%')
+                                  ->orWhere('output_path', 'like', $outputRelLike);
+                           });
                     });
                 })
                 ->with(['playlistItem.video', 'video'])

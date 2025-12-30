@@ -430,6 +430,7 @@
                         <button type="button" class="btn btn-yellow" onclick="ffprobeScanSelected()">FFprobe Scan Selected</button>
                     </div>
                     <div class="btn-row">
+                        <button type="button" class="btn btn-yellow" onclick="tmdbScanAllCategory()">TMDB Scan All (Category)</button>
                         <button type="button" class="btn btn-yellow" onclick="testEncoding({{ $channel->id }})">Test 30s</button>
                     </div>
                 </div>
@@ -685,7 +686,11 @@ function needsProbe(v) {
 function needsTmdb(v) {
     const p = String(v.tmdb_poster_path || '');
     const id = Number(v.tmdb_id || 0);
-    return (!p || p.trim() === '') && id <= 0;
+    const t = String(v.title || '').trim();
+    const numericTitle = (t !== '' && /^\d+$/.test(t));
+    // Run TMDB scan if posters/ID missing OR if title is unusable (empty/numeric)
+    // so we can populate the real TMDB title.
+    return (((!p || p.trim() === '') && id <= 0) || t === '' || numericTitle);
 }
 
 async function postJson(url, body) {
@@ -771,6 +776,37 @@ async function tmdbScanSelected() {
             alert('TMDB scan gata. Postere actualizate.');
         }
 
+        await loadVideos();
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+async function tmdbScanAllCategory() {
+    const sel = document.getElementById('categorySelect');
+    const catId = sel ? Number(sel.value || 0) : 0;
+    if (!catId) {
+        alert('Selectează categoria întâi!');
+        return;
+    }
+
+    if (!confirm('Rulează TMDB sync pentru TOATE item-urile din această categorie? (Se rulează în background pe queue)')) {
+        return;
+    }
+
+    try {
+        const { response, json } = await postJson('/api/videos/tmdb-scan-all', { category_id: catId });
+        if (!response.ok || json.ok === false) {
+            alert(json.message || 'TMDB scan all failed');
+            return;
+        }
+        const queued = Number(json.queued || 0);
+        const jobs = Number(json.jobs || 0);
+        if (queued <= 0) {
+            alert(json.message || 'Nimic de sincronizat.');
+            return;
+        }
+        alert(`TMDB sync queued: ${queued} video(s) in ${jobs} job(s).\nPornește worker-ul (php artisan queue:work) dacă nu rulează deja.`);
         await loadVideos();
     } catch (error) {
         alert('Error: ' + error.message);

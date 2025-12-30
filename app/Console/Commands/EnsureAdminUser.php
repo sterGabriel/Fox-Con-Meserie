@@ -9,18 +9,18 @@ use Illuminate\Support\Facades\Hash;
 class EnsureAdminUser extends Command
 {
     protected $signature = 'user:ensure-admin
-        {--name=admin : Admin username (maps to users.name)}
-        {--email=admin@local : Admin email}
-        {--password=admin : Admin password}
+        {--name= : Admin username (maps to users.name)}
+        {--email= : Admin email}
+        {--password= : Admin password (or set IPTV_ADMIN_PASSWORD env)}
         {--force-reset : Reset password if user already exists}';
 
-    protected $description = 'Ensures an admin user exists (default admin/admin). Creates user if missing; optionally resets password.';
+    protected $description = 'Ensures an admin user exists. Creates user if missing; optionally resets password.';
 
     public function handle(): int
     {
-        $name = trim((string) $this->option('name'));
-        $email = trim((string) $this->option('email'));
-        $password = (string) $this->option('password');
+        $name = trim((string) ($this->option('name') ?: env('IPTV_ADMIN_NAME', '')));
+        $email = trim((string) ($this->option('email') ?: env('IPTV_ADMIN_EMAIL', '')));
+        $password = (string) ($this->option('password') ?: env('IPTV_ADMIN_PASSWORD', ''));
         $forceReset = (bool) $this->option('force-reset');
 
         if ($name === '') {
@@ -32,7 +32,7 @@ class EnsureAdminUser extends Command
             return 1;
         }
         if ($password === '') {
-            $this->error('Password cannot be empty.');
+            $this->error('Password cannot be empty. Pass --password or set IPTV_ADMIN_PASSWORD.');
             return 1;
         }
 

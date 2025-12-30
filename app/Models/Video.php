@@ -20,8 +20,10 @@ class Video extends Model
 
         // TMDB
         'tmdb_id',
+        'tmdb_type',
         'tmdb_poster_path',
         'tmdb_backdrop_path',
+        'tmdb_genres',
     ];
 
     public function playlistItems()

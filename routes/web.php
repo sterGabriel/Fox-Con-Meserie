@@ -376,6 +376,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/api/videos/tmdb-scan', [VideoApiController::class, 'tmdbScan'])
         ->name('api.videos.tmdb-scan');
 
+    Route::post('/api/videos/tmdb-scan-all', [VideoApiController::class, 'tmdbScanAll'])
+        ->name('api.videos.tmdb-scan-all');
+
     // Delete video
     Route::delete('/api/videos/{video}', [VideoApiController::class, 'destroy'])
         ->name('api.videos.destroy');

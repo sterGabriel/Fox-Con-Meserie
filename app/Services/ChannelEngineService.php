@@ -590,6 +590,59 @@ class ChannelEngineService
     }
 
     /**
+     * Extract the most recent FFmpeg realtime speed factor from the channel log.
+     * Example values: "0.88x", "1x", "1.10x".
+     */
+    public function getLastFfmpegSpeed(): ?string
+    {
+        try {
+            if (!is_file($this->logPath)) {
+                return null;
+            }
+
+            $size = (int) @filesize($this->logPath);
+            if ($size <= 0) {
+                return null;
+            }
+
+            // Read only the tail of the log to keep it fast even for huge logs.
+            $maxBytes = 128 * 1024;
+            $readBytes = min($maxBytes, $size);
+            $fh = @fopen($this->logPath, 'rb');
+            if (!$fh) {
+                return null;
+            }
+
+            if ($readBytes < $size) {
+                @fseek($fh, -$readBytes, SEEK_END);
+            }
+
+            $chunk = @stream_get_contents($fh);
+            @fclose($fh);
+
+            if (!is_string($chunk) || $chunk === '') {
+                return null;
+            }
+
+            // Typical ffmpeg output: "speed=   1x" or "speed=1.10x".
+            if (!preg_match_all('/\bspeed=\s*([0-9]+(?:\.[0-9]+)?)x\b/i', $chunk, $m) || empty($m[1])) {
+                return null;
+            }
+
+            $raw = (string) end($m[1]);
+            $raw = trim($raw);
+            if ($raw === '') {
+                return null;
+            }
+
+            // Preserve as-is from FFmpeg. Normalize leading/trailing spaces.
+            return $raw . 'x';
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
      * Save process PID to file
      */
     protected function savePid(int $pid): void
@@ -644,7 +697,19 @@ class ChannelEngineService
                 // Escape path for concat demuxer
                 $escapedPath = str_replace("'", "'\\''", $video->file_path);
                 $playlistContent .= "file '{$escapedPath}'\n";
-                $playlistContent .= "duration {$video->duration}\n\n";
+
+                // Duration is optional for concat demuxer; write it only when numeric.
+                $dur = null;
+                if (isset($video->duration_seconds)) {
+                    $dur = $video->duration_seconds;
+                } elseif (isset($video->duration)) {
+                    $dur = $video->duration;
+                }
+                if (is_numeric($dur) && (float) $dur > 0) {
+                    $playlistContent .= 'duration ' . (float) $dur . "\n";
+                }
+
+                $playlistContent .= "\n";
             }
         }
 
@@ -677,6 +742,18 @@ class ChannelEngineService
                 ->first();
         }
 
+        $videoBitrateK = (int) (
+            $profile?->video_bitrate_k
+            ?? ($this->channel->video_bitrate ?? 1500)
+        );
+        $maxrateK = (int) ($profile?->maxrate_k ?? (int) ceil($videoBitrateK * 1.25));
+        $bufsizeK = (int) ($profile?->bufsize_k ?? (int) max(1, $maxrateK * 2));
+        $audioBitrateK = (int) (
+            $profile?->audio_bitrate_k
+            ?? ($this->channel->audio_bitrate ?? 128)
+        );
+        $audioChannels = (int) ($profile?->audio_channels ?? 2);
+
         // Base input and output paths
         $tsOutput = "{$this->outputDir}/stream.ts";
 
@@ -696,20 +773,24 @@ class ChannelEngineService
         ];
 
         if (!empty($filterComplex)) {
-            $cmd = array_merge($cmd, ['-filter_complex', escapeshellarg($filterComplex)]);
+            $cmd = array_merge($cmd, [
+                '-filter_complex', escapeshellarg($filterComplex),
+                '-map', escapeshellarg('[out]'),
+                '-map', '0:a?',
+            ]);
         }
 
         // Codec and encoding settings
         $cmd = array_merge($cmd, [
-            '-c:v', $profile->codec ?? 'libx264',
-            '-preset', $profile->preset ?? 'medium',
-            '-b:v', ($profile->video_bitrate ?? 1500) . 'k',
-            '-maxrate', ($profile->maxrate ?? 1875) . 'k',
-            '-bufsize', ($profile->bufsize ?? 3750) . 'k',
-            '-c:a', $profile->audio_codec ?? 'aac',
-            '-b:a', ($profile->audio_bitrate ?? 128) . 'k',
-            '-ar', $profile->audio_rate ?? 48000,
-            '-ac', $profile->channels ?? 2,
+            '-c:v', 'libx264',
+            '-preset', $profile?->preset ?? 'medium',
+            '-b:v', $videoBitrateK . 'k',
+            '-maxrate', $maxrateK . 'k',
+            '-bufsize', $bufsizeK . 'k',
+            '-c:a', $profile?->audio_codec ?? 'aac',
+            '-b:a', $audioBitrateK . 'k',
+            '-ar', 48000,
+            '-ac', $audioChannels,
         ]);
 
         // Add outputs: both TS and HLS from single encode
@@ -765,6 +846,18 @@ class ChannelEngineService
                 ->first();
         }
 
+        $videoBitrateK = (int) (
+            $profile?->video_bitrate_k
+            ?? ($this->channel->video_bitrate ?? 1500)
+        );
+        $maxrateK = (int) ($profile?->maxrate_k ?? (int) ceil($videoBitrateK * 1.25));
+        $bufsizeK = (int) ($profile?->bufsize_k ?? (int) max(1, $maxrateK * 2));
+        $audioBitrateK = (int) (
+            $profile?->audio_bitrate_k
+            ?? ($this->channel->audio_bitrate ?? 128)
+        );
+        $audioChannels = (int) ($profile?->audio_channels ?? 2);
+
         // Base input and output paths
         $tsOutput = "{$this->outputDir}/stream.ts";
         $hlsOutput = "{$this->outputDir}/stream.m3u8";
@@ -782,20 +875,24 @@ class ChannelEngineService
         ];
 
         if (!empty($filterComplex)) {
-            $cmd = array_merge($cmd, ['-filter_complex', escapeshellarg($filterComplex)]);
+            $cmd = array_merge($cmd, [
+                '-filter_complex', escapeshellarg($filterComplex),
+                '-map', escapeshellarg('[out]'),
+                '-map', '0:a?',
+            ]);
         }
 
         // Codec and encoding settings
         $cmd = array_merge($cmd, [
-            '-c:v', $profile->codec ?? 'libx264',
-            '-preset', $profile->preset ?? 'medium',
-            '-b:v', ($profile->video_bitrate ?? 1500) . 'k',
-            '-maxrate', ($profile->maxrate ?? 1875) . 'k',
-            '-bufsize', ($profile->bufsize ?? 3750) . 'k',
-            '-c:a', $profile->audio_codec ?? 'aac',
-            '-b:a', ($profile->audio_bitrate ?? 128) . 'k',
-            '-ar', $profile->audio_rate ?? 48000,
-            '-ac', $profile->channels ?? 2,
+            '-c:v', 'libx264',
+            '-preset', $profile?->preset ?? 'medium',
+            '-b:v', $videoBitrateK . 'k',
+            '-maxrate', $maxrateK . 'k',
+            '-bufsize', $bufsizeK . 'k',
+            '-c:a', $profile?->audio_codec ?? 'aac',
+            '-b:a', $audioBitrateK . 'k',
+            '-ar', 48000,
+            '-ac', $audioChannels,
         ]);
 
         // Dual output: MPEGTS + HLS simultaneously
@@ -848,8 +945,10 @@ class ChannelEngineService
         $playlistContent = "# FFmpeg Concat Demuxer Playlist (Pre-Encoded TS Files)\n";
 
         foreach ($encodedFiles as $file) {
-            // Escape path for concat demuxer
-            $escapedPath = str_replace("'", "'\\''", $file);
+            // Prefer relative paths to avoid hardcoding absolute project paths.
+            // Concat demuxer resolves relative paths relative to the playlist file.
+            $relative = basename($file);
+            $escapedPath = str_replace("'", "'\\''", $relative);
             $playlistContent .= "file '{$escapedPath}'\n";
         }
 
@@ -930,7 +1029,17 @@ class ChannelEngineService
         $playlistContent = "# FFmpeg Concat Demuxer Playlist (Pre-Encoded TS Files)\n";
 
         foreach ($files as $file) {
-            $escapedPath = str_replace("'", "'\\''", $file);
+            $path = (string) $file;
+            $outputDirNorm = rtrim(str_replace('\\', '/', $outputDir), '/') . '/';
+            $pathNorm = str_replace('\\', '/', $path);
+
+            // If the file lives inside the output directory, write a relative path.
+            // This keeps the playlist portable across deployments (/var/www vs /home, etc.).
+            if (str_starts_with($pathNorm, $outputDirNorm)) {
+                $pathNorm = substr($pathNorm, strlen($outputDirNorm));
+            }
+
+            $escapedPath = str_replace("'", "'\\''", $pathNorm);
             $playlistContent .= "file '{$escapedPath}'\n";
         }
 

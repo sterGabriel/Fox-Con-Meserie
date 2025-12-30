@@ -1,0 +1,27 @@
+[Unit]
+Description=IPTV Panel - GitHub Backup (git commit + push)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=__IPTV_PANEL_DIR__
+User=www-data
+Group=www-data
+
+Environment=PROJECT_DIR=__IPTV_PANEL_DIR__
+# Optional identity (no secrets here)
+Environment=GIT_AUTHOR_NAME=iptv-backup
+Environment=GIT_AUTHOR_EMAIL=iptv-backup@local
+
+ExecStart=/usr/bin/env bash __IPTV_PANEL_DIR__/scripts/github-backup/backup-to-github.sh
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=false
+ReadWritePaths=__IPTV_PANEL_DIR__/storage __IPTV_PANEL_DIR__/bootstrap/cache
+
+StandardOutput=journal
+StandardError=journal

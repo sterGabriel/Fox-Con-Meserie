@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_DIR="/var/www/iptv-panel"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Project root is two levels up from scripts/systemd
+DEFAULT_PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# Allow override via first argument or env var.
+# Example:
+#   sudo PROJECT_DIR=/path/to/iptv-panel ./scripts/systemd/install-automation.sh
+#   sudo ./scripts/systemd/install-automation.sh /path/to/iptv-panel
+PROJECT_DIR="${1:-${PROJECT_DIR:-$DEFAULT_PROJECT_DIR}}"
 SYSTEMD_DIR="/etc/systemd/system"
 
 SCHEDULE_UNIT_SRC="$PROJECT_DIR/scripts/systemd/iptv-panel-schedule.service"
@@ -14,6 +22,11 @@ AUTOSTART_UNIT_DST="$SYSTEMD_DIR/iptv-panel-autostart.service"
 
 if [[ $EUID -ne 0 ]]; then
   echo "ERROR: Run as root (use sudo)."
+  exit 1
+fi
+
+if [[ ! -d "$PROJECT_DIR" ]]; then
+  echo "ERROR: Project dir not found: $PROJECT_DIR"
   exit 1
 fi
 
@@ -41,9 +54,16 @@ if [[ ! -f "$AUTOSTART_UNIT_SRC" ]]; then
 fi
 
 echo "Installing systemd units..."
-cp -f "$SCHEDULE_UNIT_SRC" "$SCHEDULE_UNIT_DST"
-cp -f "$QUEUE_UNIT_SRC" "$QUEUE_UNIT_DST"
-cp -f "$AUTOSTART_UNIT_SRC" "$AUTOSTART_UNIT_DST"
+
+render_unit() {
+  local src="$1"
+  local dst="$2"
+  sed "s|__IPTV_PANEL_DIR__|$PROJECT_DIR|g" "$src" > "$dst"
+}
+
+render_unit "$SCHEDULE_UNIT_SRC" "$SCHEDULE_UNIT_DST"
+render_unit "$QUEUE_UNIT_SRC" "$QUEUE_UNIT_DST"
+render_unit "$AUTOSTART_UNIT_SRC" "$AUTOSTART_UNIT_DST"
 
 echo "Ensuring writable storage/cache for www-data..."
 chown -R www-data:www-data "$PROJECT_DIR/storage" "$PROJECT_DIR/bootstrap/cache" || true

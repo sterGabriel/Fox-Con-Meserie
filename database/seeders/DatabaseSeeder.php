@@ -16,10 +16,23 @@ class DatabaseSeeder extends Seeder
     {
         // User::factory(10)->create();
 
-        // Default admin account for fresh installs
-        User::updateOrCreate(
-            ['name' => 'admin'],
-            ['email' => 'admin@example.com', 'password' => Hash::make('admin')]
-        );
+        // Baseline data required for the panel to function.
+        $this->call([
+            EncodeProfileSeeder::class,
+            VideoCategorySeeder::class,
+        ]);
+
+        // Optional default admin account for fresh installs.
+        // To enable, set IPTV_ADMIN_NAME, IPTV_ADMIN_EMAIL and IPTV_ADMIN_PASSWORD in .env
+        $name = (string) env('IPTV_ADMIN_NAME', '');
+        $email = (string) env('IPTV_ADMIN_EMAIL', '');
+        $password = (string) env('IPTV_ADMIN_PASSWORD', '');
+
+        if ($name !== '' && $email !== '' && $password !== '') {
+            User::updateOrCreate(
+                ['name' => $name],
+                ['email' => $email, 'password' => Hash::make($password)]
+            );
+        }
     }
 }

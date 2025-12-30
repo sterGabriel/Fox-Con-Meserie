@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use App\Models\PlaylistItem;
 use App\Models\Video;
+use App\Jobs\TmdbSyncVideosJob;
 use App\Services\VideoProbeService;
 use App\Services\TmdbService;
+use App\Services\TmdbSyncService;
 use Illuminate\Http\Request;
 
 class VideoApiController extends Controller
@@ -103,35 +105,87 @@ class VideoApiController extends Controller
 
         $videos = Video::query()
             ->whereIn('id', $data['video_ids'])
-            ->get(['id', 'title', 'tmdb_id', 'tmdb_poster_path', 'tmdb_backdrop_path']);
+            ->get(['id', 'title', 'file_path', 'tmdb_id', 'tmdb_type', 'tmdb_poster_path', 'tmdb_backdrop_path', 'tmdb_genres']);
 
         $results = [];
 
-        foreach ($videos as $video) {
-            $parsed = $tmdb->parseTitle((string)($video->title ?? ''));
-            $res = $tmdb->searchMovie($apiKey, (string)($parsed['title'] ?? ''), $parsed['year'] ?? null);
+        $sync = app(TmdbSyncService::class);
 
-            if (($res['ok'] ?? false) === true && !empty($res['tmdb_id'])) {
-                $video->update([
-                    'tmdb_id' => (int) $res['tmdb_id'],
-                    'tmdb_poster_path' => $res['poster_path'] ?? null,
-                    'tmdb_backdrop_path' => $res['backdrop_path'] ?? null,
-                ]);
-            }
+        foreach ($videos as $video) {
+            $res = $sync->syncVideo($video, $apiKey);
 
             $results[] = [
                 'id' => $video->id,
                 'title' => $video->title,
                 'ok' => (bool) ($res['ok'] ?? false),
                 'message' => $res['message'] ?? null,
-                'tmdb_id' => $res['tmdb_id'] ?? null,
-                'tmdb_poster_path' => $res['poster_path'] ?? null,
+                'tmdb_id' => $res['tmdb_id'] ?? ($res['id'] ?? ($video->tmdb_id ?? null)),
+                'tmdb_type' => $res['type'] ?? ($video->tmdb_type ?? null),
+                'tmdb_poster_path' => $res['poster_path'] ?? ($video->tmdb_poster_path ?? null),
+                'tmdb_genres' => $video->tmdb_genres ?? null,
             ];
         }
 
         return response()->json([
             'ok' => true,
             'results' => $results,
+        ]);
+    }
+
+    /**
+     * Queue TMDB sync for many videos.
+     * POST /api/videos/tmdb-scan-all
+     * Body: { category_id?: int }
+     */
+    public function tmdbScanAll(Request $request)
+    {
+        $data = $request->validate([
+            'category_id' => ['nullable', 'integer'],
+        ]);
+
+        $apiKey = (string) AppSetting::getValue('tmdb_api_key', (string) env('TMDB_API_KEY', ''));
+        if (trim($apiKey) === '') {
+            return response()->json([
+                'ok' => false,
+                'message' => 'TMDB key missing. Set it in TMDB Settings.',
+            ], 422);
+        }
+
+        $categoryId = (int) ($data['category_id'] ?? 0);
+
+        $q = Video::query();
+        if ($categoryId > 0) {
+            $q->where('video_category_id', $categoryId);
+        }
+
+        // Only queue those that likely need TMDB metadata.
+        $q->where(function ($w) {
+            $w->whereNull('tmdb_id')
+              ->orWhereNull('tmdb_poster_path')
+              ->orWhereNull('tmdb_genres')
+              ->orWhereRaw("TRIM(title) = ''")
+              ->orWhereRaw("title REGEXP '^[0-9]+$'");
+        });
+
+        $ids = $q->orderBy('id')->pluck('id')->map(fn ($v) => (int) $v)->all();
+        if (empty($ids)) {
+            return response()->json([
+                'ok' => true,
+                'queued' => 0,
+                'jobs' => 0,
+                'message' => 'Nothing to sync.',
+            ]);
+        }
+
+        $chunks = array_chunk($ids, 10);
+        foreach ($chunks as $chunk) {
+            TmdbSyncVideosJob::dispatch($chunk);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'queued' => count($ids),
+            'jobs' => count($chunks),
         ]);
     }
 

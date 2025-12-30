@@ -133,12 +133,53 @@
   </div>
 </div>
 
-@php($domain = rtrim((string) config('app.streaming_domain', ''), '/'))
-@php($domain = ($domain === '' || str_contains($domain, 'localhost')) ? rtrim((string) request()->getSchemeAndHttpHost(), '/') : $domain)
-@php($hlsUrl = $domain . "/streams/{$channel->id}/hls/stream.m3u8")
-@php($tsUrlLive = $domain . "/streams/{$channel->id}/stream.ts")
-@php($masterUrl = $domain . "/streams/all.m3u8")
-@php($epgUrl = $domain . "/epg/all.xml")
+<?php
+  $domain = rtrim((string) config('app.streaming_domain', ''), '/');
+  $domain = ($domain === '' || str_contains($domain, 'localhost'))
+    ? rtrim((string) request()->getSchemeAndHttpHost(), '/')
+    : $domain;
+
+  $hlsUrl = $domain . "/streams/{$channel->id}/hls/stream.m3u8";
+  $tsUrlLive = $domain . "/streams/{$channel->id}/stream.ts";
+  $masterUrl = $domain . "/streams/all.m3u8";
+  $epgUrl = $domain . "/epg/all.xml";
+
+  $vodDisplayTitle = function ($video): string {
+    if (!$video) return 'Unknown';
+
+    $title = trim((string)($video->title ?? ''));
+    $filePath = trim((string)($video->file_path ?? ''));
+
+    $isNumericTitle = ($title !== '' && preg_match('/^\d+$/', $title) === 1);
+
+    $fromPath = '';
+    if ($filePath !== '') {
+      $base = (string) pathinfo($filePath, PATHINFO_FILENAME);
+      $parent = (string) basename((string) dirname($filePath));
+      $base = trim($base);
+      $parent = trim($parent);
+
+      if ($base !== '') {
+        $fromPath = $base;
+        if ($parent !== '' && $parent !== '.' && $parent !== '/' && $parent !== $base) {
+          if (preg_match('/^\d+$/', $base) === 1 || preg_match('/^\d+$/', $title) === 1 || $title === '') {
+            $fromPath = $parent . ' / ' . $base;
+          }
+        }
+      }
+    }
+
+    if ($title !== '' && !$isNumericTitle) {
+      return $title;
+    }
+
+    if ($fromPath !== '') {
+      return $fromPath;
+    }
+
+    return $title !== '' ? $title : ('Video #' . (int)($video->id ?? 0));
+  };
+?>
 
 <div class="card" style="margin-bottom: 14px;">
   <div class="card-h">
@@ -164,8 +205,10 @@
   </div>
 </div>
 
-@php($pendingItems = isset($pendingItems) ? $pendingItems : collect())
-@php($pendingCount = is_countable($pendingItems) ? count($pendingItems) : 0)
+<?php
+  $pendingItems = isset($pendingItems) ? $pendingItems : collect();
+  $pendingCount = is_countable($pendingItems) ? count($pendingItems) : 0;
+?>
 
 @if($pendingCount > 0)
   <div class="card" style="margin-bottom: 14px;">
@@ -192,21 +235,28 @@
         </thead>
         <tbody>
           @foreach($pendingItems as $index => $item)
-            @php($video = $item->video)
-            @php($posterUrl = ($video && !empty($video->tmdb_poster_path)) ? ('https://image.tmdb.org/t/p/w92' . $video->tmdb_poster_path) : '')
-            @php($job = null)
+            <?php
+              $video = $item->video;
+              $displayTitle = $vodDisplayTitle($video);
+              $posterUrl = ($video && !empty($video->tmdb_poster_path)) ? ('https://image.tmdb.org/t/p/w92' . $video->tmdb_poster_path) : '';
+              $job = null;
+            ?>
             @if(isset($jobByPlaylistItemId))
-              @php($job = $jobByPlaylistItemId->get($item->id) ?? null)
+              <?php $job = $jobByPlaylistItemId->get($item->id) ?? null; ?>
             @endif
             @if(!$job && $video && isset($jobByVideoId))
-              @php($job = $jobByVideoId->get($video->id) ?? null)
+              <?php $job = $jobByVideoId->get($video->id) ?? null; ?>
             @endif
-            @php($rawJobStatus = $job ? strtoupper((string)($job->status ?? '')) : 'NOT STARTED')
-            @php($jobStatus = ($job && $rawJobStatus === 'QUEUED' && isset($job->display_queue_position) && (int)$job->display_queue_position > 0) ? ('QUEUED #' . (int)$job->display_queue_position) : $rawJobStatus)
-            @php($progress = $job ? (int)($job->display_progress ?? $job->progress ?? 0) : 0)
-            @php($outTime = $job ? (string)($job->display_out_time ?? '') : '')
-            @php($speed = $job ? (string)($job->display_speed ?? '') : '')
-            @php($eta = $job ? (string)($job->display_eta ?? '') : '')
+            <?php
+              $rawJobStatus = $job ? strtoupper((string)($job->status ?? '')) : 'NOT STARTED';
+              $jobStatus = ($job && $rawJobStatus === 'QUEUED' && isset($job->display_queue_position) && (int)$job->display_queue_position > 0)
+                ? ('QUEUED #' . (int)$job->display_queue_position)
+                : $rawJobStatus;
+              $progress = $job ? (int)($job->display_progress ?? $job->progress ?? 0) : 0;
+              $outTime = $job ? (string)($job->display_out_time ?? '') : '';
+              $speed = $job ? (string)($job->display_speed ?? '') : '';
+              $eta = $job ? (string)($job->display_eta ?? '') : '';
+            ?>
             <tr class="js-enc-row" data-playlist-item-id="{{ (int) $item->id }}" data-video-id="{{ (int)($video?->id ?? 0) }}">
               <td class="muted">{{ $index + 1 }}</td>
               <td class="title-cell">
@@ -214,7 +264,12 @@
                   @if($posterUrl !== '')
                     <img class="poster" src="{{ $posterUrl }}" alt="">
                   @endif
-                  <span>{{ $video?->title ?? 'Unknown' }}</span>
+                  <div>
+                    <div>{{ $displayTitle }}</div>
+                    @if($video && !empty($video->tmdb_genres))
+                      <div class="muted" style="font-size:11px; font-weight:800; margin-top:2px;">{{ $video->tmdb_genres }}</div>
+                    @endif
+                  </div>
                 </div>
               </td>
               <td class="muted js-enc-status">{{ $jobStatus }}</td>
@@ -469,15 +524,18 @@
       </thead>
       <tbody>
         @forelse($playlistItems as $index => $item)
-          @php($video = $item->video)
-          @php($duration = (int) ($video?->duration_seconds ?? 0))
-          @php($durationText = $duration > 0 ? gmdate('H:i:s', $duration) : '—')
-          @php($posterUrl = ($video && !empty($video->tmdb_poster_path)) ? ('https://image.tmdb.org/t/p/w92' . $video->tmdb_poster_path) : '')
-          @php($tsFile = $item->ts_file ?? ("video_" . (int) $item->id . ".ts"))
-          @php($tsUrl = url("/streams/{$channel->id}/{$tsFile}"))
-          @php($popupUrl = route('vod-channels.playlist.player', [$channel, $item]))
-          @php($job = ($video && isset($jobByVideoId)) ? ($jobByVideoId->get($video->id) ?? null) : null)
-          @php($jobStatus = $job ? strtoupper((string)($job->status ?? '')) : '')
+          <?php
+            $video = $item->video;
+            $displayTitle = $vodDisplayTitle($video);
+            $duration = (int) ($video?->duration_seconds ?? 0);
+            $durationText = $duration > 0 ? gmdate('H:i:s', $duration) : '—';
+            $posterUrl = ($video && !empty($video->tmdb_poster_path)) ? ('https://image.tmdb.org/t/p/w92' . $video->tmdb_poster_path) : '';
+            $tsFile = $item->ts_file ?? ("video_" . (int) $item->id . ".ts");
+            $tsUrl = url("/streams/{$channel->id}/{$tsFile}");
+            $popupUrl = route('vod-channels.playlist.player', [$channel, $item]);
+            $job = ($video && isset($jobByVideoId)) ? ($jobByVideoId->get($video->id) ?? null) : null;
+            $jobStatus = $job ? strtoupper((string)($job->status ?? '')) : '';
+          ?>
           <tr data-duration="{{ $duration }}">
             <td class="muted">{{ $index + 1 }}</td>
             <td class="title-cell">
@@ -485,7 +543,12 @@
                 @if($posterUrl !== '')
                   <img class="poster" src="{{ $posterUrl }}" alt="">
                 @endif
-                <span>{{ $video?->title ?? 'Unknown' }}</span>
+                <div>
+                  <div>{{ $displayTitle }}</div>
+                  @if($video && !empty($video->tmdb_genres))
+                    <div class="muted" style="font-size:11px; font-weight:800; margin-top:2px;">{{ $video->tmdb_genres }}</div>
+                  @endif
+                </div>
               </div>
             </td>
             <td class="muted">{{ $durationText }}</td>
@@ -503,7 +566,7 @@
                 <button
                   type="button"
                   class="btn btn-green btn-sm js-play"
-                  data-title="{{ e($video?->title ?? 'Unknown') }}"
+                  data-title="{{ e($displayTitle) }}"
                   data-duration="{{ $duration }}"
                   data-popup-url="{{ $popupUrl }}"
                 >

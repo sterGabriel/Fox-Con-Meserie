@@ -1,0 +1,13 @@
+[Unit]
+Description=IPTV Panel - GitHub Backup Timer (twice daily)
+
+[Timer]
+# Twice per day, local server time
+OnCalendar=*-*-* 02:00:00
+OnCalendar=*-*-* 14:00:00
+Persistent=true
+RandomizedDelaySec=180
+Unit=iptv-panel-github-backup.service
+
+[Install]
+WantedBy=timers.target

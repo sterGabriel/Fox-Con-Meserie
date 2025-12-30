@@ -5,6 +5,9 @@
 
 set -e
 
+# Allow running from any working directory.
+PROJECT_DIR="${PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+
 BASE_URL="http://46.4.20.56:2082"
 API_TOKEN="testing"  # Get from Laravel session
 
@@ -41,7 +44,7 @@ echo -e "${GREEN}✓ Prerequisites OK${NC}\n"
 # Step 2: Check database connection
 echo -e "${YELLOW}[2] Checking database...${NC}"
 
-cd /var/www/iptv-panel
+cd "$PROJECT_DIR"
 
 # Get count of live channels
 CHANNEL_COUNT=$(php artisan tinker --execute "echo App\Models\LiveChannel::count();" 2>/dev/null | tail -1)
@@ -90,9 +93,9 @@ fi
 # Step 6: Check storage directories
 echo -e "\n${YELLOW}[6] Checking storage structure...${NC}"
 
-STREAM_DIR="/var/www/iptv-panel/storage/app/streams/$CHANNEL_ID"
-PREVIEW_DIR="/var/www/iptv-panel/storage/app/previews/$CHANNEL_ID"
-LOGS_DIR="/var/www/iptv-panel/storage/logs"
+STREAM_DIR="$PROJECT_DIR/storage/app/streams/$CHANNEL_ID"
+PREVIEW_DIR="$PROJECT_DIR/storage/app/previews/$CHANNEL_ID"
+LOGS_DIR="$PROJECT_DIR/storage/logs"
 
 mkdir -p "$STREAM_DIR" "$PREVIEW_DIR" "$LOGS_DIR"
 chmod -R 755 "$STREAM_DIR" "$PREVIEW_DIR" "$LOGS_DIR"

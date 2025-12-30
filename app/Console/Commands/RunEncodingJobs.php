@@ -68,14 +68,18 @@ class RunEncodingJobs extends Command
         $fps          = $channel->fps ?: 25;
         $audioCodec   = $channel->audio_codec ?: 'aac';
 
-        $baseOutputPath = rtrim($channel->encoded_output_path ?: "/home/encoded/channel-{$channel->id}", '/');
+        $defaultEncodedDir = storage_path("app/encoded/channel-{$channel->id}");
+        $baseOutputPath = rtrim($channel->encoded_output_path ?: $defaultEncodedDir, '/');
         if (! is_dir($baseOutputPath)) {
             mkdir($baseOutputPath, 0775, true);
         }
 
         $output = $baseOutputPath . "/video-{$video->id}.ts";
 
-        $logoPath = '/home/logo/SKYLINE.png';
+        $logoPath = $channel->logo_path ?: env('IPTV_DEFAULT_LOGO_PATH', public_path('logo/SKYLINE.png'));
+        if ($logoPath && ! str_starts_with($logoPath, '/')) {
+            $logoPath = base_path($logoPath);
+        }
 
         $title = $video->title ?? 'Movie';
         $titleEscaped = str_replace("'", "\\'", $title);

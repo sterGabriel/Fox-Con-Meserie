@@ -85,10 +85,7 @@ class EpgController extends Controller
                 $duration = (int) ($video->duration_seconds ?? 0);
                 if ($duration <= 0) continue;
 
-                $title = trim((string) ($video->title ?? ''));
-                if ($title === '') {
-                    $title = 'Video #' . (int) ($video->id ?? 0);
-                }
+                $title = $this->getVideoDisplayTitle($video);
 
                 $segments[] = [
                     'title' => $title,
@@ -211,5 +208,40 @@ class EpgController extends Controller
     {
         $u = $dt->copy()->utc();
         return $u->format('YmdHis') . ' +0000';
+    }
+
+    private function getVideoDisplayTitle($video): string
+    {
+        if (!$video) {
+            return 'Unknown';
+        }
+
+        $title = trim((string) ($video->title ?? ''));
+        $filePath = trim((string) ($video->file_path ?? ''));
+        $isNumericTitle = ($title !== '' && preg_match('/^\d+$/', $title) === 1);
+
+        if ($title !== '' && !$isNumericTitle) {
+            return $title;
+        }
+
+        if ($filePath !== '') {
+            $base = trim((string) pathinfo($filePath, PATHINFO_FILENAME));
+            $parent = trim((string) basename((string) dirname($filePath)));
+
+            if ($base !== '') {
+                if ($parent !== '' && $parent !== '.' && $parent !== '/' && $parent !== $base) {
+                    if (preg_match('/^\d+$/', $base) === 1 || $title === '' || $isNumericTitle) {
+                        return $parent . ' / ' . $base;
+                    }
+                }
+                return $base;
+            }
+        }
+
+        if ($title !== '') {
+            return $title;
+        }
+
+        return 'Video #' . (int) ($video->id ?? 0);
     }
 }
