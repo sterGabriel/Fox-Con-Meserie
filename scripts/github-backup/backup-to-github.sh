@@ -126,9 +126,9 @@ fi
 step 25 "Staging changes (git add -A)"
 git add -A
 
+HAS_GIT_CHANGES=1
 if git diff --cached --quiet; then
-  step 100 "No changes to commit."
-  exit 0
+  HAS_GIT_CHANGES=0
 fi
 
 # Optional local full-backup on the server (stored in storage/app/full-backups).
@@ -148,6 +148,11 @@ if [[ "$ENABLE_LOCAL_FULL_BACKUP" == "1" || "$ENABLE_LOCAL_FULL_BACKUP" == "true
   fi
 else
   step 55 "Local full backup disabled (ENABLE_LOCAL_FULL_BACKUP=0)"
+fi
+
+if [[ "$HAS_GIT_CHANGES" == "0" ]]; then
+  step 100 "Local backup done; no git changes to commit/push."
+  exit 0
 fi
 
 step 70 "Creating git commit"
