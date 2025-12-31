@@ -26,7 +26,7 @@ Environment=STATUS_FILE=__IPTV_PANEL_DIR__/storage/app/github-backup/status.json
 
 # Git auth (recommended): use SSH deploy key stored in project storage.
 # This keeps auth independent of system user home directories.
-Environment=GIT_SSH_COMMAND=ssh -F __IPTV_PANEL_DIR__/storage/app/ssh/config -o UserKnownHostsFile=__IPTV_PANEL_DIR__/storage/app/ssh/known_hosts -o StrictHostKeyChecking=yes
+Environment="GIT_SSH_COMMAND=ssh -F __IPTV_PANEL_DIR__/storage/app/ssh/config -o UserKnownHostsFile=__IPTV_PANEL_DIR__/storage/app/ssh/known_hosts -o StrictHostKeyChecking=yes"
 
 ExecStart=/usr/bin/env bash __IPTV_PANEL_DIR__/scripts/github-backup/backup-to-github.sh
 
