@@ -4,6 +4,14 @@ This automation runs **twice per day** and performs:
 - `git add -A`
 - `git commit` (timestamped)
 - `git push origin <current-branch>`
+- `php artisan backup:full --reason=github` (local archive on the server)
+
+## Local backups on the server
+The full backup archive is written to:
+
+- `storage/app/full-backups/`
+
+Note: `storage/app/full-backups` is **gitignored** by default in this repo, so these archives stay on the server (they are not pushed to GitHub unless you intentionally change `.gitignore`).
 
 ## Install (systemd)
 ```bash
@@ -38,6 +46,17 @@ EOF'
 ## Logs
 - Script log file: `storage/logs/github-backup.log`
 - systemd: `journalctl -u iptv-panel-github-backup.service -n 200 --no-pager`
+
+## Live progress ("bara de progres")
+
+The backup script writes a simple status JSON here:
+- `storage/app/github-backup/status.json`
+
+Watch it as a progress bar in terminal:
+```bash
+cd /var/www/iptv-panel
+bash scripts/github-backup/watch-progress.sh
+```
 
 ## Change schedule
 Edit the timer unit:
