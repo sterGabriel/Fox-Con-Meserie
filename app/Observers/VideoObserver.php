@@ -42,11 +42,11 @@ class VideoObserver
 
         // Get resolution
         $resolutionCmd = "ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 2>/dev/null " . escapeshellarg($filePath);
-        $resolution = trim(shell_exec($resolutionCmd)) ?: '1280x720';
+        $resolution = trim((string) shell_exec($resolutionCmd)) ?: '1280x720';
 
         // Get duration
         $durationCmd = "ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 2>/dev/null " . escapeshellarg($filePath);
-        $durationOutput = trim(shell_exec($durationCmd));
+        $durationOutput = trim((string) shell_exec($durationCmd));
         $duration = $durationOutput ? (int)$durationOutput : 0;
 
         // Get container format

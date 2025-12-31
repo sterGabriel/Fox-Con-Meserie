@@ -1,6 +1,12 @@
 @extends('layouts.panel')
 
 @section('content')
+@php
+    /** @var array<int, array<string, mixed>> $importedVideos */
+    $importedVideos = $importedVideos ?? [];
+
+    $isMuzicaCategory = \Illuminate\Support\Str::slug((string) ($category->name ?? '')) === 'muzica';
+@endphp
 <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px;">
     <div>
         <h1 style="margin:0;font-size:24px;font-weight:800;">Import Videos</h1>
@@ -22,6 +28,57 @@
         <span style="font-size:13px;font-weight:700;color:var(--text-primary);">{{ $message }}</span>
     </div>
 @endif
+
+<div class="fox-table-container" style="padding:0;margin-bottom:16px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--border-light);">
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">✅ Videoclipuri deja importate</div>
+        <div style="font-size:12px;color:var(--text-secondary);font-weight:700;">{{ count($importedVideos) }} items</div>
+    </div>
+
+    @if (empty($importedVideos))
+        <div style="padding:14px 16px;color:var(--text-secondary);font-size:13px;">
+            Nu există încă videoclipuri importate în această categorie.
+        </div>
+    @else
+        <div style="overflow-x:auto;">
+            <table class="fox-table">
+                <thead>
+                    <tr>
+                        <th>Titlu</th>
+                        <th>Fișier</th>
+                        <th style="width:240px;">Cale</th>
+                        <th style="width:140px;text-align:center;">Deschide</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach ($importedVideos as $v)
+                    <tr style="{{ !($v['exists'] ?? false) ? 'opacity:0.65;' : '' }}">
+                        <td style="font-weight:700;color:var(--text-primary);">
+                            {{ $v['title'] ?? '—' }}
+                            @if (!($v['exists'] ?? false))
+                                <span class="fox-badge red" style="margin-left:6px;">MISSING</span>
+                            @endif
+                        </td>
+                        <td style="color:var(--text-secondary);font-size:12px;">
+                            {{ $v['filename'] ?? '—' }}
+                        </td>
+                        <td style="color:var(--text-muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:1px;">
+                            {{ $v['path'] ?? '—' }}
+                        </td>
+                        <td style="text-align:center;white-space:nowrap;">
+                            @if (!empty($v['dir']))
+                                <a class="fox-action-btn edit" href="?path={{ urlencode($v['dir']) }}" title="Deschide folder">📁</a>
+                            @else
+                                <span style="color:var(--text-muted);font-size:12px;font-weight:700;">—</span>
+                            @endif
+                        </td>
+                    </tr>
+                @endforeach
+                </tbody>
+            </table>
+        </div>
+    @endif
+</div>
 
 <div class="fox-table-container" style="padding:16px;margin-bottom:16px;">
     <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">How to import</div>
@@ -64,7 +121,7 @@
         @csrf
         <div style="display:grid;grid-template-columns:1fr;gap:16px;">
             <!-- Folders Section -->
-            @if (!empty($dirs))
+            @if (!empty($dirs) && !$isMuzicaCategory)
             <div class="fox-table-container" style="padding:16px;">
                 <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">📁 Folders</div>
                 <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:10px;">

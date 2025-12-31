@@ -111,6 +111,13 @@
       <span class="sidebar-icon">📺</span>
       <span>Series</span>
     </a>
+
+    {{-- Series: Rename MUZICA --}}
+    <a href="{{ route('fox.series.rename-muzica') }}"
+       class="sidebar-link" style="background: {{ $isActive('series/rename-muzica') ? '#b31217' : 'transparent' }};">
+      <span class="sidebar-icon">✏️</span>
+      <span>Rename MUZICA</span>
+    </a>
   </nav>
 
   {{-- highlight bar roșu în dreapta (ca în poză) --}}

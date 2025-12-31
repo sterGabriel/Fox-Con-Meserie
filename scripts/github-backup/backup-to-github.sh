@@ -47,6 +47,8 @@ write_status() {
   local ts
   ts="$(date -Is)"
 
+  mkdir -p "$(dirname "$STATUS_FILE")" 2>/dev/null || true
+
   # Write valid JSON (no jq). Use PHP which exists in this project.
   TS="$ts" PCT="$percent" MSG="$message" FILE="$STATUS_FILE" \
     php -r '$ts=getenv("TS"); $pct=(int)getenv("PCT"); $msg=getenv("MSG"); $file=getenv("FILE"); @file_put_contents($file, json_encode(["ts"=>$ts,"percent"=>$pct,"message"=>$msg], JSON_UNESCAPED_SLASHES)."\n");' \

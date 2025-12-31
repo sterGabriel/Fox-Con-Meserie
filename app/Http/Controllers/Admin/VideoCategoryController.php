@@ -12,7 +12,10 @@ class VideoCategoryController extends Controller
 {
     public function index()
     {
-        $categories = VideoCategory::orderBy('name')->get();
+        $categories = VideoCategory::query()
+            ->withCount('videos')
+            ->orderBy('name')
+            ->get();
 
         return view('admin.video_categories.index', compact('categories'));
     }
@@ -22,7 +25,21 @@ class VideoCategoryController extends Controller
         $data = $request->validate([
             'name'        => ['required', 'string', 'max:255', 'unique:video_categories,name'],
             'description' => ['nullable', 'string'],
+            'source_path' => ['nullable', 'string', 'max:2048'],
         ]);
+
+        if (isset($data['source_path'])) {
+            $data['source_path'] = trim((string) $data['source_path']);
+            if ($data['source_path'] !== '' && !str_starts_with($data['source_path'], '/media')) {
+                return redirect()
+                    ->back()
+                    ->withInput()
+                    ->withErrors(['source_path' => 'source_path trebuie să fie în /media']);
+            }
+            if ($data['source_path'] === '') {
+                $data['source_path'] = null;
+            }
+        }
 
         $data['slug'] = Str::slug($data['name']);
 
@@ -43,7 +60,21 @@ class VideoCategoryController extends Controller
         $data = $request->validate([
             'name'        => ['required', 'string', 'max:255', 'unique:video_categories,name,' . $category->id],
             'description' => ['nullable', 'string'],
+            'source_path' => ['nullable', 'string', 'max:2048'],
         ]);
+
+        if (isset($data['source_path'])) {
+            $data['source_path'] = trim((string) $data['source_path']);
+            if ($data['source_path'] !== '' && !str_starts_with($data['source_path'], '/media')) {
+                return redirect()
+                    ->back()
+                    ->withInput()
+                    ->withErrors(['source_path' => 'source_path trebuie să fie în /media']);
+            }
+            if ($data['source_path'] === '') {
+                $data['source_path'] = null;
+            }
+        }
 
         $data['slug'] = Str::slug($data['name']);
 

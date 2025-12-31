@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\VideoApiController;
 use App\Http\Controllers\Api\EncodingJobApiController;
 use App\Http\Controllers\Api\LiveChannelApiController;
 use App\Http\Controllers\Admin\TmdbSettingsController;
+use App\Http\Controllers\Admin\SeriesRenameController;
 use App\Http\Controllers\EpgController;
 
 // ROOT → redirect to dashboard
@@ -120,6 +121,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('/codec-channels', 'admin.fox.placeholder', ['title' => 'Codec Channels'])->name('fox.codec-channels');
     Route::view('/vod-movies', 'admin.fox.placeholder', ['title' => 'Vod Movies'])->name('fox.vod-movies');
     Route::view('/series', 'admin.fox.placeholder', ['title' => 'Series'])->name('fox.series');
+
+    // Series tools (rename)
+    Route::get('/series/rename-muzica', [SeriesRenameController::class, 'muzica'])
+        ->name('fox.series.rename-muzica');
+
+    Route::post('/series/rename-muzica', [SeriesRenameController::class, 'renameMuzica'])
+        ->name('fox.series.rename-muzica.rename');
+
+    Route::post('/series/rename-muzica/bulk', [SeriesRenameController::class, 'bulkRenameMuzica'])
+        ->name('fox.series.rename-muzica.bulk');
 
     // ───────────── VOD CHANNELS ─────────────
 

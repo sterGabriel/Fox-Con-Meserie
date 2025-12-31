@@ -83,6 +83,8 @@ class FullBackup extends Command
             '--exclude=vendor',
             '--exclude=node_modules',
             '--exclude=storage/framework',
+            // Do not include movie/stream payloads in full backups.
+            '--exclude=storage/app/streams',
             '--exclude=storage/app/full-backups',
             '--exclude=storage/app/db-backups',
             '--exclude=.git',

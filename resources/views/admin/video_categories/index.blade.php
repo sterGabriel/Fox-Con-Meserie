@@ -66,6 +66,7 @@
                     <tr>
                         <th style="width:80px;">ID</th>
                         <th style="width:240px;">Name</th>
+                        <th style="width:120px;text-align:center;">VOD</th>
                         <th>Description</th>
                         <th style="width:160px;text-align:center;">Actions</th>
                     </tr>
@@ -75,6 +76,7 @@
                         <tr>
                             <td>{{ $category->id }}</td>
                             <td style="font-weight:700;">{{ $category->name }}</td>
+                            <td style="text-align:center;font-weight:800;">{{ (int) ($category->videos_count ?? 0) }}</td>
                             <td style="color:#666;">{{ Str::limit($category->description ?? '—', 60) }}</td>
                             <td style="text-align:center;white-space:nowrap;">
                                 <a href="{{ route('video-categories.edit', $category) }}" class="fox-action-btn edit" title="Edit">✎</a>

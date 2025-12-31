@@ -18,12 +18,19 @@ class Video extends Model
         'size_bytes',
         'format',
 
+        // json metadata
+        'metadata',
+
         // TMDB
         'tmdb_id',
         'tmdb_type',
         'tmdb_poster_path',
         'tmdb_backdrop_path',
         'tmdb_genres',
+    ];
+
+    protected $casts = [
+        'metadata' => 'array',
     ];
 
     public function playlistItems()

@@ -18,7 +18,12 @@ class FileBrowserController extends Controller
 
     public function browse(VideoCategory $category, Request $request)
     {
-        $requested = $request->query('path', $this->basePath);
+        $defaultPath = $this->basePath;
+        if (is_string($category->source_path) && trim($category->source_path) !== '') {
+            $defaultPath = $category->source_path;
+        }
+
+        $requested = $request->query('path', $defaultPath);
 
         // Path real
         $realBase = realpath($this->basePath) ?: $this->basePath;
@@ -32,10 +37,34 @@ class FileBrowserController extends Controller
         $dirs  = [];
         $files = [];
 
-        // Get already imported videos for this category
-        $importedPaths = Video::where('video_category_id', $category->id)
-            ->pluck('file_path')
-            ->toArray();
+        $importedVideos = Video::where('video_category_id', $category->id)
+            ->orderByDesc('id')
+            ->limit(500)
+            ->get(['id', 'title', 'file_path', 'duration_seconds', 'created_at']);
+
+        $importedPathSet = [];
+        $importedVideoRows = [];
+        foreach ($importedVideos as $video) {
+            $stored = (string) $video->file_path;
+            if ($stored !== '') {
+                $importedPathSet[$stored] = true;
+                $storedReal = realpath($stored);
+                if ($storedReal) {
+                    $importedPathSet[$storedReal] = true;
+                }
+            }
+
+            $importedVideoRows[] = [
+                'id' => $video->id,
+                'title' => $video->title,
+                'path' => $stored,
+                'dir' => $stored !== '' ? dirname($stored) : '',
+                'filename' => $stored !== '' ? basename($stored) : '',
+                'exists' => $stored !== '' ? file_exists($stored) : false,
+                'duration_seconds' => $video->duration_seconds,
+                'created_at' => $video->created_at,
+            ];
+        }
 
         if (is_dir($realPath)) {
             foreach (scandir($realPath) as $entry) {
@@ -58,7 +87,8 @@ class FileBrowserController extends Controller
                         continue;
                     }
 
-                    $isImported = in_array($full, $importedPaths);
+                    $fullReal = realpath($full) ?: $full;
+                    $isImported = isset($importedPathSet[$full]) || isset($importedPathSet[$fullReal]);
                     $files[] = [
                         'name' => $entry,
                         'path' => $full,
@@ -93,6 +123,7 @@ class FileBrowserController extends Controller
             'dirs'        => $dirs,
             'files'       => $files,
             'breadcrumb'  => $breadcrumb,
+            'importedVideos' => $importedVideoRows,
         ]);
     }
 
@@ -127,8 +158,10 @@ class FileBrowserController extends Controller
                 continue;
             }
 
-            // Check if already imported
-            if (Video::where('file_path', $filePath)->exists()) {
+            $canonicalPath = realpath($filePath) ?: $filePath;
+
+            // Check if already imported (handle symlinks/realpath differences)
+            if (Video::where('file_path', $filePath)->orWhere('file_path', $canonicalPath)->exists()) {
                 \Log::info("File already imported: $filePath");
                 continue;
             }
@@ -140,7 +173,7 @@ class FileBrowserController extends Controller
                 // Create video record in DB
                 $video = Video::create([
                     'title' => pathinfo($filePath, PATHINFO_FILENAME),
-                    'file_path' => $filePath,
+                    'file_path' => $canonicalPath,
                     'duration_seconds' => $this->parseDurationToSeconds($duration),
                     'video_category_id' => $category->id,
                     'metadata' => json_encode($metadata),
