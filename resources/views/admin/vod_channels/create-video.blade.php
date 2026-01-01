@@ -16,7 +16,7 @@
 
   .create-video-container {
     display: grid;
-    grid-template-columns: 420px 1fr;
+    grid-template-columns: 480px 1fr;
     gap: 20px;
     padding: 20px;
     max-width: 100%;
@@ -195,6 +195,74 @@
   .info-detail-row {
     font-size: 12px;
     margin: 4px 0;
+  }
+
+  .selected-list {
+    margin-top: 10px;
+    display: grid;
+    gap: 6px;
+  }
+
+  .selected-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.55);
+    border: 1px solid rgba(30, 64, 175, 0.18);
+  }
+
+  .selected-item-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #1e3a8a;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .btn-mini {
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 6px;
+    border: 1px solid rgba(30, 64, 175, 0.25);
+    background: rgba(255, 255, 255, 0.9);
+    color: #1e3a8a;
+    cursor: pointer;
+  }
+
+  .btn-mini:hover {
+    background: #ffffff;
+  }
+
+  .btn-mini-secondary {
+    border-color: rgba(30, 64, 175, 0.35);
+  }
+
+  .btn-mini-danger {
+    border-color: rgba(220, 38, 38, 0.5);
+    color: #dc2626;
+  }
+
+  .btn-mini-danger:hover {
+    border-color: rgba(220, 38, 38, 0.8);
+  }
+
+  .selected-actions {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .selected-count {
+    font-size: 12px;
+    font-weight: 700;
+    color: rgba(30, 64, 175, 0.75);
   }
 
   /* BUTTONS */
@@ -556,6 +624,14 @@
       <div class="info-box">
         <strong id="selected-title">ℹ️ Please Select Video</strong>
         <div id="selected-meta">Choose a video from the table on the right</div>
+
+        <div id="selected-list" class="selected-list"></div>
+
+        <div class="selected-actions">
+          <button type="button" class="btn-mini btn-mini-secondary" id="clearSelectedBtn">Clear</button>
+          <div class="selected-count" id="selected-count">0 selected</div>
+        </div>
+
         <div id="info-details" class="info-details">
           <div class="info-detail-row"><strong>Duration:</strong> <span id="detail-duration">—</span></div>
           <div class="info-detail-row"><strong>Resolution:</strong> <span id="detail-resolution">—</span></div>
@@ -1015,7 +1091,7 @@
       <!-- OVERLAY PREVIEW -->
       <div style="margin: 10px 0 16px;">
         <div style="font-size: 12px; font-weight: 600; color: #111827; margin-bottom: 8px;">Preview (Logo + VOD Name + Countdown)</div>
-        <div id="overlayPreview" style="position: relative; width: 100%; aspect-ratio: 16 / 9; background: #111827; border-radius: 10px; overflow: hidden; border: 1px solid #e5e7eb;">
+        <div id="overlayPreview" style="position: relative; width: 100%; max-width: 560px; margin: 0; aspect-ratio: 16 / 9; background: #111827; border-radius: 10px; overflow: hidden; border: 1px solid #e5e7eb;">
           <div style="position:absolute; inset:0; background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0));"></div>
           <img id="overlayPreviewLogo" src="{{ route('vod-channels.logo.preview', $channel) }}" alt="" style="position:absolute; display:none; object-fit: contain;" onerror="this.style.display='none'" />
           <div id="overlayPreviewText" style="position:absolute; display:none; color:#fff; font-weight:700; text-shadow: 0 1px 2px rgba(0,0,0,0.6);"></div>
@@ -1111,11 +1187,118 @@
 
 <script>
 let selectedVideo = null;
+let selectedVideos = new Map();
 
 document.addEventListener('DOMContentLoaded', function() {
   const CHANNEL_ID = {{ (int) $channel->id }};
   let lastFetchedVideos = [];
   let currentCategoryId = '';
+
+  function getVideoFromCache(videoId) {
+    const id = parseInt(videoId, 10);
+    if (!Number.isFinite(id) || id <= 0) return null;
+    if (selectedVideo && parseInt(selectedVideo.id, 10) === id) return selectedVideo;
+    if (selectedVideos.has(id)) return selectedVideos.get(id);
+    if (Array.isArray(lastFetchedVideos)) {
+      const v = lastFetchedVideos.find(x => parseInt(x.id, 10) === id);
+      if (v) return v;
+    }
+    return null;
+  }
+
+  function renderSelectedList() {
+    const listEl = document.getElementById('selected-list');
+    const titleEl = document.getElementById('selected-title');
+    const metaEl = document.getElementById('selected-meta');
+    const countEl = document.getElementById('selected-count');
+    const videoIdEl = document.getElementById('video_id');
+    const infoDetailsEl = document.getElementById('info-details');
+
+    const ids = Array.from(selectedVideos.keys());
+    if (countEl) countEl.textContent = `${ids.length} selected`;
+
+    if (ids.length === 0) {
+      if (titleEl) titleEl.textContent = 'ℹ️ Please Select Video';
+      if (metaEl) metaEl.textContent = 'Choose one or more videos from the table on the right';
+      if (listEl) listEl.innerHTML = '';
+      if (videoIdEl) videoIdEl.value = '';
+      if (infoDetailsEl) infoDetailsEl.classList.remove('visible');
+      return;
+    }
+
+    if (ids.length === 1) {
+      const v = selectedVideos.get(ids[0]);
+      const t = (v && v.title) ? v.title : ('Video #' + ids[0]);
+      if (titleEl) titleEl.textContent = '✅ ' + t;
+      if (metaEl) metaEl.textContent = 'Selected video is ready to encode.';
+    } else {
+      if (titleEl) titleEl.textContent = '✅ Selected Videos';
+      if (metaEl) metaEl.textContent = `Ready to encode ${ids.length} videos.`;
+    }
+
+    if (videoIdEl) videoIdEl.value = String(ids[0] || '');
+
+    if (listEl) {
+      listEl.innerHTML = ids.map(id => {
+        const v = selectedVideos.get(id);
+        const t = (v && v.title) ? v.title : ('Video #' + id);
+        const safeTitle = String(t).replace(/"/g, '&quot;');
+        return `
+          <div class="selected-item" data-selected-id="${id}">
+            <div class="selected-item-title" title="${safeTitle}">${t}</div>
+            <button type="button" class="btn-mini btn-mini-danger js-remove-selected" data-remove-id="${id}">Remove</button>
+          </div>
+        `;
+      }).join('');
+
+      listEl.querySelectorAll('.js-remove-selected').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = parseInt(btn.getAttribute('data-remove-id') || '0', 10);
+          if (!Number.isFinite(id) || id <= 0) return;
+          removeVideoFromSelection(id);
+        });
+      });
+    }
+
+    // Keep visible checkboxes in sync.
+    document.querySelectorAll('#videosList .video-checkbox').forEach(cb => {
+      const id = parseInt(cb.value, 10);
+      if (!Number.isFinite(id) || id <= 0) return;
+      cb.checked = selectedVideos.has(id);
+    });
+  }
+
+  function addVideoToSelection(video) {
+    const id = parseInt(video?.id ?? 0, 10);
+    if (!Number.isFinite(id) || id <= 0) return;
+    selectedVideos.set(id, video || { id });
+    renderSelectedList();
+  }
+
+  function removeVideoFromSelection(videoId) {
+    const id = parseInt(videoId, 10);
+    if (!Number.isFinite(id) || id <= 0) return;
+    selectedVideos.delete(id);
+    if (selectedVideo && parseInt(selectedVideo.id, 10) === id) {
+      selectedVideo = null;
+    }
+
+    const cb = document.querySelector(`#videosList .video-checkbox[value="${id}"]`);
+    if (cb) cb.checked = false;
+
+    renderSelectedList();
+    updateOverlayPreview();
+  }
+
+  function clearSelection() {
+    selectedVideos.clear();
+    selectedVideo = null;
+    document.querySelectorAll('#videosList .video-checkbox').forEach(cb => { cb.checked = false; });
+    const selectAllEl = document.getElementById('selectAllVideos');
+    if (selectAllEl) selectAllEl.checked = false;
+    renderSelectedList();
+    updateOverlayPreview();
+  }
 
   function getSelectedLimit() {
     const pageLengthEl = document.getElementById('pageLength');
@@ -1286,6 +1469,12 @@ document.addEventListener('DOMContentLoaded', function() {
     function getPreviewVideo() {
       if (selectedVideo && selectedVideo.title) return selectedVideo;
 
+      const ids = Array.from(selectedVideos.keys());
+      if (ids.length > 0) {
+        const v = selectedVideos.get(ids[0]);
+        if (v) return v;
+      }
+
       // If user checked a row but didn't press "Select", still preview that VOD name.
       const checked = document.querySelector('#videosList .video-checkbox:checked');
       if (checked) {
@@ -1321,6 +1510,26 @@ document.addEventListener('DOMContentLoaded', function() {
       const titleFontPx = Math.max(8, parseInt(s.overlay_text_font_size || 0, 10) || 16);
       textEl.style.fontSize = `${titleFontPx}px`;
 
+      // Apply styling from settings
+      textEl.style.fontFamily = String(s.overlay_text_font_family || 'Ubuntu');
+      textEl.style.color = String(s.overlay_text_color || 'white');
+
+      const bgOpacity = Math.max(0, Math.min(100, parseInt(s.overlay_text_bg_opacity || 0, 10) || 0));
+      const pad = Math.max(0, parseInt(s.overlay_text_padding || 0, 10) || 0);
+      if (bgOpacity > 0) {
+        const a = bgOpacity / 100;
+        const bg = String(s.overlay_text_bg_color || 'black').toLowerCase() === 'white'
+          ? `rgba(255,255,255,${a})`
+          : `rgba(0,0,0,${a})`;
+        textEl.style.backgroundColor = bg;
+        textEl.style.padding = `${pad}px`;
+        textEl.style.borderRadius = '6px';
+      } else {
+        textEl.style.backgroundColor = 'transparent';
+        textEl.style.padding = '0px';
+        textEl.style.borderRadius = '0px';
+      }
+
       let text = '';
       if (s.overlay_text_content === 'title') {
         text = pv?.title || 'Select a video';
@@ -1343,6 +1552,8 @@ document.addEventListener('DOMContentLoaded', function() {
       timerEl.style.display = '';
       const timerFontPx = Math.max(8, parseInt(s.overlay_timer_font_size || 0, 10) || 20);
       timerEl.style.fontSize = `${timerFontPx}px`;
+      timerEl.style.fontFamily = String(s.overlay_text_font_family || 'Ubuntu');
+      timerEl.style.color = '#FFFFFF';
 
       // Preview countdown: use video duration when available, otherwise 00:10:00
       const dur = parseInt(pv?.duration_seconds || pv?.duration || '0', 10) || 0;
@@ -1407,10 +1618,11 @@ document.addEventListener('DOMContentLoaded', function() {
       const resolution = v.resolution || '—';
       const format = (v.format || 'mp4').toUpperCase();
       const videoData = JSON.stringify(v).replace(/"/g, '&quot;');
+      const checkedAttr = selectedVideos.has(parseInt(v.id, 10)) ? 'checked' : '';
 
       html += `
         <tr>
-          <td><input type="checkbox" class="video-checkbox" value="${v.id}"></td>
+          <td><input type="checkbox" class="video-checkbox" value="${v.id}" ${checkedAttr}></td>
           <td><strong>${v.title}</strong></td>
           <td>${v.server || 'primary'}</td>
           <td>${resolution}</td>
@@ -1451,6 +1663,8 @@ document.addEventListener('DOMContentLoaded', function() {
         deleteVideo(videoId);
       });
     });
+
+    renderSelectedList();
   }
 
   // CRF toggle
@@ -1510,7 +1724,30 @@ document.addEventListener('DOMContentLoaded', function() {
     selectAllEl.addEventListener('change', function() {
       document.querySelectorAll('#videosList .video-checkbox').forEach(cb => {
         cb.checked = selectAllEl.checked;
+
+        const id = parseInt(cb.value, 10);
+        if (!Number.isFinite(id) || id <= 0) return;
+
+        if (cb.checked) {
+          const v = getVideoFromCache(id) || { id };
+          selectedVideos.set(id, v);
+        } else {
+          selectedVideos.delete(id);
+          if (selectedVideo && parseInt(selectedVideo.id, 10) === id) selectedVideo = null;
+        }
       });
+
+      renderSelectedList();
+      updateOverlayPreview();
+    });
+  }
+
+  const clearBtn = document.getElementById('clearSelectedBtn');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', function() {
+      if (selectedVideos.size === 0) return;
+      if (!confirm('Clear selected videos?')) return;
+      clearSelection();
     });
   }
 
@@ -1532,13 +1769,11 @@ document.addEventListener('DOMContentLoaded', function() {
   // Select video
   window.selectVideo = function(video) {
     selectedVideo = video;
-    document.getElementById('video_id').value = video.id;
+    addVideoToSelection(video);
     
     const duration = video.duration_seconds ? `${Math.floor(video.duration_seconds / 60)}:${String(video.duration_seconds % 60).padStart(2, '0')}` : '—';
     const size = video.size_bytes ? `${(video.size_bytes / (1024*1024*1024)).toFixed(2)} GB` : '—';
 
-    document.getElementById('selected-title').textContent = '✅ ' + video.title;
-    document.getElementById('selected-meta').textContent = 'Video selected. Ready to encode.';
     document.getElementById('detail-duration').textContent = duration;
     document.getElementById('detail-resolution').textContent = video.resolution || '—';
     document.getElementById('detail-format').textContent = (video.format || 'mp4').toUpperCase();
@@ -1559,6 +1794,15 @@ document.addEventListener('DOMContentLoaded', function() {
     videosListEl.addEventListener('change', (e) => {
       const target = e.target;
       if (target && target.classList && target.classList.contains('video-checkbox')) {
+        const id = parseInt(target.value, 10);
+        if (Number.isFinite(id) && id > 0) {
+          if (target.checked) {
+            const v = getVideoFromCache(id) || { id };
+            addVideoToSelection(v);
+          } else {
+            removeVideoFromSelection(id);
+          }
+        }
         updateOverlayPreview();
       }
     });
@@ -1583,18 +1827,19 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('createVideoForm').addEventListener('submit', function(e) {
     e.preventDefault();
 
-    if (!selectedVideo) {
-      alert('❌ Please select a video first');
+    const videoIds = Array.from(selectedVideos.keys());
+    if (videoIds.length === 0) {
+      alert('❌ Please select one or more videos first');
       return;
     }
 
-    const jobData = {
-      video_id: selectedVideo.id,
-      live_channel_id: CHANNEL_ID,
-      settings: buildSettingsFromForm(),
-    };
+    const settings = buildSettingsFromForm();
+    const endpoint = (videoIds.length === 1) ? '/api/encoding-jobs' : '/api/encoding-jobs/bulk';
+    const payload = (videoIds.length === 1)
+      ? { video_id: videoIds[0], live_channel_id: CHANNEL_ID, settings }
+      : { live_channel_id: CHANNEL_ID, video_ids: videoIds, settings };
 
-    fetch('/api/encoding-jobs', {
+    fetch(endpoint, {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -1602,7 +1847,7 @@ document.addEventListener('DOMContentLoaded', function() {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       },
-      body: JSON.stringify(jobData)
+      body: JSON.stringify(payload)
     })
     .then(async (r) => {
       const data = await r.json().catch(() => ({}));
@@ -1614,11 +1859,13 @@ document.addEventListener('DOMContentLoaded', function() {
     })
     .then(data => {
       if (!data.ok) throw new Error('Failed to create encoding job');
-      alert('✅ Encoding job created!');
+      if (videoIds.length === 1) {
+        alert('✅ Encoding job created!');
+      } else {
+        alert(`✅ Queued ${data.count || videoIds.length} job(s)`);
+      }
       loadTestJobs();
-      selectedVideo = null;
-      document.getElementById('selected-title').textContent = 'ℹ️ Please Select Video';
-      document.getElementById('info-details').classList.remove('visible');
+      clearSelection();
     })
     .catch(e => alert('❌ Error: ' + e.message));
   });
@@ -1798,6 +2045,8 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   loadTestJobs();
+
+  renderSelectedList();
 });
 </script>
 

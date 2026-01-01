@@ -65,7 +65,7 @@ html, body { overflow-x: hidden; }
 
 .channel-name-wrap { display: flex; align-items: center; gap: 10px; min-width: 220px; }
 .channel-logo-box { width: 64px; height: 36px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--border-light); flex: 0 0 auto; overflow: hidden; }
-.channel-logo-box img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.channel-logo-box img { width: 100%; height: 100%; object-fit: contain; object-position: center; display: block; }
 
 .pill { display: inline-flex; align-items: center; justify-content: center; height: 22px; padding: 0 8px; border-radius: 999px; font-weight: 700; font-size: 12px; border: 1px solid; }
 .pill-blue { background: #dbeafe; color: #1e40af; border-color: #bfdbfe; }

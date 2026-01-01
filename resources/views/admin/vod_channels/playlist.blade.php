@@ -20,6 +20,9 @@
   .card-t { font-size:13px; font-weight:900; color:var(--text-primary); }
   .card-b { padding:14px; }
 
+  .top-grid { display:grid; grid-template-columns: 1fr 1fr; gap:14px; margin: 0 0 14px; }
+  @media (max-width: 980px) { .top-grid { grid-template-columns: 1fr; } }
+
   .btn-row { display:flex; gap:10px; flex-wrap:wrap; }
   .btn { padding:10px 12px; border-radius:6px; color:#fff; font-weight:900; font-size:12px; border:0; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; }
   .btn-blue { background:var(--fox-blue); }
@@ -119,19 +122,19 @@
   <div class="flash error">{{ session('error') }}</div>
 @endif
 
-<div class="np" id="totalTime" style="margin: 0 0 12px;">Total Time: —</div>
-
-<div class="card" style="margin-bottom: 14px;">
-  <div class="card-h">
-    <div class="card-t">Now Playing</div>
-    <div class="muted" style="font-size:12px; font-weight:900;" id="jsNpStatus">—</div>
+<div class="top-grid">
+  <div class="card">
+    <div class="card-h">
+      <div class="card-t">Now Playing</div>
+      <div class="muted" style="font-size:12px; font-weight:900;" id="jsNpStatus">—</div>
+    </div>
+    <div class="card-b" style="display:grid; gap:10px;">
+      <div class="np" id="totalTime" style="margin: 0;">Total Time: —</div>
+      <div class="muted"><span style="font-weight:900;">Now:</span> <span id="jsNpTitle">—</span> <span class="muted" id="jsNpIndex"></span></div>
+      <div class="muted"><span style="font-weight:900;">Remaining:</span> <span id="jsNpRemain">—</span></div>
+      <div class="muted"><span style="font-weight:900;">Next:</span> <span id="jsNpNext">—</span></div>
+    </div>
   </div>
-  <div class="card-b" style="display:grid; gap:10px;">
-    <div class="muted"><span style="font-weight:900;">Now:</span> <span id="jsNpTitle">—</span> <span class="muted" id="jsNpIndex"></span></div>
-    <div class="muted"><span style="font-weight:900;">Remaining:</span> <span id="jsNpRemain">—</span></div>
-    <div class="muted"><span style="font-weight:900;">Next:</span> <span id="jsNpNext">—</span></div>
-  </div>
-</div>
 
 <?php
   $domain = rtrim((string) config('app.streaming_domain', ''), '/');
@@ -181,27 +184,28 @@
   };
 ?>
 
-<div class="card" style="margin-bottom: 14px;">
-  <div class="card-h">
-    <div class="card-t">Stream URLs</div>
-  </div>
-  <div class="card-b" style="display:grid; gap:10px;">
-    <div class="muted" style="font-weight:900;">HLS (M3U8)</div>
-    <a class="muted" href="{{ $hlsUrl }}" target="_blank" rel="noopener">{{ $hlsUrl }}</a>
-
-    <div class="muted" style="font-weight:900;">TS (MPEG-TS)</div>
-    <a class="muted" href="{{ $tsUrlLive }}" target="_blank" rel="noopener">{{ $tsUrlLive }}</a>
-
-    <div class="muted" style="font-weight:900;">Master Playlist (All Channels)</div>
-    <a class="muted" href="{{ $masterUrl }}" target="_blank" rel="noopener">{{ $masterUrl }}</a>
-
-    <div class="muted" style="font-weight:900;">EPG (XMLTV, 7 days)</div>
-    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-      <a class="muted" href="{{ $epgUrl }}" target="_blank" rel="noopener">{{ $epgUrl }}</a>
-      <a class="btn btn-outline btn-sm" href="{{ $epgUrl }}" target="_blank" rel="noopener">Export EPG (All)</a>
+  <div class="card">
+    <div class="card-h">
+      <div class="card-t">Stream URLs</div>
     </div>
+    <div class="card-b" style="display:grid; gap:10px;">
+      <div class="muted" style="font-weight:900;">HLS (M3U8)</div>
+      <a class="muted" href="{{ $hlsUrl }}" target="_blank" rel="noopener">{{ $hlsUrl }}</a>
 
-    <div class="muted">Note: Streams are available only when the channel is running.</div>
+      <div class="muted" style="font-weight:900;">TS (MPEG-TS)</div>
+      <a class="muted" href="{{ $tsUrlLive }}" target="_blank" rel="noopener">{{ $tsUrlLive }}</a>
+
+      <div class="muted" style="font-weight:900;">Master Playlist (All Channels)</div>
+      <a class="muted" href="{{ $masterUrl }}" target="_blank" rel="noopener">{{ $masterUrl }}</a>
+
+      <div class="muted" style="font-weight:900;">EPG (XMLTV, 7 days)</div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <a class="muted" href="{{ $epgUrl }}" target="_blank" rel="noopener">{{ $epgUrl }}</a>
+        <a class="btn btn-outline btn-sm" href="{{ $epgUrl }}" target="_blank" rel="noopener">Export EPG (All)</a>
+      </div>
+
+      <div class="muted">Note: Streams are available only when the channel is running.</div>
+    </div>
   </div>
 </div>
 
