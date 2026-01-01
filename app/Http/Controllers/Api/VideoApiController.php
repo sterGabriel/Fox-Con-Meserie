@@ -22,6 +22,10 @@ class VideoApiController extends Controller
     {
         $categoryId = $request->query('category_id');
         $channelId = (int) $request->query('channel_id', 0);
+        $limit = (int) $request->query('limit', 1000);
+        if ($limit <= 0) $limit = 1000;
+        if ($limit > 1000) $limit = 1000;
+
         $excludeEncoded = (string) $request->query('exclude_encoded', '0');
         $excludeEncoded = in_array(strtolower($excludeEncoded), ['1', 'true', 'yes', 'on'], true);
         
@@ -73,7 +77,7 @@ class VideoApiController extends Controller
         }
 
         $videos = $videosQuery
-            ->limit(1000)
+            ->limit($limit)
             ->get([
                 'id', 'title', 'file_path', 'duration_seconds',
                 'bitrate_kbps', 'resolution', 'size_bytes', 'format',

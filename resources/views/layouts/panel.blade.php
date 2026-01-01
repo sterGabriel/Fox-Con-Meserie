@@ -45,8 +45,9 @@
         @include('components.sub-header')
 
         {{-- PAGE CONTENT --}}
-        <section style="flex: 1; overflow-y: auto; padding: 24px; background: #f4f5f7;">
-            <div class="animate-slideIn" style="width: 100%; max-width: 1400px; margin: 0 auto;">
+        @php($fullWidth = View::hasSection('full_width'))
+        <section style="flex: 1; overflow-y: auto; padding: {{ $fullWidth ? '0' : '24px' }}; background: #f4f5f7;">
+            <div class="animate-slideIn" style="width: 100%; max-width: {{ $fullWidth ? 'none' : '1400px' }}; margin: {{ $fullWidth ? '0' : '0 auto' }};">
                 @yield('content')
             </div>
         </section>

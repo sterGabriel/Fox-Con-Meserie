@@ -13,8 +13,12 @@ class CreateVideoController extends Controller
      */
     public function show(LiveChannel $channel)
     {
+        $channels = LiveChannel::query()
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
         $categories = VideoCategory::orderBy('name')->get(['id', 'name']);
 
-        return view('admin.vod_channels.create-video', compact('channel', 'categories'));
+        return view('admin.vod_channels.create-video', compact('channel', 'channels', 'categories'));
     }
 }

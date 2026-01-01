@@ -19,17 +19,7 @@ class EncodingJobApiController extends Controller
         $data = $request->validate([
             'live_channel_id' => ['required', 'integer', 'min:1'],
             'video_id'        => ['required', 'integer', 'min:1'],
-
-            // settings (minimal structure)
-            'settings'                  => ['required', 'array'],
-            'settings.vcodec'           => ['nullable', 'string'],
-            'settings.preset'           => ['nullable', 'string'],
-            'settings.crf'              => ['nullable', 'integer'],
-            'settings.vbitrate_kbps'    => ['nullable', 'integer'],
-            'settings.abitrate_kbps'    => ['nullable', 'integer'],
-            'settings.fps'              => ['nullable'],
-            'settings.logo'             => ['nullable', 'array'],
-            'settings.text'             => ['nullable', 'array'],
+            'settings'        => ['required', 'array'],
         ]);
 
         $channel = LiveChannel::findOrFail($data['live_channel_id']);
@@ -41,7 +31,9 @@ class EncodingJobApiController extends Controller
         $job->video_id = $video->id;
         $job->input_path = $video->file_path;
         $job->status = 'pending';
-        $job->settings = $data['settings']; // auto-cast to JSON via model
+        $settings = $request->input('settings', []);
+        if (!is_array($settings)) $settings = [];
+        $job->settings = $settings; // auto-cast to JSON via model
         $job->progress = 0;
         $job->output_path = null; // Set by worker later
         $job->save();
@@ -73,16 +65,43 @@ class EncodingJobApiController extends Controller
             ]);
 
         $jobs = $jobs->map(function ($job) {
+            $settings = is_array($job->settings) ? $job->settings : [];
+
+            $codec = $settings['encoder'] ?? $settings['vcodec'] ?? 'libx264';
+            $bitrateK = $settings['video_bitrate'] ?? $settings['vbitrate_kbps'] ?? 0;
+            $bitrateK = is_numeric($bitrateK) ? (int) $bitrateK : 0;
+
+            $textOverlay = 'N/A';
+            $textEnabled = $settings['overlay_text_enabled'] ?? null;
+            $textEnabled = filter_var($textEnabled, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
+            if ($textEnabled === null) {
+                $textEnabled = (bool) ($settings['text']['enabled'] ?? false);
+            }
+
+            if ($textEnabled) {
+                $mode = (string) ($settings['overlay_text_content'] ?? '');
+                if ($mode === 'title') {
+                    $textOverlay = $job->video?->title ?? 'Unknown';
+                } elseif ($mode === 'custom') {
+                    $textOverlay = (string) ($settings['overlay_text_custom'] ?? '');
+                    if (trim($textOverlay) === '') $textOverlay = 'custom';
+                } elseif ($mode === 'channel_name') {
+                    $textOverlay = 'channel_name';
+                } else {
+                    $textOverlay = $mode !== '' ? $mode : 'enabled';
+                }
+            }
+
             return [
                 'id' => $job->id,
                 'video_id' => $job->video_id,
                 'video_title' => $job->video?->title ?? 'Unknown',
                 'status' => $job->status,
                 'progress' => $job->progress ?? 0,
-                'codec' => $job->settings['vcodec'] ?? 'h264',
-                'bitrate' => ($job->settings['vbitrate_kbps'] ?? 0) . ' kbps',
+                'codec' => $codec,
+                'bitrate' => $bitrateK . ' kbps',
                 'created_at' => $job->created_at->format('Y-m-d H:i:s'),
-                'text_overlay' => $job->settings['text']['value'] ?? 'N/A',
+                'text_overlay' => $textOverlay,
             ];
         });
 
@@ -102,6 +121,9 @@ class EncodingJobApiController extends Controller
             'settings'        => ['required', 'array'],
         ]);
 
+        $settings = $request->input('settings', []);
+        if (!is_array($settings)) $settings = [];
+
         $channel = LiveChannel::findOrFail($data['live_channel_id']);
         $created = [];
 
@@ -114,7 +136,7 @@ class EncodingJobApiController extends Controller
             $job->video_id = $video->id;
             $job->input_path = $video->file_path;
             $job->status = 'pending';
-            $job->settings = $data['settings'];
+            $job->settings = $settings;
             $job->progress = 0;
             $job->save();
 

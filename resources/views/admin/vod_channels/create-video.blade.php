@@ -1,5 +1,7 @@
 @extends('layouts.panel')
 
+@section('full_width', true)
+
 @section('content')
 
 <style>
@@ -467,6 +469,80 @@
     gap: 16px;
   }
 
+  /* CHANNEL + CATEGORY PICKERS */
+  .pickers {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    align-items: end;
+  }
+
+  @media (max-width: 900px) {
+    .pickers {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .picker-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    color: #374151;
+    margin-bottom: 6px;
+  }
+
+  .picker-select {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 14px;
+    font-weight: 600;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #111827;
+  }
+
+  .channel-banner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .channel-logo {
+    width: 90px;
+    height: 90px;
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+    background: #f9fafb;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex: 0 0 auto;
+  }
+
+  .channel-logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+
+  .channel-title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 800;
+    color: #111827;
+    line-height: 1.2;
+  }
+
+  .channel-subtitle {
+    margin: 4px 0 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: #6b7280;
+  }
+
   .hidden {
     display: none !important;
   }
@@ -500,8 +576,12 @@
 
       <div class="form-group">
         <label>Channels</label>
-        <select disabled>
-          <option>{{ $channel->name }} (current)</option>
+        <select id="channel_switch_left" class="picker-select">
+          @foreach(($channels ?? []) as $ch)
+            <option value="{{ $ch->id }}" @selected((int)$ch->id === (int)$channel->id)>
+              {{ $ch->name }}@if((int)$ch->id === (int)$channel->id) (current)@endif
+            </option>
+          @endforeach
         </select>
       </div>
 
@@ -659,7 +739,7 @@
       <div class="card-title" style="margin-top: 16px;">🖼️ Logo Overlay</div>
 
       <div class="form-check">
-        <input type="checkbox" name="logo_enabled" id="logo_enabled" checked>
+        <input type="checkbox" name="logo_enabled" id="logo_enabled" @checked((bool)($channel->overlay_logo_enabled ?? false) || !empty($channel->overlay_logo_path ?? $channel->logo_path ?? null))>
         <label for="logo_enabled">Transparent Logo</label>
       </div>
 
@@ -670,30 +750,31 @@
           <div class="form-group">
             <label>Logo Position</label>
             <select name="logo_position" id="logo_position">
-              <option value="tl" selected>Top Left</option>
-              <option value="tr">Top Right</option>
-              <option value="bl">Bottom Left</option>
-              <option value="br">Bottom Right</option>
+              @php($lp = strtolower((string)($channel->overlay_logo_position ?? 'TL')))
+              <option value="tl" @selected($lp === 'tl')>Top Left</option>
+              <option value="tr" @selected($lp === 'tr')>Top Right</option>
+              <option value="bl" @selected($lp === 'bl')>Bottom Left</option>
+              <option value="br" @selected($lp === 'br')>Bottom Right</option>
             </select>
           </div>
           <div class="form-group">
             <label>Logo Position: X</label>
-            <input type="number" name="logo_x" id="logo_x" value="20">
+            <input type="number" name="logo_x" id="logo_x" value="{{ (int)($channel->overlay_logo_x ?? 20) }}">
           </div>
           <div class="form-group">
             <label>Logo Position: Y</label>
-            <input type="number" name="logo_y" id="logo_y" value="20">
+            <input type="number" name="logo_y" id="logo_y" value="{{ (int)($channel->overlay_logo_y ?? 20) }}">
           </div>
         </div>
 
         <div class="grid-2">
           <div class="form-group">
             <label>Logo Width <span style="font-size: 11px; color: #6b7280;">| Logo 1200x375</span></label>
-            <input type="number" name="logo_width" id="logo_width" value="180">
+            <input type="number" name="logo_width" id="logo_width" value="{{ (int)($channel->overlay_logo_width ?? 180) }}">
           </div>
           <div class="form-group">
             <label>Logo Height</label>
-            <input type="number" name="logo_height" id="logo_height" value="56">
+            <input type="number" name="logo_height" id="logo_height" value="{{ (int)($channel->overlay_logo_height ?? 56) }}">
           </div>
         </div>
 
@@ -704,8 +785,10 @@
         <div class="form-group">
           <label>Logo Opacity</label>
           <div class="slider-wrap">
-            <input type="range" name="logo_opacity" id="logo_opacity" min="0" max="1" step="0.01" value="0.80">
-            <div class="slider-val" id="logo_opacity_val">0.80</div>
+            @php($lop = (float)($channel->overlay_logo_opacity ?? 80))
+            @php($lop01 = $lop > 1 ? $lop/100 : $lop)
+            <input type="range" name="logo_opacity" id="logo_opacity" min="0" max="1" step="0.01" value="{{ number_format($lop01, 2, '.', '') }}">
+            <div class="slider-val" id="logo_opacity_val">{{ number_format($lop01, 2, '.', '') }}</div>
           </div>
         </div>
 
@@ -760,7 +843,7 @@
       <div class="card-title" style="margin-top: 16px;">📝 Text Overlay</div>
 
       <div class="form-check">
-        <input type="checkbox" name="text_enabled" id="text_enabled" checked>
+        <input type="checkbox" name="text_enabled" id="text_enabled" @checked((bool)($channel->overlay_text_enabled ?? true))>
         <label for="text_enabled">Text Overlay</label>
       </div>
 
@@ -768,28 +851,31 @@
         <div class="form-group">
           <label>Text Type</label>
           <select name="text_type" id="text_type">
-            <option value="static" selected>Static</option>
-            <option value="scrolling">Scrolling</option>
+            @php($tc = (string)($channel->overlay_text_content ?? 'title'))
+            <option value="title" @selected($tc === 'title')>VOD Name (Title)</option>
+            <option value="custom" @selected($tc === 'custom')>Custom Text</option>
+            <option value="channel_name" @selected($tc === 'channel_name')>Channel Name</option>
           </select>
         </div>
 
         <div class="form-group">
           <label>Text</label>
-          <input type="text" name="text_value" id="text_value" placeholder="Enter overlay text" maxlength="100">
+          <input type="text" name="text_value" id="text_value" placeholder="Enter overlay text" maxlength="100" value="{{ (string)($channel->overlay_text_custom ?? '') }}">
         </div>
 
         <div class="grid-2">
           <div class="form-group">
             <label>Font</label>
             <select name="text_font" id="text_font">
-              <option value="Ubuntu" selected>Ubuntu</option>
-              <option value="Arial">Arial</option>
-              <option value="DejaVuSans">DejaVu Sans</option>
+              @php($tf = (string)($channel->overlay_text_font_family ?? 'Ubuntu'))
+              <option value="Ubuntu" @selected($tf === 'Ubuntu')>Ubuntu</option>
+              <option value="Arial" @selected($tf === 'Arial')>Arial</option>
+              <option value="DejaVuSans" @selected($tf === 'DejaVuSans')>DejaVu Sans</option>
             </select>
           </div>
           <div class="form-group">
             <label>Font Size</label>
-            <input type="number" name="text_size" id="text_size" value="15" min="8" max="72">
+            <input type="number" name="text_size" id="text_size" value="{{ (int)($channel->overlay_text_font_size ?? 24) }}" min="8" max="72">
           </div>
         </div>
 
@@ -797,18 +883,20 @@
           <div class="form-group">
             <label>Font Color</label>
             <select name="text_color" id="text_color">
-              <option value="white" selected>White</option>
-              <option value="black">Black</option>
-              <option value="yellow">Yellow</option>
+              @php($tcol = strtolower((string)($channel->overlay_text_color ?? 'white')))
+              <option value="white" @selected($tcol === 'white' || $tcol === '#ffffff')>White</option>
+              <option value="black" @selected($tcol === 'black' || $tcol === '#000000')>Black</option>
+              <option value="yellow" @selected($tcol === 'yellow')>Yellow</option>
             </select>
           </div>
           <div class="form-group">
             <label>Text Position</label>
             <select name="text_position" id="text_position">
-              <option value="br" selected>Bottom Right</option>
-              <option value="bl">Bottom Left</option>
-              <option value="tr">Top Right</option>
-              <option value="tl">Top Left</option>
+              @php($tp = strtolower((string)($channel->overlay_text_position ?? 'BR')))
+              <option value="br" @selected($tp === 'br')>Bottom Right</option>
+              <option value="bl" @selected($tp === 'bl')>Bottom Left</option>
+              <option value="tr" @selected($tp === 'tr')>Top Right</option>
+              <option value="tl" @selected($tp === 'tl')>Top Left</option>
             </select>
           </div>
         </div>
@@ -816,19 +904,21 @@
         <div class="grid-2">
           <div class="form-group">
             <label>X</label>
-            <input type="number" name="text_x" id="text_x" value="30">
+            <input type="number" name="text_x" id="text_x" value="{{ (int)($channel->overlay_text_x ?? 30) }}">
           </div>
           <div class="form-group">
             <label>Y</label>
-            <input type="number" name="text_y" id="text_y" value="30">
+            <input type="number" name="text_y" id="text_y" value="{{ (int)($channel->overlay_text_y ?? 30) }}">
           </div>
         </div>
 
         <div class="form-group">
           <label>Text Opacity</label>
           <div class="slider-wrap">
-            <input type="range" name="text_opacity" id="text_opacity" min="0" max="1" step="0.01" value="1.00">
-            <div class="slider-val" id="text_opacity_val">1.00</div>
+            @php($top = (float)($channel->overlay_text_opacity ?? 100))
+            @php($top01 = $top > 1 ? $top/100 : $top)
+            <input type="range" name="text_opacity" id="text_opacity" min="0" max="1" step="0.01" value="{{ number_format($top01, 2, '.', '') }}">
+            <div class="slider-val" id="text_opacity_val">{{ number_format($top01, 2, '.', '') }}</div>
           </div>
         </div>
 
@@ -855,9 +945,49 @@
         </div>
       </div>
 
+      <!-- COUNTDOWN / TIMER -->
+      <div class="card-title" style="margin-top: 16px;">⏳ Countdown</div>
+
+      <div class="form-check">
+        <input type="checkbox" name="timer_enabled" id="timer_enabled" @checked((bool)($channel->overlay_timer_enabled ?? true))>
+        <label for="timer_enabled">Show Countdown (HH:MM:SS)</label>
+      </div>
+
+      <div id="timer-section">
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Countdown Position</label>
+            <select name="timer_position" id="timer_position">
+              @php($cp = strtolower((string)($channel->overlay_timer_position ?? 'BR')))
+              <option value="br" @selected($cp === 'br')>Bottom Right</option>
+              <option value="bl" @selected($cp === 'bl')>Bottom Left</option>
+              <option value="tr" @selected($cp === 'tr')>Top Right</option>
+              <option value="tl" @selected($cp === 'tl')>Top Left</option>
+              <option value="custom" @selected($cp === 'custom')>Custom</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Countdown Size</label>
+            <input type="number" name="timer_size" id="timer_size" value="{{ (int)($channel->overlay_timer_font_size ?? 24) }}" min="8" max="96">
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label>X</label>
+            <input type="number" name="timer_x" id="timer_x" value="{{ (int)($channel->overlay_timer_x ?? 30) }}">
+          </div>
+          <div class="form-group">
+            <label>Y</label>
+            <input type="number" name="timer_y" id="timer_y" value="{{ (int)($channel->overlay_timer_y ?? 30) }}">
+          </div>
+        </div>
+      </div>
+
       <!-- BUTTONS -->
       <div class="button-group">
         <button type="button" class="btn-cancel" id="btn-cancel">Cancel</button>
+        <button type="button" class="btn-cancel" id="btn-save-channel">💾 Save to Channel</button>
         <button type="submit" class="btn-primary" id="btn-create">Create Video</button>
       </div>
     </form>
@@ -867,17 +997,48 @@
   <div class="right-column">
     <!-- CHANNEL HEADER -->
     <div class="card">
-      <div class="channel-header">
-        <div class="channel-info">
-          <div class="channel-icon">📺</div>
-          <div class="channel-text">
-            <h5>{{ $channel->name }}</h5>
-            <p>Resolution: {{ $channel->resolution ?? '1280x720' }}</p>
-          </div>
+      <div class="channel-banner" style="margin-bottom: 14px;">
+        <div class="channel-logo">
+          <img
+            src="{{ route('vod-channels.logo.preview', $channel) }}"
+            alt=""
+            onerror="this.style.display='none'"
+          />
+          <span class="channel-icon" style="display:none;">📺</span>
         </div>
-        <div class="category-select">
-          <label>Video Category</label>
-          <select id="category_id">
+        <div>
+          <h2 class="channel-title">{{ $channel->name }}</h2>
+          <div class="channel-subtitle">Resolution: {{ $channel->resolution ?? '1280x720' }}</div>
+        </div>
+      </div>
+
+      <!-- OVERLAY PREVIEW -->
+      <div style="margin: 10px 0 16px;">
+        <div style="font-size: 12px; font-weight: 600; color: #111827; margin-bottom: 8px;">Preview (Logo + VOD Name + Countdown)</div>
+        <div id="overlayPreview" style="position: relative; width: 100%; aspect-ratio: 16 / 9; background: #111827; border-radius: 10px; overflow: hidden; border: 1px solid #e5e7eb;">
+          <div style="position:absolute; inset:0; background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0));"></div>
+          <img id="overlayPreviewLogo" src="{{ route('vod-channels.logo.preview', $channel) }}" alt="" style="position:absolute; display:none; object-fit: contain;" onerror="this.style.display='none'" />
+          <div id="overlayPreviewText" style="position:absolute; display:none; color:#fff; font-weight:700; text-shadow: 0 1px 2px rgba(0,0,0,0.6);"></div>
+          <div id="overlayPreviewTimer" style="position:absolute; display:none; color:#fff; font-weight:700; font-variant-numeric: tabular-nums; text-shadow: 0 1px 2px rgba(0,0,0,0.6);"></div>
+        </div>
+        <div style="font-size: 11px; color: #6b7280; margin-top: 6px;">Preview is for positioning; final output is applied by FFmpeg.</div>
+      </div>
+
+      <div class="pickers" data-create-video-base="{{ url('/create-video') }}">
+        <div>
+          <label class="picker-label" for="channel_switch">Channel</label>
+          <select id="channel_switch" class="picker-select">
+            @foreach(($channels ?? []) as $ch)
+              <option value="{{ $ch->id }}" @selected((int)$ch->id === (int)$channel->id)>
+                {{ $ch->name }}@if((int)$ch->id === (int)$channel->id) (current)@endif
+              </option>
+            @endforeach
+          </select>
+        </div>
+
+        <div>
+          <label class="picker-label" for="category_id">Video Category</label>
+          <select id="category_id" class="picker-select">
             <option value="">Select Category</option>
             @foreach($categories as $cat)
               <option value="{{ $cat->id }}">{{ $cat->name }}</option>
@@ -894,10 +1055,10 @@
       <div class="show-entries">
         <span>Show</span>
         <select id="pageLength">
-          <option value="10">10</option>
+          <option value="10" selected>10</option>
           <option value="25">25</option>
           <option value="50">50</option>
-          <option value="100" selected>100</option>
+          <option value="100">100</option>
         </select>
         <span>entries</span>
       </div>
@@ -952,6 +1113,346 @@
 let selectedVideo = null;
 
 document.addEventListener('DOMContentLoaded', function() {
+  const CHANNEL_ID = {{ (int) $channel->id }};
+  let lastFetchedVideos = [];
+  let currentCategoryId = '';
+
+  function getSelectedLimit() {
+    const pageLengthEl = document.getElementById('pageLength');
+    const raw = (pageLengthEl && pageLengthEl.value) ? String(pageLengthEl.value) : '10';
+    const limit = parseInt(raw, 10);
+    if (Number.isFinite(limit) && limit > 0) return limit;
+    return 10;
+  }
+
+  function loadVideosForCategory(categoryId) {
+    currentCategoryId = String(categoryId || '');
+
+    if (!currentCategoryId) {
+      document.getElementById('videosList').innerHTML = '<tr><td colspan="7" class="no-data">Select a category to load videos</td></tr>';
+      lastFetchedVideos = [];
+      const selectAllEl = document.getElementById('selectAllVideos');
+      if (selectAllEl) selectAllEl.checked = false;
+      return;
+    }
+
+    const limit = getSelectedLimit();
+
+    fetch(`/api/videos?category_id=${encodeURIComponent(currentCategoryId)}&limit=${encodeURIComponent(String(limit))}`, {
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json'
+      }
+    })
+      .then(r => r.json())
+      .then(videos => {
+        lastFetchedVideos = Array.isArray(videos) ? videos : [];
+        renderVideosTable();
+      })
+      .catch(e => console.error('Error:', e));
+  }
+
+  function normalizeCornerPos(pos) {
+    const p = String(pos || '').trim().toLowerCase();
+    if (p === 'custom') return 'CUSTOM';
+    if (p === 'tl') return 'TL';
+    if (p === 'tr') return 'TR';
+    if (p === 'bl') return 'BL';
+    if (p === 'br') return 'BR';
+    const up = String(pos || '').trim().toUpperCase();
+    return up;
+  }
+
+  function buildSettingsFromForm() {
+    const textMode = document.getElementById('text_type')?.value || 'title';
+
+    return {
+      // EncodingService Create Video keys
+      encoder: document.getElementById('video_codec')?.value || '',
+      preset: document.getElementById('preset')?.value || '',
+      video_bitrate: parseInt(document.getElementById('video_bitrate')?.value || '0', 10) || 0,
+      audio_bitrate: parseInt(document.getElementById('audio_bitrate')?.value || '0', 10) || 0,
+      frame_rate: document.getElementById('frame_rate')?.value || '',
+      crf_mode: document.getElementById('crf_mode')?.value || 'auto',
+      crf_value: parseInt(document.getElementById('crf_value')?.value || '0', 10) || 0,
+      output_container: 'ts',
+
+      // Overlay: logo
+      overlay_logo_enabled: !!document.getElementById('logo_enabled')?.checked,
+      overlay_logo_position: normalizeCornerPos(document.getElementById('logo_position')?.value || 'tl'),
+      overlay_logo_x: parseInt(document.getElementById('logo_x')?.value || '0', 10) || 0,
+      overlay_logo_y: parseInt(document.getElementById('logo_y')?.value || '0', 10) || 0,
+      overlay_logo_width: parseInt(document.getElementById('logo_width')?.value || '0', 10) || 0,
+      overlay_logo_height: parseInt(document.getElementById('logo_height')?.value || '0', 10) || 0,
+      overlay_logo_opacity: Math.round((parseFloat(document.getElementById('logo_opacity')?.value || '1') || 1) * 100),
+
+      // Overlay: text (VOD name)
+      overlay_text_enabled: !!document.getElementById('text_enabled')?.checked,
+      overlay_text_content: textMode,
+      overlay_text_custom: (textMode === 'custom') ? (document.getElementById('text_value')?.value || '') : '',
+      overlay_text_font_family: document.getElementById('text_font')?.value || 'Ubuntu',
+      overlay_text_font_size: parseInt(document.getElementById('text_size')?.value || '0', 10) || 0,
+      overlay_text_color: document.getElementById('text_color')?.value || 'white',
+      overlay_text_position: normalizeCornerPos(document.getElementById('text_position')?.value || 'br'),
+      overlay_text_x: parseInt(document.getElementById('text_x')?.value || '0', 10) || 0,
+      overlay_text_y: parseInt(document.getElementById('text_y')?.value || '0', 10) || 0,
+      overlay_text_opacity: Math.round((parseFloat(document.getElementById('text_opacity')?.value || '1') || 1) * 100),
+      overlay_text_bg_color: (document.getElementById('text_box_color')?.value || 'black') === 'white' ? 'white' : 'black',
+      overlay_text_bg_opacity: (document.getElementById('text_background')?.value || 'disabled') === 'enabled' ? 50 : 0,
+      overlay_text_padding: parseInt(document.getElementById('text_padding')?.value || '0', 10) || 0,
+
+      // Overlay: timer (countdown)
+      overlay_timer_enabled: !!document.getElementById('timer_enabled')?.checked,
+      overlay_timer_mode: 'countdown',
+      overlay_timer_format: 'HH:mm:ss',
+      overlay_timer_position: normalizeCornerPos(document.getElementById('timer_position')?.value || 'br'),
+      overlay_timer_x: parseInt(document.getElementById('timer_x')?.value || '0', 10) || 0,
+      overlay_timer_y: parseInt(document.getElementById('timer_y')?.value || '0', 10) || 0,
+      overlay_timer_font_size: parseInt(document.getElementById('timer_size')?.value || '0', 10) || 0,
+      overlay_timer_color: '#FFFFFF',
+    };
+  }
+
+  function settingsForSaveToChannel() {
+    const s = buildSettingsFromForm();
+    const fps = parseInt(String(s.frame_rate || '').replace(/[^0-9]/g, ''), 10) || null;
+
+    return {
+      video_bitrate: parseInt(s.video_bitrate || 0, 10) || null,
+      audio_bitrate: parseInt(s.audio_bitrate || 0, 10) || null,
+      fps: fps,
+      resolution: '{{ addslashes($channel->resolution ?? '') }}' || null,
+
+      overlay_logo_enabled: !!s.overlay_logo_enabled,
+      overlay_logo_position: s.overlay_logo_position,
+      overlay_logo_x: parseInt(s.overlay_logo_x || 0, 10) || 0,
+      overlay_logo_y: parseInt(s.overlay_logo_y || 0, 10) || 0,
+      overlay_logo_width: parseInt(s.overlay_logo_width || 0, 10) || 0,
+      overlay_logo_height: parseInt(s.overlay_logo_height || 0, 10) || 0,
+      overlay_logo_opacity: Math.round((parseFloat(document.getElementById('logo_opacity')?.value || '1') || 1) * 100),
+
+      overlay_text_enabled: !!s.overlay_text_enabled,
+      overlay_text_content: s.overlay_text_content,
+      overlay_text_custom: s.overlay_text_custom,
+      overlay_text_font_family: s.overlay_text_font_family,
+      overlay_text_font_size: parseInt(s.overlay_text_font_size || 0, 10) || 0,
+      overlay_text_color: s.overlay_text_color,
+      overlay_text_position: s.overlay_text_position,
+      overlay_text_x: parseInt(s.overlay_text_x || 0, 10) || 0,
+      overlay_text_y: parseInt(s.overlay_text_y || 0, 10) || 0,
+      overlay_text_opacity: Math.round((parseFloat(document.getElementById('text_opacity')?.value || '1') || 1) * 100),
+      overlay_text_bg_opacity: (document.getElementById('text_background')?.value || 'disabled') === 'enabled' ? 50 : 0,
+      overlay_text_bg_color: (document.getElementById('text_box_color')?.value || 'black') === 'white' ? '#FFFFFF' : '#000000',
+      overlay_text_padding: parseInt(s.overlay_text_padding || 0, 10) || 0,
+
+      overlay_timer_enabled: !!s.overlay_timer_enabled,
+      overlay_timer_mode: 'countdown',
+      overlay_timer_format: 'HH:mm:ss',
+      overlay_timer_position: s.overlay_timer_position,
+      overlay_timer_x: parseInt(s.overlay_timer_x || 0, 10) || 0,
+      overlay_timer_y: parseInt(s.overlay_timer_y || 0, 10) || 0,
+      overlay_timer_font_size: parseInt(s.overlay_timer_font_size || 0, 10) || 0,
+      overlay_timer_color: '#FFFFFF',
+    };
+  }
+
+  function placePreviewEl(el, pos, x, y) {
+    el.style.top = '';
+    el.style.right = '';
+    el.style.bottom = '';
+    el.style.left = '';
+
+    const p = normalizeCornerPos(pos);
+    const pxX = `${Math.max(0, parseInt(x || 0, 10) || 0)}px`;
+    const pxY = `${Math.max(0, parseInt(y || 0, 10) || 0)}px`;
+
+    if (p === 'TR') { el.style.top = pxY; el.style.right = pxX; return; }
+    if (p === 'BL') { el.style.bottom = pxY; el.style.left = pxX; return; }
+    if (p === 'BR') { el.style.bottom = pxY; el.style.right = pxX; return; }
+    if (p === 'CUSTOM') { el.style.left = pxX; el.style.top = pxY; return; }
+    el.style.top = pxY;
+    el.style.left = pxX;
+  }
+
+  function updateOverlayPreview() {
+    const logoEl = document.getElementById('overlayPreviewLogo');
+    const textEl = document.getElementById('overlayPreviewText');
+    const timerEl = document.getElementById('overlayPreviewTimer');
+
+    if (!logoEl || !textEl || !timerEl) return;
+
+    const s = buildSettingsFromForm();
+
+    function getPreviewVideo() {
+      if (selectedVideo && selectedVideo.title) return selectedVideo;
+
+      // If user checked a row but didn't press "Select", still preview that VOD name.
+      const checked = document.querySelector('#videosList .video-checkbox:checked');
+      if (checked) {
+        const id = parseInt(checked.value, 10);
+        if (Number.isFinite(id) && Array.isArray(lastFetchedVideos)) {
+          const v = lastFetchedVideos.find(x => parseInt(x.id, 10) === id);
+          if (v) return v;
+        }
+      }
+
+      return null;
+    }
+
+    const pv = getPreviewVideo();
+
+    // Logo
+    if (s.overlay_logo_enabled) {
+      logoEl.style.display = '';
+      const alpha = Math.max(0, Math.min(1, (parseFloat(s.overlay_logo_opacity ?? 100) || 100) / 100));
+      logoEl.style.opacity = String(alpha);
+      logoEl.style.width = `${Math.max(1, parseInt(s.overlay_logo_width || 0, 10) || 1)}px`;
+      logoEl.style.height = `${Math.max(1, parseInt(s.overlay_logo_height || 0, 10) || 1)}px`;
+      placePreviewEl(logoEl, s.overlay_logo_position, s.overlay_logo_x, s.overlay_logo_y);
+    } else {
+      logoEl.style.display = 'none';
+    }
+
+    // Text (VOD name)
+    if (s.overlay_text_enabled) {
+      textEl.style.display = '';
+      const alpha = Math.max(0, Math.min(1, (parseFloat(s.overlay_text_opacity ?? 100) || 100) / 100));
+      textEl.style.opacity = String(alpha);
+      const titleFontPx = Math.max(8, parseInt(s.overlay_text_font_size || 0, 10) || 16);
+      textEl.style.fontSize = `${titleFontPx}px`;
+
+      let text = '';
+      if (s.overlay_text_content === 'title') {
+        text = pv?.title || 'Select a video';
+      } else if (s.overlay_text_content === 'custom') {
+        text = s.overlay_text_custom || 'Custom Text';
+      } else if (s.overlay_text_content === 'channel_name') {
+        text = '{{ addslashes($channel->name) }}';
+      } else {
+        text = pv?.title || 'Select a video';
+      }
+      textEl.textContent = text;
+
+      placePreviewEl(textEl, s.overlay_text_position, s.overlay_text_x, s.overlay_text_y);
+    } else {
+      textEl.style.display = 'none';
+    }
+
+    // Timer
+    if (s.overlay_timer_enabled) {
+      timerEl.style.display = '';
+      const timerFontPx = Math.max(8, parseInt(s.overlay_timer_font_size || 0, 10) || 20);
+      timerEl.style.fontSize = `${timerFontPx}px`;
+
+      // Preview countdown: use video duration when available, otherwise 00:10:00
+      const dur = parseInt(pv?.duration_seconds || pv?.duration || '0', 10) || 0;
+      if (dur > 0) {
+        const h = String(Math.floor(dur / 3600)).padStart(2, '0');
+        const m = String(Math.floor((dur % 3600) / 60)).padStart(2, '0');
+        const sec = String(Math.floor(dur % 60)).padStart(2, '0');
+        timerEl.textContent = `${h}:${m}:${sec}`;
+      } else {
+        timerEl.textContent = '00:10:00';
+      }
+
+      // Default placement
+      placePreviewEl(timerEl, s.overlay_timer_position, s.overlay_timer_x, s.overlay_timer_y);
+
+      // Stack rule (like backend): when timer + title share same corner/XY,
+      // keep countdown ABOVE and title BELOW.
+      const tPos = normalizeCornerPos(s.overlay_text_position);
+      const cPos = normalizeCornerPos(s.overlay_timer_position);
+      const sameCorner = (tPos === cPos) && ['BL', 'BR'].includes(cPos);
+      const sameCustomXY = (tPos === 'CUSTOM') && (cPos === 'CUSTOM')
+        && (parseInt(s.overlay_text_x || 0, 10) === parseInt(s.overlay_timer_x || 0, 10))
+        && (parseInt(s.overlay_text_y || 0, 10) === parseInt(s.overlay_timer_y || 0, 10));
+
+      if (s.overlay_text_enabled && (sameCorner || sameCustomXY)) {
+        const offset = Math.max(0, (Math.max(8, parseInt(s.overlay_text_font_size || 0, 10) || 16) + 10));
+        // move timer up a bit so it sits above the title
+        if (cPos === 'BL' || cPos === 'BR') {
+          // bottom anchored -> increase bottom offset
+          const bottom = timerEl.style.bottom;
+          const base = parseInt((bottom || '0').replace('px', ''), 10) || 0;
+          timerEl.style.bottom = `${base + offset}px`;
+        } else if (cPos === 'CUSTOM') {
+          // custom -> move up via top
+          const top = timerEl.style.top;
+          const base = parseInt((top || '0').replace('px', ''), 10) || 0;
+          timerEl.style.top = `${Math.max(0, base - offset)}px`;
+        }
+      }
+    } else {
+      timerEl.style.display = 'none';
+    }
+  }
+
+  function renderVideosTable() {
+    const tbody = document.getElementById('videosList');
+    const pageLengthEl = document.getElementById('pageLength');
+    const selectAllEl = document.getElementById('selectAllVideos');
+
+    const limit = getSelectedLimit();
+    const videos = (Array.isArray(lastFetchedVideos) ? lastFetchedVideos : []).slice(0, limit);
+
+    if (!videos.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="no-data">No videos in this category</td></tr>';
+      if (selectAllEl) selectAllEl.checked = false;
+      return;
+    }
+
+    let html = '';
+    videos.forEach(v => {
+      const size = v.size_bytes ? `${(v.size_bytes / (1024*1024)).toFixed(0)} MB` : '—';
+      const resolution = v.resolution || '—';
+      const format = (v.format || 'mp4').toUpperCase();
+      const videoData = JSON.stringify(v).replace(/"/g, '&quot;');
+
+      html += `
+        <tr>
+          <td><input type="checkbox" class="video-checkbox" value="${v.id}"></td>
+          <td><strong>${v.title}</strong></td>
+          <td>${v.server || 'primary'}</td>
+          <td>${resolution}</td>
+          <td>${size}</td>
+          <td>${format}</td>
+          <td>
+            <div class="table-actions">
+              <button type="button" class="btn-cancel btn-select" data-video="${videoData}">Select</button>
+              <button type="button" class="btn-cancel btn-watch" data-video-id="${v.id}" data-video-title="${v.title}">Watch</button>
+              <button type="button" class="btn-danger btn-delete" data-video-id="${v.id}">Delete</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    });
+
+    tbody.innerHTML = html;
+    if (selectAllEl) selectAllEl.checked = false;
+
+    document.querySelectorAll('.btn-select').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const videoData = JSON.parse(this.getAttribute('data-video'));
+        selectVideo(videoData);
+      });
+    });
+
+    document.querySelectorAll('.btn-watch').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const videoId = this.getAttribute('data-video-id');
+        const videoTitle = this.getAttribute('data-video-title');
+        watchVideo(videoId, videoTitle);
+      });
+    });
+
+    document.querySelectorAll('.btn-delete').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const videoId = this.getAttribute('data-video-id');
+        deleteVideo(videoId);
+      });
+    });
+  }
+
   // CRF toggle
   document.getElementById('crf_mode').addEventListener('change', function() {
     document.getElementById('crf_value').classList.toggle('hidden', this.value !== 'manual');
@@ -987,78 +1488,46 @@ document.addEventListener('DOMContentLoaded', function() {
   // Category change
   document.getElementById('category_id').addEventListener('change', function() {
     const categoryId = this.value;
-    if (!categoryId) {
-      document.getElementById('videosList').innerHTML = '<tr><td colspan="7" class="no-data">Select a category to load videos</td></tr>';
-      return;
-    }
-
-    fetch(`/api/videos?category_id=${categoryId}`, {
-      credentials: 'include',
-      headers: {
-        'Accept': 'application/json'
-      }
-    })
-      .then(r => r.json())
-      .then(videos => {
-        if (!videos.length) {
-          document.getElementById('videosList').innerHTML = '<tr><td colspan="7" class="no-data">No videos in this category</td></tr>';
-          return;
-        }
-
-        let html = '';
-        videos.forEach(v => {
-          const duration = v.duration_seconds ? `${Math.floor(v.duration_seconds / 60)}:${String(v.duration_seconds % 60).padStart(2, '0')}` : '—';
-          const size = v.size_bytes ? `${(v.size_bytes / (1024*1024)).toFixed(0)} MB` : '—';
-          const resolution = v.resolution || '—';
-          const format = (v.format || 'mp4').toUpperCase();
-          const videoData = JSON.stringify(v).replace(/"/g, '&quot;');
-
-          html += `
-            <tr>
-              <td><input type="checkbox" class="video-checkbox" value="${v.id}"></td>
-              <td><strong>${v.title}</strong></td>
-              <td>${v.server || 'primary'}</td>
-              <td>${resolution}</td>
-              <td>${size}</td>
-              <td>${format}</td>
-              <td>
-                <div class="table-actions">
-                  <button type="button" class="btn-cancel btn-select" data-video="${videoData}">Select</button>
-                  <button type="button" class="btn-cancel btn-watch" data-video-id="${v.id}" data-video-title="${v.title}">Watch</button>
-                  <button type="button" class="btn-danger btn-delete" data-video-id="${v.id}">Delete</button>
-                </div>
-              </td>
-            </tr>
-          `;
-        });
-
-        document.getElementById('videosList').innerHTML = html;
-        
-        // Attach event listeners to new buttons
-        document.querySelectorAll('.btn-select').forEach(btn => {
-          btn.addEventListener('click', function() {
-            const videoData = JSON.parse(this.getAttribute('data-video'));
-            selectVideo(videoData);
-          });
-        });
-
-        document.querySelectorAll('.btn-watch').forEach(btn => {
-          btn.addEventListener('click', function() {
-            const videoId = this.getAttribute('data-video-id');
-            const videoTitle = this.getAttribute('data-video-title');
-            watchVideo(videoId, videoTitle);
-          });
-        });
-
-        document.querySelectorAll('.btn-delete').forEach(btn => {
-          btn.addEventListener('click', function() {
-            const videoId = this.getAttribute('data-video-id');
-            deleteVideo(videoId);
-          });
-        });
-      })
-      .catch(e => console.error('Error:', e));
+    loadVideosForCategory(categoryId);
   });
+
+  // Page length change
+  const pageLengthEl = document.getElementById('pageLength');
+  if (pageLengthEl) {
+    pageLengthEl.addEventListener('change', function() {
+      // Re-load with limit so it truly shows exactly that many rows.
+      if (currentCategoryId) {
+        loadVideosForCategory(currentCategoryId);
+      } else {
+        renderVideosTable();
+      }
+    });
+  }
+
+  // Select all visible videos
+  const selectAllEl = document.getElementById('selectAllVideos');
+  if (selectAllEl) {
+    selectAllEl.addEventListener('change', function() {
+      document.querySelectorAll('#videosList .video-checkbox').forEach(cb => {
+        cb.checked = selectAllEl.checked;
+      });
+    });
+  }
+
+  // Channel switch (navigate to selected channel page)
+  function bindChannelSwitch(selectId) {
+    const el = document.getElementById(selectId);
+    if (!el) return;
+    el.addEventListener('change', function () {
+      const base = (document.querySelector('[data-create-video-base]')?.getAttribute('data-create-video-base')) || '/create-video';
+      const id = this.value;
+      if (!id) return;
+      window.location.href = `${base}/${id}`;
+    });
+  }
+
+  bindChannelSwitch('channel_switch');
+  bindChannelSwitch('channel_switch_left');
 
   // Select video
   window.selectVideo = function(video) {
@@ -1077,7 +1546,25 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('info-details').classList.add('visible');
 
     console.log('Video selected:', video);
+    updateOverlayPreview();
   };
+
+  // Live preview updates on any settings change
+  document.querySelectorAll('#createVideoForm input, #createVideoForm select, #createVideoForm textarea')
+    .forEach(el => el.addEventListener('input', updateOverlayPreview));
+
+  // Preview should also update when user checks/unchecks videos in the table.
+  const videosListEl = document.getElementById('videosList');
+  if (videosListEl) {
+    videosListEl.addEventListener('change', (e) => {
+      const target = e.target;
+      if (target && target.classList && target.classList.contains('video-checkbox')) {
+        updateOverlayPreview();
+      }
+    });
+  }
+
+  updateOverlayPreview();
 
   // Watch video
   window.watchVideo = function(videoId, videoTitle) {
@@ -1103,40 +1590,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const jobData = {
       video_id: selectedVideo.id,
-      live_channel_id: {{ $channel->id }},
-      encoder: document.getElementById('encoder').value,
-      preset: document.getElementById('preset').value,
-      video_bitrate: document.getElementById('video_bitrate').value,
-      video_codec: document.getElementById('video_codec').value,
-      tune: document.getElementById('tune').value,
-      frame_rate: document.getElementById('frame_rate').value,
-      crf_mode: document.getElementById('crf_mode').value,
-      crf_value: document.getElementById('crf_value').value,
-      audio_bitrate: document.getElementById('audio_bitrate').value,
-      stereo_type: document.getElementById('stereo_type').value,
-      audio_language: document.getElementById('audio_language').value,
-      video_aspect: document.getElementById('video_aspect').value,
-      logo_enabled: document.getElementById('logo_enabled').checked ? 1 : 0,
-      logo_position: document.getElementById('logo_position').value,
-      logo_x: document.getElementById('logo_x').value,
-      logo_y: document.getElementById('logo_y').value,
-      logo_width: document.getElementById('logo_width').value,
-      logo_height: document.getElementById('logo_height').value,
-      logo_opacity: document.getElementById('logo_opacity').value,
-      text_enabled: document.getElementById('text_enabled').checked ? 1 : 0,
-      text_type: document.getElementById('text_type').value,
-      text_value: document.getElementById('text_value').value,
-      text_font: document.getElementById('text_font').value,
-      text_size: document.getElementById('text_size').value,
-      text_color: document.getElementById('text_color').value,
-      text_position: document.getElementById('text_position').value,
-      text_x: document.getElementById('text_x').value,
-      text_y: document.getElementById('text_y').value,
-      text_opacity: document.getElementById('text_opacity').value,
-      text_background: document.getElementById('text_background').value,
-      text_box_color: document.getElementById('text_box_color').value,
-      text_padding: document.getElementById('text_padding').value,
-      output_format: 'TS'
+      live_channel_id: CHANNEL_ID,
+      settings: buildSettingsFromForm(),
     };
 
     fetch('/api/encoding-jobs', {
@@ -1149,8 +1604,16 @@ document.addEventListener('DOMContentLoaded', function() {
       },
       body: JSON.stringify(jobData)
     })
-    .then(r => r.json())
+    .then(async (r) => {
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        const message = data.message || 'Failed to create encoding job';
+        throw new Error(message);
+      }
+      return data;
+    })
     .then(data => {
+      if (!data.ok) throw new Error('Failed to create encoding job');
       alert('✅ Encoding job created!');
       loadTestJobs();
       selectedVideo = null;
@@ -1160,9 +1623,37 @@ document.addEventListener('DOMContentLoaded', function() {
     .catch(e => alert('❌ Error: ' + e.message));
   });
 
+  // Save defaults to channel
+  const saveBtn = document.getElementById('btn-save-channel');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', function() {
+      if (!confirm('Save these settings as default for this channel?')) return;
+
+      fetch(`/api/live-channels/${CHANNEL_ID}/settings`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(settingsForSaveToChannel())
+      })
+        .then(async (r) => {
+          const data = await r.json().catch(() => ({}));
+          if (!r.ok) throw new Error(data.message || 'Save failed');
+          return data;
+        })
+        .then(() => {
+          alert('✅ Saved to channel');
+        })
+        .catch(e => alert('❌ Error: ' + e.message));
+    });
+  }
+
   // Load test jobs
   function loadTestJobs() {
-    fetch(`/api/encoding-jobs?live_channel_id={{ $channel->id }}`, {
+    fetch(`/api/encoding-jobs?live_channel_id=${CHANNEL_ID}`, {
       credentials: 'include',
       headers: {
         'Accept': 'application/json'
@@ -1179,15 +1670,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
         let html = '';
         jobs.forEach(job => {
-          const statusClass = `status-${job.status || 'pending'}`;
-          const statusText = (job.status || 'pending').charAt(0).toUpperCase() + (job.status || 'pending').slice(1);
+          const statusRaw = (job.status || 'pending');
+          const statusClass = `status-${statusRaw}`;
+          const statusText = statusRaw.charAt(0).toUpperCase() + statusRaw.slice(1);
           
           html += `
             <tr>
-              <td>${job.video ? job.video.title : 'N/A'}</td>
-              <td>${job.text_value || '—'}</td>
-              <td>${job.video_codec || '—'}</td>
-              <td>${job.video_bitrate || '—'}</td>
+              <td>${(job.video_title ?? 'N/A')}</td>
+              <td>${job.text_overlay || '—'}</td>
+              <td>${job.codec || '—'}</td>
+              <td>${job.bitrate || '—'}</td>
               <td><span class="${statusClass}">${statusText}</span></td>
               <td>
                 <div class="table-actions">
@@ -1228,11 +1720,81 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   document.getElementById('convertAllBtn').addEventListener('click', function() {
-    alert('Convert All – coming soon');
+    const selectedIds = Array.from(document.querySelectorAll('#videosList .video-checkbox:checked'))
+      .map(cb => parseInt(cb.value, 10))
+      .filter(v => Number.isFinite(v) && v > 0);
+
+    const videoIds = (selectedIds.length > 0)
+      ? selectedIds
+      : (Array.isArray(lastFetchedVideos) ? lastFetchedVideos.map(v => parseInt(v.id, 10)).filter(v => Number.isFinite(v) && v > 0) : []);
+
+    if (videoIds.length === 0) {
+      alert('❌ No videos to convert (select a category first)');
+      return;
+    }
+
+    if (!confirm(`Queue encoding for ${videoIds.length} video(s)?`)) return;
+
+    fetch('/api/encoding-jobs/bulk', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        live_channel_id: CHANNEL_ID,
+        video_ids: videoIds,
+        settings: buildSettingsFromForm(),
+      })
+    })
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          const message = data.message || 'Failed to queue jobs';
+          throw new Error(message);
+        }
+        return data;
+      })
+      .then(data => {
+        if (!data.ok) throw new Error('Failed to queue jobs');
+        alert(`✅ Queued ${data.count || 0} job(s)`);
+        loadTestJobs();
+      })
+      .catch(e => alert('❌ Error: ' + e.message));
   });
 
   document.getElementById('deleteAllBtn').addEventListener('click', function() {
-    if (confirm('Delete all jobs?')) alert('Deleting – coming soon');
+    if (!confirm('Delete all jobs for this channel?')) return;
+
+    fetch(`/api/encoding-jobs?live_channel_id=${CHANNEL_ID}`, {
+      credentials: 'include',
+      headers: { 'Accept': 'application/json' }
+    })
+      .then(r => r.json())
+      .then(async (jobs) => {
+        const ids = Array.isArray(jobs) ? jobs.map(j => j.id).filter(Boolean) : [];
+        if (ids.length === 0) {
+          alert('No jobs to delete');
+          return;
+        }
+
+        for (const id of ids) {
+          await fetch(`/api/encoding-jobs/${id}`, {
+            method: 'DELETE',
+            credentials: 'include',
+            headers: {
+              'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
+              'Accept': 'application/json'
+            }
+          });
+        }
+
+        alert(`✅ Deleted ${ids.length} job(s)`);
+        loadTestJobs();
+      })
+      .catch(e => alert('❌ Error: ' + e.message));
   });
 
   loadTestJobs();
