@@ -263,12 +263,21 @@ class TmdbService
         $t = trim($rawTitle);
         $year = null;
 
+        // Extract year from common filename/title patterns.
+        // Examples:
+        // - "Movie Name (2025)"
+        // - "Movie Name - 2025"
+        // - "Movie.Name.2025"
+        // - "Movie Name 2025"
         if (preg_match('/\((\d{4})\)\s*$/', $t, $m)) {
-            $year = (int)$m[1];
+            $year = (int) $m[1];
             $t = trim(preg_replace('/\s*\(\d{4}\)\s*$/', '', $t) ?? $t);
+        } elseif (preg_match('/(?:\s*[-_.]\s*|\s+)(\d{4})\s*$/', $t, $m)) {
+            $year = (int) $m[1];
+            $t = trim(preg_replace('/(?:\s*[-_.]\s*|\s+)\d{4}\s*$/', '', $t) ?? $t);
         }
 
-        // clean common separators
+        // Clean common separators
         $t = preg_replace('/[._]+/', ' ', $t) ?? $t;
         $t = trim(preg_replace('/\s+/', ' ', $t) ?? $t);
 

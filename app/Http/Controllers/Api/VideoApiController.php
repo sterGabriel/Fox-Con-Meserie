@@ -4,13 +4,17 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
+use App\Models\EncodingJob;
+use App\Models\LiveChannel;
 use App\Models\PlaylistItem;
 use App\Models\Video;
 use App\Jobs\TmdbSyncVideosJob;
+use App\Services\EncodingService;
 use App\Services\VideoProbeService;
 use App\Services\TmdbService;
 use App\Services\TmdbSyncService;
 use Illuminate\Http\Request;
+use Symfony\Component\Process\Process;
 
 class VideoApiController extends Controller
 {
@@ -85,6 +89,194 @@ class VideoApiController extends Controller
             ]);
 
         return response()->json($videos);
+    }
+
+    /**
+     * Extract a preview frame from the video.
+     * GET /api/videos/{video}/preview-frame?ss=2
+     */
+    public function previewFrame(Request $request, Video $video)
+    {
+        $filePath = (string) ($video->file_path ?? '');
+        if ($filePath === '' || !is_file($filePath)) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Video file not found on disk.',
+            ], 404);
+        }
+
+        $ss = (float) $request->query('ss', 2);
+        if (!is_finite($ss) || $ss < 0) $ss = 2;
+        if ($ss > 600) $ss = 600;
+
+        $dir = storage_path('app/video_previews');
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0775, true);
+        }
+
+        $outPath = $dir . '/video_' . (int) $video->id . '_ss' . (int) round($ss) . '.jpg';
+
+        // Cache for a short period to avoid hammering ffmpeg.
+        $ttlSeconds = 300;
+        $isFresh = is_file($outPath) && (time() - (int) @filemtime($outPath) < $ttlSeconds);
+
+        if (!$isFresh) {
+            // ffmpeg -ss <time> -i <input> -frames:v 1 -q:v 2 <output>
+            $process = new Process([
+                'ffmpeg',
+                '-y',
+                '-ss', (string) $ss,
+                '-i', $filePath,
+                '-frames:v', '1',
+                '-q:v', '2',
+                $outPath,
+            ]);
+            $process->setTimeout(30);
+            $process->run();
+
+            if (!$process->isSuccessful() || !is_file($outPath)) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'ffmpeg failed to extract preview frame.',
+                    'error' => trim($process->getErrorOutput()),
+                ], 422);
+            }
+        }
+
+        return response()->file($outPath, [
+            'Content-Type' => 'image/jpeg',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+        ]);
+    }
+
+    /**
+     * Generate a preview frame WITH overlay applied by FFmpeg.
+     * This uses the same overlay math as the final encoding pipeline.
+     * POST /api/videos/{video}/overlay-preview
+     * Body: { live_channel_id: int, ss?: float, settings: object }
+     */
+    public function overlayPreview(Request $request, Video $video)
+    {
+        $data = $request->validate([
+            'live_channel_id' => ['required', 'integer', 'min:1'],
+            'ss' => ['nullable', 'numeric', 'min:0', 'max:600'],
+            'settings' => ['required', 'array'],
+        ]);
+
+        $filePath = (string) ($video->file_path ?? '');
+        if ($filePath === '' || !is_file($filePath)) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Video file not found on disk.',
+            ], 404);
+        }
+
+        $channel = LiveChannel::find((int) $data['live_channel_id']);
+        if (!$channel) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Channel not found.',
+            ], 404);
+        }
+
+        $ss = (float) ($data['ss'] ?? 2);
+        if (!is_finite($ss) || $ss < 0) $ss = 2;
+        if ($ss > 600) $ss = 600;
+
+        $settings = $request->input('settings', []);
+        if (!is_array($settings)) $settings = [];
+
+        // Build a deterministic cache key.
+        $sig = md5(json_encode([
+            'v' => (int) $video->id,
+            'c' => (int) $channel->id,
+            'ss' => (int) round($ss),
+            'settings' => $settings,
+        ]));
+
+        $ttlSeconds = 60;
+        $relDir = 'previews/' . (int) $channel->id . '/overlay_previews';
+        $absDir = storage_path('app/public/' . $relDir);
+        if (!is_dir($absDir)) {
+            @mkdir($absDir, 0775, true);
+        }
+
+        $outFile = 'video_' . (int) $video->id . '_ss' . (int) round($ss) . '_' . $sig . '.jpg';
+        $outPath = $absDir . '/' . $outFile;
+        $isFresh = is_file($outPath) && (time() - (int) @filemtime($outPath) < $ttlSeconds);
+
+        if (!$isFresh) {
+            // Create a lightweight job object (not persisted) to reuse EncodingService overlay math.
+            $job = new EncodingJob();
+            $job->id = 0;
+            $job->live_channel_id = $channel->id;
+            $job->channel_id = $channel->id;
+            $job->video_id = $video->id;
+            $job->input_path = $filePath;
+            $job->settings = $settings;
+            $job->setRelation('video', $video);
+
+            $service = new EncodingService($job, $channel);
+            $filterComplex = $service->buildFilterComplexForPreview();
+
+            $tmpDir = storage_path('app/tmp');
+            if (!is_dir($tmpDir)) {
+                @mkdir($tmpDir, 0775, true);
+            }
+
+            $filterFile = $tmpDir . '/overlay_preview_filter_' . $sig . '.txt';
+            if ($filterComplex !== '') {
+                @file_put_contents($filterFile, $filterComplex);
+            }
+
+            try {
+                if ($filterComplex !== '') {
+                    $process = new Process([
+                        'ffmpeg',
+                        '-y',
+                        '-ss', (string) $ss,
+                        '-i', $filePath,
+                        '-frames:v', '1',
+                        '-filter_complex_script', $filterFile,
+                        '-map', '[out]',
+                        '-q:v', '2',
+                        $outPath,
+                    ]);
+                } else {
+                    // No overlay enabled; fallback to a raw frame.
+                    $process = new Process([
+                        'ffmpeg',
+                        '-y',
+                        '-ss', (string) $ss,
+                        '-i', $filePath,
+                        '-frames:v', '1',
+                        '-q:v', '2',
+                        $outPath,
+                    ]);
+                }
+
+                $process->setTimeout(30);
+                $process->run();
+
+                if (!$process->isSuccessful() || !is_file($outPath)) {
+                    return response()->json([
+                        'ok' => false,
+                        'message' => 'ffmpeg failed to generate overlay preview.',
+                        'error' => trim($process->getErrorOutput()),
+                    ], 422);
+                }
+            } finally {
+                if (is_file($filterFile ?? '')) {
+                    @unlink($filterFile);
+                }
+            }
+        }
+
+        return response()->json([
+            'ok' => true,
+            'preview_url' => '/storage/' . $relDir . '/' . $outFile,
+        ], 200);
     }
 
     /**
@@ -190,6 +382,46 @@ class VideoApiController extends Controller
             'ok' => true,
             'queued' => count($ids),
             'jobs' => count($chunks),
+        ]);
+    }
+
+    /**
+     * Fetch TMDB details for a single video (auto-sync if needed).
+     * GET /api/videos/{video}/tmdb-details
+     */
+    public function tmdbDetails(Video $video, TmdbSyncService $sync)
+    {
+        $apiKey = (string) AppSetting::getValue('tmdb_api_key', (string) env('TMDB_API_KEY', ''));
+        if (trim($apiKey) === '') {
+            return response()->json([
+                'ok' => false,
+                'message' => 'TMDB key missing. Set it in TMDB Settings.',
+            ], 422);
+        }
+
+        $res = $sync->syncVideo($video, $apiKey);
+        if (!(bool) ($res['ok'] ?? false)) {
+            return response()->json([
+                'ok' => false,
+                'video_id' => $video->id,
+                'message' => $res['message'] ?? 'TMDB lookup failed',
+            ], 404);
+        }
+
+        $posterPath = (string) ($res['poster_path'] ?? ($video->tmdb_poster_path ?? ''));
+        $backdropPath = (string) ($res['backdrop_path'] ?? ($video->tmdb_backdrop_path ?? ''));
+
+        $posterUrl = $posterPath !== '' ? ('https://image.tmdb.org/t/p/w342' . $posterPath) : null;
+        $backdropUrl = $backdropPath !== '' ? ('https://image.tmdb.org/t/p/w780' . $backdropPath) : null;
+
+        return response()->json([
+            'ok' => true,
+            'video_id' => $video->id,
+            'tmdb_id' => $res['id'] ?? ($video->tmdb_id ?? null),
+            'tmdb_type' => $res['type'] ?? ($video->tmdb_type ?? null),
+            'details' => $res,
+            'poster_url' => $posterUrl,
+            'backdrop_url' => $backdropUrl,
         ]);
     }
 

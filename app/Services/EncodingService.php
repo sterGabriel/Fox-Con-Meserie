@@ -246,8 +246,18 @@ class EncodingService
         $progressFile = $progressDir . '/job_' . $this->job->id . '.txt';
 
         $outputContainer = strtolower(trim((string) $this->setting('output_container', 'ts')));
-        if (!in_array($outputContainer, ['ts', 'mpegts', 'mp4'], true)) {
+        if (!in_array($outputContainer, ['ts', 'mpegts', 'mp4', 'hls'], true)) {
             $outputContainer = 'ts';
+        }
+
+        // Ensure output directory exists
+        try {
+            $outPath = (string) ($this->job->output_path ?? '');
+            if ($outPath !== '') {
+                @mkdir(dirname($outPath), 0755, true);
+            }
+        } catch (\Throwable $e) {
+            // best-effort
         }
 
         $testDuration = (int) $this->setting('test_duration_seconds', 0);
@@ -258,10 +268,19 @@ class EncodingService
             'ffmpeg',
             '-hide_banner',
             '-y',
+        ];
+
+        $testStart = (int) $this->setting('test_start_seconds', (int) $this->setting('test_start_time', 0));
+        if ($testStart < 0) $testStart = 0;
+        if ($testStart > 0) {
+            $cmd = array_merge($cmd, ['-ss', (string) $testStart]);
+        }
+
+        $cmd = array_merge($cmd, [
             '-i', escapeshellarg($this->job->input_path),
             '-progress', escapeshellarg($progressFile),
             '-nostats',
-        ];
+        ]);
 
         // Add filter if overlay is enabled
         if (!empty($filterComplex)) {
@@ -320,7 +339,21 @@ class EncodingService
         $cmd = array_merge($cmd, $videoArgs, $audioArgs);
 
         // Output container
-        if ($outputContainer === 'mp4') {
+        if ($outputContainer === 'hls') {
+            $outPath = (string) ($this->job->output_path ?? '');
+            $outDir = $outPath !== '' ? dirname($outPath) : storage_path('app/public/previews');
+            @mkdir($outDir, 0755, true);
+            $segmentPattern = rtrim($outDir, '/') . '/seg_%03d.ts';
+
+            $cmd = array_merge($cmd, [
+                '-f', 'hls',
+                '-hls_time', (string) ((int) $this->setting('hls_time', 2)),
+                '-hls_list_size', '0',
+                '-hls_flags', 'independent_segments',
+                '-hls_segment_filename', escapeshellarg($segmentPattern),
+                escapeshellarg($outPath),
+            ]);
+        } elseif ($outputContainer === 'mp4') {
             $cmd = array_merge($cmd, [
                 '-movflags', '+faststart',
                 '-pix_fmt', 'yuv420p',
@@ -354,6 +387,11 @@ class EncodingService
     protected function buildFilterComplex(): string
     {
         $filters = [];
+
+        $jobSettings = $this->job->settings;
+        if (!is_array($jobSettings)) {
+            $jobSettings = [];
+        }
 
         // Keep some state so timer can stack relative to title.
         $titleEnabled = false;
@@ -446,7 +484,8 @@ class EncodingService
             // Add logo as overlay
             if ($logoAbs) {
                 $safeLogo = str_replace("'", "\\'", $logoAbs);
-                $filters[] = "movie='{$safeLogo}',scale={$logoW}:{$logoH}[logo]";
+                // Preserve logo aspect ratio (avoid stretching); fit inside the requested WxH box.
+                $filters[] = "movie='{$safeLogo}',scale={$logoW}:{$logoH}:force_original_aspect_ratio=decrease[logo]";
 
                 $safeMargin = (int) $this->setting('overlay_safe_margin', (int) ($this->channel->overlay_safe_margin ?? 30));
                 if ($safeMargin < 0) $safeMargin = 0;
@@ -455,8 +494,11 @@ class EncodingService
                 $logoYExpr = (string) $logoY;
                 if ($logoPos !== 'CUSTOM') {
                     // For TL/TR/BL/BR, treat overlay_logo_x/y as margins from that corner.
-                    $mX = $logoX > 0 ? $logoX : $safeMargin;
-                    $mY = $logoY > 0 ? $logoY : $safeMargin;
+                    // If the per-job settings explicitly provided 0, respect it.
+                    $hasLogoX = array_key_exists('overlay_logo_x', $jobSettings);
+                    $hasLogoY = array_key_exists('overlay_logo_y', $jobSettings);
+                    $mX = $hasLogoX ? $logoX : ($logoX > 0 ? $logoX : $safeMargin);
+                    $mY = $hasLogoY ? $logoY : ($logoY > 0 ? $logoY : $safeMargin);
                     $logoXExpr = match ($logoPos) {
                         'TR', 'BR' => "W-w-{$mX}",
                         default => (string) $mX,
@@ -502,9 +544,11 @@ class EncodingService
             $yExpr = (string) $textY;
             if ($textPos !== '' && $textPos !== 'CUSTOM') {
                 // For corner anchors (TL/TR/BL/BR), treat overlay_text_x/y as margins from that corner.
-                // Fallback to overlay_safe_margin if not set.
-                $mX = $textX > 0 ? $textX : $safeMargin;
-                $mY = $textY > 0 ? $textY : $safeMargin;
+                // If the per-job settings explicitly provided 0, respect it.
+                $hasTextX = array_key_exists('overlay_text_x', $jobSettings);
+                $hasTextY = array_key_exists('overlay_text_y', $jobSettings);
+                $mX = $hasTextX ? $textX : ($textX > 0 ? $textX : $safeMargin);
+                $mY = $hasTextY ? $textY : ($textY > 0 ? $textY : $safeMargin);
 
                 $xExpr = match ($textPos) {
                     'TR', 'BR' => "w-tw-{$mX}",
@@ -544,8 +588,11 @@ class EncodingService
             $timerYExpr = (string) $timerY;
             if ($timerPos !== '' && $timerPos !== 'CUSTOM') {
                 // For corner anchors (TL/TR/BL/BR), treat overlay_timer_x/y as margins from that corner.
-                $mX = $timerX > 0 ? $timerX : $safeMargin;
-                $mY = $timerY > 0 ? $timerY : $safeMargin;
+                // If the per-job settings explicitly provided 0, respect it.
+                $hasTimerX = array_key_exists('overlay_timer_x', $jobSettings);
+                $hasTimerY = array_key_exists('overlay_timer_y', $jobSettings);
+                $mX = $hasTimerX ? $timerX : ($timerX > 0 ? $timerX : $safeMargin);
+                $mY = $hasTimerY ? $timerY : ($timerY > 0 ? $timerY : $safeMargin);
 
                 $timerXExpr = match ($timerPos) {
                     'TR', 'BR' => "w-tw-{$mX}",
@@ -621,6 +668,15 @@ class EncodingService
         }
 
         return '';
+    }
+
+    /**
+     * Public wrapper used by preview endpoints.
+     * Generates the exact same filter graph used for final encoding.
+     */
+    public function buildFilterComplexForPreview(): string
+    {
+        return $this->buildFilterComplex();
     }
 
     protected function probeDurationSeconds(string $inputPath): int

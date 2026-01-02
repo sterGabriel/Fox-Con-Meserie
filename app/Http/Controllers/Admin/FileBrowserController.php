@@ -40,7 +40,7 @@ class FileBrowserController extends Controller
         $importedVideos = Video::where('video_category_id', $category->id)
             ->orderByDesc('id')
             ->limit(500)
-            ->get(['id', 'title', 'file_path', 'duration_seconds', 'created_at']);
+            ->get(['id', 'title', 'file_path', 'duration_seconds', 'created_at', 'tmdb_id', 'tmdb_type', 'tmdb_poster_path', 'tmdb_backdrop_path', 'tmdb_genres']);
 
         $importedPathSet = [];
         $importedVideoRows = [];
@@ -63,6 +63,11 @@ class FileBrowserController extends Controller
                 'exists' => $stored !== '' ? file_exists($stored) : false,
                 'duration_seconds' => $video->duration_seconds,
                 'created_at' => $video->created_at,
+                'tmdb_id' => $video->tmdb_id,
+                'tmdb_type' => $video->tmdb_type,
+                'tmdb_poster_path' => $video->tmdb_poster_path,
+                'tmdb_backdrop_path' => $video->tmdb_backdrop_path,
+                'tmdb_genres' => $video->tmdb_genres,
             ];
         }
 
@@ -179,22 +184,6 @@ class FileBrowserController extends Controller
                     'metadata' => json_encode($metadata),
                     'format' => pathinfo($filePath, PATHINFO_EXTENSION),
                 ]);
-
-                // Create encoding job for offline encoding to TS
-                $channel = LiveChannel::first(); // Use first VOD channel
-                if ($channel) {
-                    $outputDir = '/streams/videos';
-                    @mkdir($outputDir, 0755, true);
-                    $outputFile = $outputDir . DIRECTORY_SEPARATOR . $video->id . '.ts';
-
-                    EncodingJob::create([
-                        'live_channel_id' => $channel->id,
-                        'video_id' => $video->id,
-                        'input_path' => $filePath,
-                        'output_path' => $outputFile,
-                        'status' => 'queued',
-                    ]);
-                }
 
                 $imported++;
                 \Log::info("Video imported: {$video->title} → {$filePath}");

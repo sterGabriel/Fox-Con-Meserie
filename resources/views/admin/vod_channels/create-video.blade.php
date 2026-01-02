@@ -251,6 +251,141 @@
     border-color: rgba(220, 38, 38, 0.8);
   }
 
+  .btn-mini-primary {
+    border-color: rgba(37, 99, 235, 0.45);
+    color: #1d4ed8;
+  }
+
+  .btn-mini-primary:hover {
+    border-color: rgba(37, 99, 235, 0.7);
+  }
+
+  .selected-item-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex: 0 0 auto;
+  }
+
+  /* Preview modal */
+  .preview-modal {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 9999;
+    padding: 18px;
+  }
+  .test-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  }
+  .test-modal.open { display: flex; }
+  .test-modal .modal-inner {
+    background: #fff;
+    width: min(980px, 96vw);
+    max-height: 90vh;
+    overflow: auto;
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .test-modal .modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .test-modal .modal-title { font-weight: 800; }
+  .test-modal video {
+    width: 100%;
+    max-height: 60vh;
+    background: #000;
+    border-radius: 8px;
+  }
+  .test-modal .modal-meta {
+    margin-top: 10px;
+    font-size: 12px;
+    color: #555;
+  }
+
+  .preview-modal.open {
+    display: flex;
+  }
+
+  .preview-modal-card {
+    width: min(980px, 96vw);
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .preview-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .preview-modal-title {
+    font-size: 13px;
+    font-weight: 800;
+    color: #111827;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .preview-modal-close {
+    padding: 8px 12px;
+    font-size: 13px;
+    font-weight: 800;
+    border-radius: 8px;
+    border: 1px solid #d1d5db;
+    background: #f3f4f6;
+    cursor: pointer;
+  }
+
+  .preview-modal-body {
+    padding: 14px;
+  }
+
+  .preview-frame {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #111827;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid #e5e7eb;
+  }
+
+  .preview-frame img.preview-frame-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: none;
+  }
+
+  .preview-loading {
+    font-size: 12px;
+    font-weight: 700;
+    color: #6b7280;
+    margin-top: 10px;
+  }
+
   .selected-actions {
     margin-top: 10px;
     display: flex;
@@ -519,6 +654,46 @@
     font-weight: 500;
   }
 
+  .job-status-wrap {
+    display: grid;
+    gap: 6px;
+  }
+
+  .job-progress {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .job-progress-bar {
+    position: relative;
+    height: 8px;
+    flex: 1;
+    background: #e5e7eb;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+
+  .job-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: #3b82f6;
+  }
+
+  .job-progress-pct {
+    min-width: 52px;
+    text-align: right;
+    font-size: 12px;
+    font-weight: 800;
+    color: #111827;
+  }
+
+  .job-progress-meta {
+    font-size: 11px;
+    color: #6b7280;
+    font-weight: 600;
+  }
+
   .status-failed {
     color: #ef4444;
     font-weight: 500;
@@ -637,6 +812,34 @@
           <div class="info-detail-row"><strong>Resolution:</strong> <span id="detail-resolution">—</span></div>
           <div class="info-detail-row"><strong>Format:</strong> <span id="detail-format">—</span></div>
           <div class="info-detail-row"><strong>Size:</strong> <span id="detail-size">—</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Test playback modal (HLS .m3u8 with TS segments) -->
+    <div class="test-modal" id="testPlayerModal" aria-hidden="true">
+      <div class="modal-inner" role="dialog" aria-modal="true">
+        <div class="modal-head">
+          <div class="modal-title" id="testModalTitle">Test Playback</div>
+          <button type="button" class="btn-danger" id="testModalCloseBtn">Close</button>
+        </div>
+        <video id="testPlayerVideo" controls playsinline></video>
+        <div class="modal-meta" id="testModalMeta">Preparing test…</div>
+      </div>
+    </div>
+
+    <!-- Real FFmpeg overlay preview modal (matches final encoding filter_complex) -->
+    <div class="preview-modal" id="vodPreviewModal" aria-hidden="true">
+      <div class="preview-modal-card" role="dialog" aria-modal="true">
+        <div class="preview-modal-header">
+          <div class="preview-modal-title" id="vodPreviewTitle">Preview</div>
+          <button type="button" class="preview-modal-close" id="vodPreviewCloseBtn">Close</button>
+        </div>
+        <div class="preview-modal-body">
+          <div class="preview-frame">
+            <img id="vodPreviewImg" class="preview-frame-img" alt="Overlay preview" />
+          </div>
+          <div class="preview-loading" id="vodPreviewStatus">Ready.</div>
         </div>
       </div>
     </div>
@@ -822,11 +1025,31 @@
       <div id="logo-section">
         <button type="button" class="btn-cancel" style="width: 100%; margin-bottom: 12px; background: #6b7280; color: white;">Live Edit Logo Position</button>
 
+        @php
+          $resStr = (string)($channel->resolution ?? '1280x720');
+          $rw = 1280; $rh = 720;
+          if (preg_match('/(\d{3,5})\s*[xX]\s*(\d{3,5})/', $resStr, $m)) {
+            $rw = max(1, (int)$m[1]);
+            $rh = max(1, (int)$m[2]);
+          }
+          // Recommended logo sizes by common output resolution.
+          $recLogoW = 128; $recLogoH = 40;
+          if ($rw >= 1900 && $rh >= 1000) { $recLogoW = 192; $recLogoH = 60; }
+          if ($rw >= 2500 && $rh >= 1300) { $recLogoW = 256; $recLogoH = 80; }
+          if ($rw >= 3800 && $rh >= 2000) { $recLogoW = 384; $recLogoH = 120; }
+
+          $lp = strtolower((string)($channel->overlay_logo_position ?? 'TL'));
+
+          $logoWVal = (int)($channel->overlay_logo_width ?? 0);
+          $logoHVal = (int)($channel->overlay_logo_height ?? 0);
+          if ($logoWVal <= 0) $logoWVal = $recLogoW;
+          if ($logoHVal <= 0) $logoHVal = $recLogoH;
+        @endphp
+
         <div class="grid-3">
           <div class="form-group">
             <label>Logo Position</label>
             <select name="logo_position" id="logo_position">
-              @php($lp = strtolower((string)($channel->overlay_logo_position ?? 'TL')))
               <option value="tl" @selected($lp === 'tl')>Top Left</option>
               <option value="tr" @selected($lp === 'tr')>Top Right</option>
               <option value="bl" @selected($lp === 'bl')>Bottom Left</option>
@@ -846,11 +1069,11 @@
         <div class="grid-2">
           <div class="form-group">
             <label>Logo Width <span style="font-size: 11px; color: #6b7280;">| Logo 1200x375</span></label>
-            <input type="number" name="logo_width" id="logo_width" value="{{ (int)($channel->overlay_logo_width ?? 180) }}">
+            <input type="number" name="logo_width" id="logo_width" value="{{ (int)($logoWVal ?? 128) }}">
           </div>
           <div class="form-group">
             <label>Logo Height</label>
-            <input type="number" name="logo_height" id="logo_height" value="{{ (int)($channel->overlay_logo_height ?? 56) }}">
+            <input type="number" name="logo_height" id="logo_height" value="{{ (int)($logoHVal ?? 40) }}">
           </div>
         </div>
 
@@ -861,8 +1084,10 @@
         <div class="form-group">
           <label>Logo Opacity</label>
           <div class="slider-wrap">
-            @php($lop = (float)($channel->overlay_logo_opacity ?? 80))
-            @php($lop01 = $lop > 1 ? $lop/100 : $lop)
+            @php
+              $lop = (float)($channel->overlay_logo_opacity ?? 80);
+              $lop01 = $lop > 1 ? $lop/100 : $lop;
+            @endphp
             <input type="range" name="logo_opacity" id="logo_opacity" min="0" max="1" step="0.01" value="{{ number_format($lop01, 2, '.', '') }}">
             <div class="slider-val" id="logo_opacity_val">{{ number_format($lop01, 2, '.', '') }}</div>
           </div>
@@ -927,7 +1152,9 @@
         <div class="form-group">
           <label>Text Type</label>
           <select name="text_type" id="text_type">
-            @php($tc = (string)($channel->overlay_text_content ?? 'title'))
+            @php
+              $tc = (string)($channel->overlay_text_content ?? 'title');
+            @endphp
             <option value="title" @selected($tc === 'title')>VOD Name (Title)</option>
             <option value="custom" @selected($tc === 'custom')>Custom Text</option>
             <option value="channel_name" @selected($tc === 'channel_name')>Channel Name</option>
@@ -943,7 +1170,9 @@
           <div class="form-group">
             <label>Font</label>
             <select name="text_font" id="text_font">
-              @php($tf = (string)($channel->overlay_text_font_family ?? 'Ubuntu'))
+              @php
+                $tf = (string)($channel->overlay_text_font_family ?? 'Ubuntu');
+              @endphp
               <option value="Ubuntu" @selected($tf === 'Ubuntu')>Ubuntu</option>
               <option value="Arial" @selected($tf === 'Arial')>Arial</option>
               <option value="DejaVuSans" @selected($tf === 'DejaVuSans')>DejaVu Sans</option>
@@ -951,7 +1180,7 @@
           </div>
           <div class="form-group">
             <label>Font Size</label>
-            <input type="number" name="text_size" id="text_size" value="{{ (int)($channel->overlay_text_font_size ?? 24) }}" min="8" max="72">
+            <input type="number" name="text_size" id="text_size" value="{{ max(8, (int)($channel->overlay_text_font_size ?? 24)) }}" min="8" max="72">
           </div>
         </div>
 
@@ -959,7 +1188,9 @@
           <div class="form-group">
             <label>Font Color</label>
             <select name="text_color" id="text_color">
-              @php($tcol = strtolower((string)($channel->overlay_text_color ?? 'white')))
+              @php
+                $tcol = strtolower((string)($channel->overlay_text_color ?? 'white'));
+              @endphp
               <option value="white" @selected($tcol === 'white' || $tcol === '#ffffff')>White</option>
               <option value="black" @selected($tcol === 'black' || $tcol === '#000000')>Black</option>
               <option value="yellow" @selected($tcol === 'yellow')>Yellow</option>
@@ -968,7 +1199,9 @@
           <div class="form-group">
             <label>Text Position</label>
             <select name="text_position" id="text_position">
-              @php($tp = strtolower((string)($channel->overlay_text_position ?? 'BR')))
+              @php
+                $tp = strtolower((string)($channel->overlay_text_position ?? 'BR'));
+              @endphp
               <option value="br" @selected($tp === 'br')>Bottom Right</option>
               <option value="bl" @selected($tp === 'bl')>Bottom Left</option>
               <option value="tr" @selected($tp === 'tr')>Top Right</option>
@@ -991,8 +1224,10 @@
         <div class="form-group">
           <label>Text Opacity</label>
           <div class="slider-wrap">
-            @php($top = (float)($channel->overlay_text_opacity ?? 100))
-            @php($top01 = $top > 1 ? $top/100 : $top)
+            @php
+              $top = (float)($channel->overlay_text_opacity ?? 100);
+              $top01 = $top > 1 ? $top/100 : $top;
+            @endphp
             <input type="range" name="text_opacity" id="text_opacity" min="0" max="1" step="0.01" value="{{ number_format($top01, 2, '.', '') }}">
             <div class="slider-val" id="text_opacity_val">{{ number_format($top01, 2, '.', '') }}</div>
           </div>
@@ -1034,7 +1269,9 @@
           <div class="form-group">
             <label>Countdown Position</label>
             <select name="timer_position" id="timer_position">
-              @php($cp = strtolower((string)($channel->overlay_timer_position ?? 'BR')))
+              @php
+                $cp = strtolower((string)($channel->overlay_timer_position ?? 'BR'));
+              @endphp
               <option value="br" @selected($cp === 'br')>Bottom Right</option>
               <option value="bl" @selected($cp === 'bl')>Bottom Left</option>
               <option value="tr" @selected($cp === 'tr')>Top Right</option>
@@ -1044,7 +1281,7 @@
           </div>
           <div class="form-group">
             <label>Countdown Size</label>
-            <input type="number" name="timer_size" id="timer_size" value="{{ (int)($channel->overlay_timer_font_size ?? 24) }}" min="8" max="96">
+            <input type="number" name="timer_size" id="timer_size" value="{{ max(8, (int)($channel->overlay_timer_font_size ?? 24)) }}" min="8" max="96">
           </div>
         </div>
 
@@ -1064,7 +1301,7 @@
       <div class="button-group">
         <button type="button" class="btn-cancel" id="btn-cancel">Cancel</button>
         <button type="button" class="btn-cancel" id="btn-save-channel">💾 Save to Channel</button>
-        <button type="submit" class="btn-primary" id="btn-create">Create Video</button>
+        <button type="button" class="btn-primary" id="btn-create">Create Video (TEST)</button>
       </div>
     </form>
   </div>
@@ -1088,18 +1325,6 @@
         </div>
       </div>
 
-      <!-- OVERLAY PREVIEW -->
-      <div style="margin: 10px 0 16px;">
-        <div style="font-size: 12px; font-weight: 600; color: #111827; margin-bottom: 8px;">Preview (Logo + VOD Name + Countdown)</div>
-        <div id="overlayPreview" style="position: relative; width: 100%; max-width: 560px; margin: 0; aspect-ratio: 16 / 9; background: #111827; border-radius: 10px; overflow: hidden; border: 1px solid #e5e7eb;">
-          <div style="position:absolute; inset:0; background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0));"></div>
-          <img id="overlayPreviewLogo" src="{{ route('vod-channels.logo.preview', $channel) }}" alt="" style="position:absolute; display:none; object-fit: contain;" onerror="this.style.display='none'" />
-          <div id="overlayPreviewText" style="position:absolute; display:none; color:#fff; font-weight:700; text-shadow: 0 1px 2px rgba(0,0,0,0.6);"></div>
-          <div id="overlayPreviewTimer" style="position:absolute; display:none; color:#fff; font-weight:700; font-variant-numeric: tabular-nums; text-shadow: 0 1px 2px rgba(0,0,0,0.6);"></div>
-        </div>
-        <div style="font-size: 11px; color: #6b7280; margin-top: 6px;">Preview is for positioning; final output is applied by FFmpeg.</div>
-      </div>
-
       <div class="pickers" data-create-video-base="{{ url('/create-video') }}">
         <div>
           <label class="picker-label" for="channel_switch">Channel</label>
@@ -1114,10 +1339,13 @@
 
         <div>
           <label class="picker-label" for="category_id">Video Category</label>
-          <select id="category_id" class="picker-select">
+          @php
+            $selectedCategoryId = old('video_category_id', $channel->video_category_id ?? null);
+          @endphp
+          <select id="category_id" class="picker-select" data-default-category-id="{{ (int)($selectedCategoryId ?? 0) }}">
             <option value="">Select Category</option>
             @foreach($categories as $cat)
-              <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+              <option value="{{ $cat->id }}" @selected((int)$cat->id === (int)($selectedCategoryId ?? 0))>{{ $cat->name }}</option>
             @endforeach
           </select>
         </div>
@@ -1143,6 +1371,7 @@
         <thead>
           <tr>
             <th style="width: 36px;"><input type="checkbox" id="selectAllVideos"></th>
+            <th style="width:80px;">Poster</th>
             <th>Name</th>
             <th>Server</th>
             <th>Screen</th>
@@ -1152,7 +1381,7 @@
           </tr>
         </thead>
         <tbody id="videosList">
-          <tr><td colspan="7" class="no-data">Select a category to load videos</td></tr>
+          <tr><td colspan="8" class="no-data">Select a category to load videos</td></tr>
         </tbody>
       </table>
     </div>
@@ -1179,20 +1408,87 @@
 
       <div class="bulk-actions">
         <button type="button" class="btn-success" id="convertAllBtn">✓ Convert All Videos</button>
+        <button type="button" class="btn-success" id="encodeSelectedFromTestsBtn">✓ Encode Selected</button>
         <button type="button" class="btn-danger" id="deleteAllBtn">✕ Delete All Videos</button>
       </div>
     </div>
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
 <script>
 let selectedVideo = null;
 let selectedVideos = new Map();
 
 document.addEventListener('DOMContentLoaded', function() {
   const CHANNEL_ID = {{ (int) $channel->id }};
+  const ENCODING_NOW_URL = @json(route('vod-channels.encoding-now', $channel));
   let lastFetchedVideos = [];
   let currentCategoryId = '';
+
+  (function syncOverlayPreviewAspectRatio() {
+    const setFromResolution = (el) => {
+      if (!el) return;
+      const raw = String(el.getAttribute('data-channel-resolution') || '').trim();
+      const m = raw.match(/^(\d{2,5})\s*x\s*(\d{2,5})$/i);
+      if (!m) return;
+      const w = parseInt(m[1], 10);
+      const h = parseInt(m[2], 10);
+      if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return;
+      el.style.aspectRatio = `${w} / ${h}`;
+    };
+
+    setFromResolution(document.getElementById('overlayPreview'));
+    setFromResolution(document.getElementById('overlayModalPreview'));
+  })();
+
+  // By default, keep countdown anchored to the same corner/X/Y as the VOD title.
+  // If the user edits countdown controls manually, we stop auto-syncing.
+  let countdownManuallySet = false;
+
+  // Make sure preview shows all elements by default.
+  // User can still uncheck them afterwards.
+  (function ensurePreviewElementsEnabled() {
+    const logoCb = document.getElementById('logo_enabled');
+    const textCb = document.getElementById('text_enabled');
+    const timerCb = document.getElementById('timer_enabled');
+
+    // Default preview text type to VOD title.
+    const textTypeEl = document.getElementById('text_type');
+    if (textTypeEl && String(textTypeEl.value || '').toLowerCase() !== 'title') {
+      textTypeEl.value = 'title';
+    }
+
+    if (logoCb && !logoCb.checked) logoCb.checked = true;
+    if (textCb && !textCb.checked) textCb.checked = true;
+    if (timerCb && !timerCb.checked) timerCb.checked = true;
+
+    const logoSection = document.getElementById('logo-section');
+    const textSection = document.getElementById('text-section');
+    const timerSection = document.getElementById('timer-section');
+    if (logoSection && logoCb) logoSection.style.display = logoCb.checked ? 'block' : 'none';
+    if (textSection && textCb) textSection.style.display = textCb.checked ? 'block' : 'none';
+    if (timerSection && timerCb) timerSection.style.display = timerCb.checked ? 'block' : 'none';
+  })();
+
+  function syncCountdownToTextIfAllowed() {
+    if (countdownManuallySet) return;
+
+    const textPos = document.getElementById('text_position');
+    const textX = document.getElementById('text_x');
+    const textY = document.getElementById('text_y');
+
+    const timerPos = document.getElementById('timer_position');
+    const timerX = document.getElementById('timer_x');
+    const timerY = document.getElementById('timer_y');
+
+    if (textPos && timerPos) timerPos.value = textPos.value;
+    if (textX && timerX) timerX.value = textX.value;
+    if (textY && timerY) timerY.value = textY.value;
+  }
+
+  // Initial sync so countdown starts in the expected spot (bottom-right above title).
+  syncCountdownToTextIfAllowed();
 
   function getVideoFromCache(videoId) {
     const id = parseInt(videoId, 10);
@@ -1246,7 +1542,10 @@ document.addEventListener('DOMContentLoaded', function() {
         return `
           <div class="selected-item" data-selected-id="${id}">
             <div class="selected-item-title" title="${safeTitle}">${t}</div>
-            <button type="button" class="btn-mini btn-mini-danger js-remove-selected" data-remove-id="${id}">Remove</button>
+            <div class="selected-item-actions">
+              <button type="button" class="btn-mini btn-mini-primary js-preview-selected" data-preview-id="${id}">Preview</button>
+              <button type="button" class="btn-mini btn-mini-danger js-remove-selected" data-remove-id="${id}">Remove</button>
+            </div>
           </div>
         `;
       }).join('');
@@ -1258,6 +1557,15 @@ document.addEventListener('DOMContentLoaded', function() {
           removeVideoFromSelection(id);
         });
       });
+
+      listEl.querySelectorAll('.js-preview-selected').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = parseInt(btn.getAttribute('data-preview-id') || '0', 10);
+          if (!Number.isFinite(id) || id <= 0) return;
+          openRealOverlayPreview(id);
+        });
+      });
+
     }
 
     // Keep visible checkboxes in sync.
@@ -1267,6 +1575,103 @@ document.addEventListener('DOMContentLoaded', function() {
       cb.checked = selectedVideos.has(id);
     });
   }
+
+  function openRealOverlayPreview(videoId) {
+    const modal = document.getElementById('vodPreviewModal');
+    const img = document.getElementById('vodPreviewImg');
+    const status = document.getElementById('vodPreviewStatus');
+    const titleEl = document.getElementById('vodPreviewTitle');
+
+    const v = getVideoFromCache(videoId);
+    const title = (v && v.title) ? v.title : ('Video #' + videoId);
+    if (titleEl) titleEl.textContent = `Preview: ${title}`;
+
+    if (status) status.textContent = 'Generating real FFmpeg preview…';
+    if (img) {
+      img.style.display = 'none';
+      img.removeAttribute('src');
+    }
+
+    if (modal) modal.classList.add('open');
+
+    window.__currentPreviewVideoId = parseInt(videoId || 0, 10) || 0;
+
+    const csrfEl = document.querySelector('input[name="_token"]');
+    const csrf = csrfEl ? csrfEl.value : '';
+
+    fetch(`/api/videos/${videoId}/overlay-preview`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
+      },
+      body: JSON.stringify({
+        live_channel_id: CHANNEL_ID,
+        ss: 2,
+        settings: buildSettingsFromForm(),
+      }),
+    })
+      .then(async r => {
+        const json = await r.json().catch(() => ({}));
+        if (!r.ok || !json.ok) {
+          throw new Error(json.message || 'Preview failed');
+        }
+        return json;
+      })
+      .then(json => {
+        if (status) status.textContent = 'Preview ready.';
+        if (img) {
+          img.setAttribute('src', `${json.preview_url}?t=${Date.now()}`);
+          img.style.display = 'block';
+        }
+      })
+      .catch(err => {
+        if (status) status.textContent = err?.message ? String(err.message) : 'Preview failed';
+      });
+  }
+
+  (function wirePreviewModal() {
+    const modal = document.getElementById('vodPreviewModal');
+    const closeBtn = document.getElementById('vodPreviewCloseBtn');
+
+    let refreshTimer = null;
+    function refreshPreviewIfOpen() {
+      if (!modal || !modal.classList.contains('open')) return;
+      const id = parseInt(window.__currentPreviewVideoId || 0, 10) || 0;
+      if (id <= 0) return;
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => openRealOverlayPreview(id), 350);
+    }
+
+    function close() {
+      if (!modal) return;
+      modal.classList.remove('open');
+      const img = document.getElementById('vodPreviewImg');
+      if (img) {
+        img.style.display = 'none';
+        img.removeAttribute('src');
+      }
+      const status = document.getElementById('vodPreviewStatus');
+      if (status) status.textContent = 'Ready.';
+    }
+
+    if (closeBtn) closeBtn.addEventListener('click', close);
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) close();
+      });
+    }
+
+    // Auto-refresh the real FFmpeg preview when logo settings change.
+    ['logo_enabled','logo_position','logo_x','logo_y','logo_width','logo_height','logo_opacity'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('input', refreshPreviewIfOpen);
+      el.addEventListener('change', refreshPreviewIfOpen);
+    });
+  })();
 
   function addVideoToSelection(video) {
     const id = parseInt(video?.id ?? 0, 10);
@@ -1312,7 +1717,7 @@ document.addEventListener('DOMContentLoaded', function() {
     currentCategoryId = String(categoryId || '');
 
     if (!currentCategoryId) {
-      document.getElementById('videosList').innerHTML = '<tr><td colspan="7" class="no-data">Select a category to load videos</td></tr>';
+      document.getElementById('videosList').innerHTML = '<tr><td colspan="8" class="no-data">Select a category to load videos</td></tr>';
       lastFetchedVideos = [];
       const selectAllEl = document.getElementById('selectAllVideos');
       if (selectAllEl) selectAllEl.checked = false;
@@ -1349,10 +1754,19 @@ document.addEventListener('DOMContentLoaded', function() {
   function buildSettingsFromForm() {
     const textMode = document.getElementById('text_type')?.value || 'title';
 
+    // EncodingService expects ffmpeg encoder names (e.g. libx264/libx265).
+    // The UI also has a "Video Codec" selector (h264/h265) but that is not a valid encoder name.
+    const encoderSel = (document.getElementById('encoder')?.value || '').trim();
+    const videoCodecSel = String(document.getElementById('video_codec')?.value || '').toLowerCase().trim();
+    const encoderName = encoderSel !== ''
+      ? encoderSel
+      : (videoCodecSel === 'h265' ? 'libx265' : 'libx264');
+
     return {
       // EncodingService Create Video keys
-      encoder: document.getElementById('video_codec')?.value || '',
+      encoder: encoderName,
       preset: document.getElementById('preset')?.value || '',
+      tune: document.getElementById('tune')?.value || '',
       video_bitrate: parseInt(document.getElementById('video_bitrate')?.value || '0', 10) || 0,
       audio_bitrate: parseInt(document.getElementById('audio_bitrate')?.value || '0', 10) || 0,
       frame_rate: document.getElementById('frame_rate')?.value || '',
@@ -1446,8 +1860,10 @@ document.addEventListener('DOMContentLoaded', function() {
     el.style.left = '';
 
     const p = normalizeCornerPos(pos);
-    const pxX = `${Math.max(0, parseInt(x || 0, 10) || 0)}px`;
-    const pxY = `${Math.max(0, parseInt(y || 0, 10) || 0)}px`;
+    const rawX = Math.max(0, parseInt(x || 0, 10) || 0);
+    const rawY = Math.max(0, parseInt(y || 0, 10) || 0);
+    const pxX = `${rawX}px`;
+    const pxY = `${rawY}px`;
 
     if (p === 'TR') { el.style.top = pxY; el.style.right = pxX; return; }
     if (p === 'BL') { el.style.bottom = pxY; el.style.left = pxX; return; }
@@ -1458,15 +1874,14 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function updateOverlayPreview() {
-    const logoEl = document.getElementById('overlayPreviewLogo');
-    const textEl = document.getElementById('overlayPreviewText');
-    const timerEl = document.getElementById('overlayPreviewTimer');
+    // Disabled: the HTML preview was misleading vs. real FFmpeg output.
+    return;
+    function renderOverlayPreviewTo(previewEl, logoEl, textEl, timerEl) {
+      if (!logoEl || !textEl || !timerEl || !previewEl) return;
 
-    if (!logoEl || !textEl || !timerEl) return;
+      const s = buildSettingsFromForm();
 
-    const s = buildSettingsFromForm();
-
-    function getPreviewVideo() {
+      function getPreviewVideo() {
       if (selectedVideo && selectedVideo.title) return selectedVideo;
 
       const ids = Array.from(selectedVideos.keys());
@@ -1488,113 +1903,143 @@ document.addEventListener('DOMContentLoaded', function() {
       return null;
     }
 
-    const pv = getPreviewVideo();
+      const pv = getPreviewVideo();
 
-    // Logo
-    if (s.overlay_logo_enabled) {
-      logoEl.style.display = '';
-      const alpha = Math.max(0, Math.min(1, (parseFloat(s.overlay_logo_opacity ?? 100) || 100) / 100));
-      logoEl.style.opacity = String(alpha);
-      logoEl.style.width = `${Math.max(1, parseInt(s.overlay_logo_width || 0, 10) || 1)}px`;
-      logoEl.style.height = `${Math.max(1, parseInt(s.overlay_logo_height || 0, 10) || 1)}px`;
-      placePreviewEl(logoEl, s.overlay_logo_position, s.overlay_logo_x, s.overlay_logo_y);
-    } else {
-      logoEl.style.display = 'none';
-    }
+      // IMPORTANT: keep preview sizes exactly as entered (no auto scaling).
 
-    // Text (VOD name)
-    if (s.overlay_text_enabled) {
-      textEl.style.display = '';
-      const alpha = Math.max(0, Math.min(1, (parseFloat(s.overlay_text_opacity ?? 100) || 100) / 100));
-      textEl.style.opacity = String(alpha);
-      const titleFontPx = Math.max(8, parseInt(s.overlay_text_font_size || 0, 10) || 16);
-      textEl.style.fontSize = `${titleFontPx}px`;
-
-      // Apply styling from settings
-      textEl.style.fontFamily = String(s.overlay_text_font_family || 'Ubuntu');
-      textEl.style.color = String(s.overlay_text_color || 'white');
-
-      const bgOpacity = Math.max(0, Math.min(100, parseInt(s.overlay_text_bg_opacity || 0, 10) || 0));
-      const pad = Math.max(0, parseInt(s.overlay_text_padding || 0, 10) || 0);
-      if (bgOpacity > 0) {
-        const a = bgOpacity / 100;
-        const bg = String(s.overlay_text_bg_color || 'black').toLowerCase() === 'white'
-          ? `rgba(255,255,255,${a})`
-          : `rgba(0,0,0,${a})`;
-        textEl.style.backgroundColor = bg;
-        textEl.style.padding = `${pad}px`;
-        textEl.style.borderRadius = '6px';
+      // Logo
+      if (s.overlay_logo_enabled) {
+        logoEl.style.display = '';
+        const alpha = Math.max(0, Math.min(1, (parseFloat(s.overlay_logo_opacity ?? 100) || 100) / 100));
+        logoEl.style.opacity = String(alpha);
+        logoEl.style.width = `${Math.max(1, (parseInt(s.overlay_logo_width || 0, 10) || 1))}px`;
+        logoEl.style.height = `${Math.max(1, (parseInt(s.overlay_logo_height || 0, 10) || 1))}px`;
+        placePreviewEl(logoEl, s.overlay_logo_position, s.overlay_logo_x, s.overlay_logo_y);
       } else {
-        textEl.style.backgroundColor = 'transparent';
-        textEl.style.padding = '0px';
-        textEl.style.borderRadius = '0px';
+        logoEl.style.display = 'none';
       }
 
-      let text = '';
-      if (s.overlay_text_content === 'title') {
-        text = pv?.title || 'Select a video';
-      } else if (s.overlay_text_content === 'custom') {
-        text = s.overlay_text_custom || 'Custom Text';
-      } else if (s.overlay_text_content === 'channel_name') {
-        text = '{{ addslashes($channel->name) }}';
-      } else {
-        text = pv?.title || 'Select a video';
-      }
-      textEl.textContent = text;
+      // Text (VOD name)
+      if (s.overlay_text_enabled) {
+        textEl.style.display = '';
+        const alpha = Math.max(0, Math.min(1, (parseFloat(s.overlay_text_opacity ?? 100) || 100) / 100));
+        textEl.style.opacity = String(alpha);
+        const titleFontPx = Math.max(1, (parseInt(s.overlay_text_font_size || 0, 10) || 16));
+        textEl.style.fontSize = `${titleFontPx}px`;
 
-      placePreviewEl(textEl, s.overlay_text_position, s.overlay_text_x, s.overlay_text_y);
-    } else {
-      textEl.style.display = 'none';
-    }
+        // Keep preview readable for long titles
+        textEl.style.maxWidth = '72%';
+        textEl.style.whiteSpace = 'normal';
+        textEl.style.lineHeight = '1.15';
 
-    // Timer
-    if (s.overlay_timer_enabled) {
-      timerEl.style.display = '';
-      const timerFontPx = Math.max(8, parseInt(s.overlay_timer_font_size || 0, 10) || 20);
-      timerEl.style.fontSize = `${timerFontPx}px`;
-      timerEl.style.fontFamily = String(s.overlay_text_font_family || 'Ubuntu');
-      timerEl.style.color = '#FFFFFF';
+        // Apply styling from settings
+        textEl.style.fontFamily = String(s.overlay_text_font_family || 'Ubuntu');
+        textEl.style.color = String(s.overlay_text_color || 'white');
 
-      // Preview countdown: use video duration when available, otherwise 00:10:00
-      const dur = parseInt(pv?.duration_seconds || pv?.duration || '0', 10) || 0;
-      if (dur > 0) {
-        const h = String(Math.floor(dur / 3600)).padStart(2, '0');
-        const m = String(Math.floor((dur % 3600) / 60)).padStart(2, '0');
-        const sec = String(Math.floor(dur % 60)).padStart(2, '0');
-        timerEl.textContent = `${h}:${m}:${sec}`;
-      } else {
-        timerEl.textContent = '00:10:00';
-      }
-
-      // Default placement
-      placePreviewEl(timerEl, s.overlay_timer_position, s.overlay_timer_x, s.overlay_timer_y);
-
-      // Stack rule (like backend): when timer + title share same corner/XY,
-      // keep countdown ABOVE and title BELOW.
-      const tPos = normalizeCornerPos(s.overlay_text_position);
-      const cPos = normalizeCornerPos(s.overlay_timer_position);
-      const sameCorner = (tPos === cPos) && ['BL', 'BR'].includes(cPos);
-      const sameCustomXY = (tPos === 'CUSTOM') && (cPos === 'CUSTOM')
-        && (parseInt(s.overlay_text_x || 0, 10) === parseInt(s.overlay_timer_x || 0, 10))
-        && (parseInt(s.overlay_text_y || 0, 10) === parseInt(s.overlay_timer_y || 0, 10));
-
-      if (s.overlay_text_enabled && (sameCorner || sameCustomXY)) {
-        const offset = Math.max(0, (Math.max(8, parseInt(s.overlay_text_font_size || 0, 10) || 16) + 10));
-        // move timer up a bit so it sits above the title
-        if (cPos === 'BL' || cPos === 'BR') {
-          // bottom anchored -> increase bottom offset
-          const bottom = timerEl.style.bottom;
-          const base = parseInt((bottom || '0').replace('px', ''), 10) || 0;
-          timerEl.style.bottom = `${base + offset}px`;
-        } else if (cPos === 'CUSTOM') {
-          // custom -> move up via top
-          const top = timerEl.style.top;
-          const base = parseInt((top || '0').replace('px', ''), 10) || 0;
-          timerEl.style.top = `${Math.max(0, base - offset)}px`;
+        const bgOpacity = Math.max(0, Math.min(100, parseInt(s.overlay_text_bg_opacity || 0, 10) || 0));
+        const pad = Math.max(0, (parseInt(s.overlay_text_padding || 0, 10) || 0));
+        if (bgOpacity > 0) {
+          const a = bgOpacity / 100;
+          const bg = String(s.overlay_text_bg_color || 'black').toLowerCase() === 'white'
+            ? `rgba(255,255,255,${a})`
+            : `rgba(0,0,0,${a})`;
+          textEl.style.backgroundColor = bg;
+          textEl.style.padding = `${pad}px`;
+          textEl.style.borderRadius = '6px';
+        } else {
+          textEl.style.backgroundColor = 'transparent';
+          textEl.style.padding = '0px';
+          textEl.style.borderRadius = '0px';
         }
+
+        let text = '';
+        if (s.overlay_text_content === 'title') {
+          text = pv?.title || 'Select a video';
+        } else if (s.overlay_text_content === 'custom') {
+          text = s.overlay_text_custom || 'Custom Text';
+        } else if (s.overlay_text_content === 'channel_name') {
+          text = '{{ addslashes($channel->name) }}';
+        } else {
+          text = pv?.title || 'Select a video';
+        }
+        textEl.textContent = text;
+
+        placePreviewEl(textEl, s.overlay_text_position, s.overlay_text_x, s.overlay_text_y);
+      } else {
+        textEl.style.display = 'none';
       }
-    } else {
-      timerEl.style.display = 'none';
+
+      // Timer
+      if (s.overlay_timer_enabled) {
+        timerEl.style.display = '';
+        const timerFontPx = Math.max(1, (parseInt(s.overlay_timer_font_size || 0, 10) || 20));
+        timerEl.style.fontSize = `${timerFontPx}px`;
+        timerEl.style.fontFamily = String(s.overlay_text_font_family || 'Ubuntu');
+        timerEl.style.color = '#FFFFFF';
+
+        // Preview countdown: use video duration when available, otherwise 00:10:00
+        const dur = parseInt(pv?.duration_seconds || pv?.duration || '0', 10) || 0;
+        if (dur > 0) {
+          const h = String(Math.floor(dur / 3600)).padStart(2, '0');
+          const m = String(Math.floor((dur % 3600) / 60)).padStart(2, '0');
+          const sec = String(Math.floor(dur % 60)).padStart(2, '0');
+          timerEl.textContent = `${h}:${m}:${sec}`;
+        } else {
+          timerEl.textContent = '00:10:00';
+        }
+
+        // Default placement
+        placePreviewEl(timerEl, s.overlay_timer_position, s.overlay_timer_x, s.overlay_timer_y);
+
+        // Stack rule for preview: keep BOTH inside the same marked corner.
+        // Bottom corners: VOD title at the bottom, countdown ABOVE it.
+        // Top corners: title at the top, countdown BELOW it.
+        const tPos = normalizeCornerPos(s.overlay_text_position);
+        const cPos = normalizeCornerPos(s.overlay_timer_position);
+        const sameCorner = (tPos === cPos) && ['TL', 'TR', 'BL', 'BR'].includes(cPos);
+
+        if (s.overlay_text_enabled && sameCorner) {
+          const gap = 6;
+          const xBase = parseInt(s.overlay_text_x || 0, 10) || 0;
+          const yBase = parseInt(s.overlay_text_y || 0, 10) || 0;
+
+          // Force both to the same corner anchor in preview (using text X/Y as base)
+          placePreviewEl(textEl, tPos, xBase, yBase);
+          placePreviewEl(timerEl, tPos, xBase, yBase);
+
+          // Measure after placement
+          const titleH = Math.ceil(textEl.getBoundingClientRect().height || 0);
+
+          if (tPos === 'BR' || tPos === 'BL') {
+            const baseBottom = Math.max(0, yBase);
+            textEl.style.bottom = `${baseBottom}px`;
+            timerEl.style.bottom = `${baseBottom + titleH + gap}px`;
+          } else if (tPos === 'TR' || tPos === 'TL') {
+            const baseTop = Math.max(0, yBase);
+            textEl.style.top = `${baseTop}px`;
+            timerEl.style.top = `${baseTop + titleH + gap}px`;
+          }
+        }
+      } else {
+        timerEl.style.display = 'none';
+      }
+    }
+
+    const logoEl = document.getElementById('overlayPreviewLogo');
+    const textEl = document.getElementById('overlayPreviewText');
+    const timerEl = document.getElementById('overlayPreviewTimer');
+    const previewEl = document.getElementById('overlayPreview');
+    renderOverlayPreviewTo(previewEl, logoEl, textEl, timerEl);
+
+    // If modal is open, keep its overlay in sync too.
+    const modalEl = document.getElementById('vodPreviewModal');
+    if (modalEl && modalEl.classList.contains('open')) {
+      renderOverlayPreviewTo(
+        document.getElementById('overlayModalPreview'),
+        document.getElementById('overlayModalLogo'),
+        document.getElementById('overlayModalText'),
+        document.getElementById('overlayModalTimer')
+      );
     }
   }
 
@@ -1607,7 +2052,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const videos = (Array.isArray(lastFetchedVideos) ? lastFetchedVideos : []).slice(0, limit);
 
     if (!videos.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="no-data">No videos in this category</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="no-data">No videos in this category</td></tr>';
       if (selectAllEl) selectAllEl.checked = false;
       return;
     }
@@ -1620,9 +2065,15 @@ document.addEventListener('DOMContentLoaded', function() {
       const videoData = JSON.stringify(v).replace(/"/g, '&quot;');
       const checkedAttr = selectedVideos.has(parseInt(v.id, 10)) ? 'checked' : '';
 
+      const posterPath = (v && v.tmdb_poster_path) ? String(v.tmdb_poster_path) : '';
+      const posterHtml = posterPath
+        ? `<img src="https://image.tmdb.org/t/p/w92${posterPath}" alt="Poster" style="width:46px;height:auto;border-radius:6px;border:1px solid var(--border-color);display:inline-block;" loading="lazy">`
+        : `<span style="color:var(--text-muted);font-size:12px;font-weight:700;">—</span>`;
+
       html += `
         <tr>
           <td><input type="checkbox" class="video-checkbox" value="${v.id}" ${checkedAttr}></td>
+          <td style="text-align:center;">${posterHtml}</td>
           <td><strong>${v.title}</strong></td>
           <td>${v.server || 'primary'}</td>
           <td>${resolution}</td>
@@ -1680,6 +2131,26 @@ document.addEventListener('DOMContentLoaded', function() {
   // Text toggle
   document.getElementById('text_enabled').addEventListener('change', function() {
     document.getElementById('text-section').style.display = this.checked ? 'block' : 'none';
+  });
+
+  // If the user changes text position/X/Y, keep countdown aligned (unless user overrides countdown manually).
+  ['text_position', 'text_x', 'text_y'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('input', () => {
+      syncCountdownToTextIfAllowed();
+      updateOverlayPreview();
+    });
+  });
+
+  // Any manual change in countdown controls disables auto-sync.
+  ['timer_position', 'timer_x', 'timer_y'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('input', () => {
+      countdownManuallySet = true;
+      updateOverlayPreview();
+    });
   });
 
   // Sliders
@@ -1827,47 +2298,86 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('createVideoForm').addEventListener('submit', function(e) {
     e.preventDefault();
 
-    const videoIds = Array.from(selectedVideos.keys());
+    // IMPORTANT: "Create Video" = TEST ONLY (HLS, time-limited). No production TS encoding here.
+    let videoIds = Array.from(selectedVideos.keys());
     if (videoIds.length === 0) {
-      alert('❌ Please select one or more videos first');
+      // Fallback: allow selecting from the videos list checkboxes.
+      videoIds = Array.from(document.querySelectorAll('#videosList .video-checkbox:checked'))
+        .map(cb => parseInt(cb.value, 10))
+        .filter(v => Number.isFinite(v) && v > 0);
+    }
+
+    if (videoIds.length === 0) {
+      alert('❌ Selectează un video (Select) ca să rulezi TEST-ul');
       return;
     }
 
-    const settings = buildSettingsFromForm();
-    const endpoint = (videoIds.length === 1) ? '/api/encoding-jobs' : '/api/encoding-jobs/bulk';
-    const payload = (videoIds.length === 1)
-      ? { video_id: videoIds[0], live_channel_id: CHANNEL_ID, settings }
-      : { live_channel_id: CHANNEL_ID, video_ids: videoIds, settings };
+    if (videoIds.length > 1) {
+      alert('ℹ️ Create Video rulează doar TEST pe un singur video. Folosesc primul selectat.');
+    }
 
-    fetch(endpoint, {
+    const videoId = parseInt(videoIds[0], 10);
+    if (!Number.isFinite(videoId) || videoId <= 0) {
+      alert('❌ Video invalid');
+      return;
+    }
+
+    const csrf = document.querySelector('input[name="_token"]').value;
+    const durRaw = parseInt(document.getElementById('test_time_limit')?.value || '60', 10);
+    const startRaw = parseInt(document.getElementById('test_start_time')?.value || '0', 10);
+
+    let testDuration = Number.isFinite(durRaw) ? durRaw : 60;
+    if (testDuration < 5) testDuration = 5;
+    if (testDuration > 60) testDuration = 60;
+
+    let testStart = Number.isFinite(startRaw) ? startRaw : 0;
+    if (testStart < 0) testStart = 0;
+
+    openTestModal('Test Encode', 'Starting test…');
+
+    fetch('/api/encoding-jobs/test-from-video', {
       method: 'POST',
       credentials: 'include',
       headers: {
-        'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
+        'X-CSRF-TOKEN': csrf,
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        live_channel_id: CHANNEL_ID,
+        video_id: videoId,
+        test_duration: testDuration,
+        test_start: testStart,
+        settings: buildSettingsFromForm(),
+      })
     })
     .then(async (r) => {
       const data = await r.json().catch(() => ({}));
       if (!r.ok) {
-        const message = data.message || 'Failed to create encoding job';
+        const message = data.message || 'Failed to start test';
         throw new Error(message);
       }
       return data;
     })
     .then(data => {
       if (!data.ok) throw new Error('Failed to create encoding job');
-      if (videoIds.length === 1) {
-        alert('✅ Encoding job created!');
-      } else {
-        alert(`✅ Queued ${data.count || videoIds.length} job(s)`);
-      }
+      activeTestJobId = data.test_job_id || null;
+      startJobsPolling();
       loadTestJobs();
-      clearSelection();
+
+      if (data.status && String(data.status).toLowerCase() === 'done' && data.output_url) {
+        playHlsUrl(data.output_url);
+      }
     })
-    .catch(e => alert('❌ Error: ' + e.message));
+    .catch(e => {
+      closeTestModal();
+      alert('❌ Error: ' + e.message);
+    });
+  });
+
+  // Create Video (TEST) button triggers the same handler (no browser submit)
+  document.getElementById('btn-create')?.addEventListener('click', function() {
+    document.getElementById('createVideoForm')?.dispatchEvent(new Event('submit', { cancelable: true }));
   });
 
   // Save defaults to channel
@@ -1899,11 +2409,25 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // Load test jobs
+  let jobsPollTimer = null;
+  function startJobsPolling() {
+    if (jobsPollTimer) return;
+    jobsPollTimer = setInterval(loadTestJobs, 2000);
+  }
+
+  function stopJobsPolling() {
+    if (!jobsPollTimer) return;
+    clearInterval(jobsPollTimer);
+    jobsPollTimer = null;
+  }
+
   function loadTestJobs() {
     fetch(`/api/encoding-jobs?live_channel_id=${CHANNEL_ID}`, {
       credentials: 'include',
+      cache: 'no-store',
       headers: {
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'Cache-Control': 'no-cache'
       }
     })
       .then(r => r.json())
@@ -1912,26 +2436,127 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (!jobs.length) {
           tbody.innerHTML = '<tr><td colspan="6" class="no-data">No jobs yet</td></tr>';
+          stopJobsPolling();
           return;
         }
 
+        const clampPct = (p) => {
+          const n = parseInt(p || 0, 10);
+          if (!Number.isFinite(n)) return 0;
+          return Math.max(0, Math.min(100, n));
+        };
+
+        const isActiveStatus = (s) => {
+          const st = String(s || '').toLowerCase();
+          return ['pending', 'queued', 'running', 'test_running', 'processing'].includes(st);
+        };
+
+        // One row per video.
+        // Prefer showing an ACTIVE TEST (queued/running) status when present,
+        // otherwise show the latest available job for that video.
+        // Jobs are ordered desc by id from API.
+        const byVideo = new Map();
+        const order = [];
+        (Array.isArray(jobs) ? jobs : []).forEach(j => {
+          const vid = String(j.video_id || '');
+          if (!vid) return;
+
+          if (!byVideo.has(vid)) {
+            byVideo.set(vid, {
+              latestAny: null,
+              prod: null,
+              testAny: null,
+              testActive: null,
+              testDone: null,
+            });
+            order.push(vid);
+          }
+
+          const rec = byVideo.get(vid);
+          if (!rec.latestAny) rec.latestAny = j;
+
+          if (j && !j.is_test && !rec.prod) {
+            rec.prod = j;
+          }
+
+          if (j && j.is_test && !rec.testAny) {
+            rec.testAny = j;
+          }
+
+          if (j && j.is_test && !rec.testActive && isActiveStatus(j.status)) {
+            rec.testActive = j;
+          }
+
+          const outputUrl = j && j.output_url ? String(j.output_url) : '';
+          const isHlsUrl = outputUrl.toLowerCase().includes('.m3u8');
+          const isDone = String(j && j.status ? j.status : '').toLowerCase() === 'done';
+          if (j && j.is_test && isDone && isHlsUrl && !rec.testDone) {
+            rec.testDone = j;
+          }
+        });
+
+        const jobsForTable = order
+          .map(vid => {
+            const rec = byVideo.get(vid);
+            if (!rec) return null;
+            return rec.prod || rec.testActive || rec.testAny || rec.latestAny;
+          })
+          .filter(Boolean);
+
+        const anyActive = (Array.isArray(jobs) ? jobs : []).some(j => isActiveStatus(j.status) && clampPct(j.progress) < 100);
+        if (anyActive) startJobsPolling(); else stopJobsPolling();
+
         let html = '';
-        jobs.forEach(job => {
-          const statusRaw = (job.status || 'pending');
+        jobsForTable.forEach(job => {
+          const vidKey = String(job.video_id || '');
+          const rec = byVideo.get(vidKey);
+          const displayJob = (rec && rec.testActive) ? rec.testActive : job;
+
+          const statusRaw = (displayJob.status || 'pending');
           const statusClass = `status-${statusRaw}`;
           const statusText = statusRaw.charAt(0).toUpperCase() + statusRaw.slice(1);
-          
+          const kindText = (displayJob && displayJob.is_test) ? 'TEST' : 'PROD';
+
+          const pct = clampPct(displayJob.progress);
+          const fill = pct;
+          const metaParts = [];
+          if (displayJob.speed) metaParts.push(`speed ${displayJob.speed}`);
+          if (displayJob.out_time) metaParts.push(`pos ${displayJob.out_time}`);
+          if (displayJob.eta) metaParts.push(`eta ${displayJob.eta}`);
+          const meta = metaParts.length ? metaParts.join(' • ') : '';
+
+          const baseJobId = (rec && (rec.prod || rec.testAny || rec.latestAny))
+            ? (rec.prod || rec.testAny || rec.latestAny).id
+            : job.id;
+
+          const deleteJobId = (rec && rec.testActive) ? rec.testActive.id : baseJobId;
+
+          const outputUrl = (rec && rec.testDone && rec.testDone.output_url) ? String(rec.testDone.output_url) : '';
+          const canPlay = !!outputUrl;
+          const canSelectForTotalEncode = !!outputUrl;
+
           html += `
             <tr>
-              <td>${(job.video_title ?? 'N/A')}</td>
-              <td>${job.text_overlay || '—'}</td>
-              <td>${job.codec || '—'}</td>
-              <td>${job.bitrate || '—'}</td>
-              <td><span class="${statusClass}">${statusText}</span></td>
+              <td>${(displayJob.video_title ?? job.video_title ?? 'N/A')}</td>
+              <td>${displayJob.text_overlay || job.text_overlay || '—'}</td>
+              <td>${displayJob.codec || job.codec || '—'}</td>
+              <td>${displayJob.bitrate || job.bitrate || '—'}</td>
+              <td>
+                <div class="job-status-wrap">
+                  <div><span class="${statusClass}">${statusText} (${kindText})</span></div>
+                  <div class="job-progress">
+                    <div class="job-progress-bar"><div class="job-progress-fill" style="width:${fill}%;"></div></div>
+                    <div class="job-progress-pct">${pct}%</div>
+                  </div>
+                  ${meta ? `<div class="job-progress-meta">${meta}</div>` : ''}
+                </div>
+              </td>
               <td>
                 <div class="table-actions">
-                  <button type="button" class="btn-cancel">Test</button>
-                  <button type="button" class="btn-danger" onclick="deleteJob(${job.id})">Delete</button>
+                  ${canSelectForTotalEncode ? `<label style="display:inline-flex;align-items:center;gap:6px;margin-right:8px;"><input type="checkbox" class="js-total-encode-pick" value="${job.video_id}"> Encode</label>` : ''}
+                  <button type="button" class="btn-cancel" onclick="runJobTest(${baseJobId}, this)">Test</button>
+                  ${canPlay ? `<button type="button" class="btn-success" onclick='openTestPlayerFromUrl(${JSON.stringify(outputUrl)})'>Play</button>` : ''}
+                  <button type="button" class="btn-danger" onclick="deleteJob(${deleteJobId}, event, this)">Delete</button>
                 </div>
               </td>
             </tr>
@@ -1939,28 +2564,260 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         tbody.innerHTML = html;
+
+        // Keep the test popup in sync with latest job data.
+        syncTestModalFromJobs(jobs);
       })
       .catch(e => console.error('Error:', e));
   }
 
-  window.deleteJob = function(jobId) {
+  window.deleteJob = function(jobId, ev, btnEl) {
+    try {
+      if (ev && typeof ev.preventDefault === 'function') ev.preventDefault();
+      if (ev && typeof ev.stopPropagation === 'function') ev.stopPropagation();
+    } catch (e) {}
+
     if (!confirm('Delete this job?')) return;
+
+    if (btnEl && btnEl.disabled !== undefined) btnEl.disabled = true;
+
+    const tokenEl = document.querySelector('input[name="_token"]');
+    const csrf = tokenEl ? tokenEl.value : '';
+    if (!csrf) {
+      if (btnEl && btnEl.disabled !== undefined) btnEl.disabled = false;
+      alert('❌ Missing CSRF token on page. Please refresh and try again.');
+      return;
+    }
 
     fetch(`/api/encoding-jobs/${jobId}`, {
       method: 'DELETE',
       credentials: 'include',
       headers: {
-        'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
-        'Accept': 'application/json'
+        'X-CSRF-TOKEN': csrf,
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
       }
     })
-    .then(r => r.json())
-    .then(data => {
+    .then(async (r) => {
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        throw new Error(data.message || `Delete failed (${r.status})`);
+      }
+      return data;
+    })
+    .then(() => {
+      // If we deleted the currently active test job, close the modal.
+      try {
+        if (activeTestJobId && String(activeTestJobId) === String(jobId)) {
+          closeTestModal();
+        }
+      } catch (e) {}
+
       alert('✅ Job deleted');
       loadTestJobs();
     })
-    .catch(e => alert('❌ Error: ' + e.message));
+    .catch(e => {
+      alert('❌ Error: ' + e.message);
+    })
+    .finally(() => {
+      if (btnEl && btnEl.disabled !== undefined) btnEl.disabled = false;
+    });
   };
+
+  // Test popup playback (HLS)
+  let testModalHls = null;
+  let activeTestJobId = null;
+  let testRequestInFlight = false;
+  let lastPlayedUrl = null;
+
+  function openTestModal(titleText, metaText) {
+    const modal = document.getElementById('testPlayerModal');
+    const title = document.getElementById('testModalTitle');
+    const meta = document.getElementById('testModalMeta');
+    const video = document.getElementById('testPlayerVideo');
+
+    if (title) title.textContent = titleText || 'Test Playback';
+    if (meta) meta.textContent = metaText || 'Preparing test…';
+
+    // Reset player
+    try {
+      if (testModalHls) {
+        testModalHls.destroy();
+        testModalHls = null;
+      }
+    } catch (e) {}
+    lastPlayedUrl = null;
+    if (video) {
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+    }
+
+    if (modal) {
+      modal.classList.add('open');
+      modal.setAttribute('aria-hidden', 'false');
+    }
+  }
+
+  function closeTestModal() {
+    const modal = document.getElementById('testPlayerModal');
+    const video = document.getElementById('testPlayerVideo');
+    try {
+      if (testModalHls) {
+        testModalHls.destroy();
+        testModalHls = null;
+      }
+    } catch (e) {}
+    lastPlayedUrl = null;
+    activeTestJobId = null;
+
+    if (video) {
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+    }
+    if (modal) {
+      modal.classList.remove('open');
+      modal.setAttribute('aria-hidden', 'true');
+    }
+  }
+
+  function playHlsUrl(url) {
+    const video = document.getElementById('testPlayerVideo');
+    const meta = document.getElementById('testModalMeta');
+    if (!video || !url) return;
+    if (lastPlayedUrl === url) return;
+
+    // Cleanup any previous instance
+    try {
+      if (testModalHls) {
+        testModalHls.destroy();
+        testModalHls = null;
+      }
+    } catch (e) {}
+
+    lastPlayedUrl = url;
+    if (meta) meta.textContent = 'Loading test stream…';
+
+    // Native HLS (Safari)
+    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = url;
+      video.play().catch(() => {});
+      if (meta) meta.textContent = 'Ready.';
+      return;
+    }
+
+    // hls.js (Chrome/Firefox)
+    if (window.Hls && window.Hls.isSupported()) {
+      testModalHls = new window.Hls({ lowLatencyMode: false });
+      testModalHls.loadSource(url);
+      testModalHls.attachMedia(video);
+      testModalHls.on(window.Hls.Events.MANIFEST_PARSED, function() {
+        video.play().catch(() => {});
+        if (meta) meta.textContent = 'Ready.';
+      });
+      testModalHls.on(window.Hls.Events.ERROR, function(_, data) {
+        if (data && data.fatal) {
+          if (meta) meta.textContent = 'Cannot play this HLS stream.';
+        }
+      });
+      return;
+    }
+
+    if (meta) meta.textContent = 'HLS playback not supported in this browser.';
+  }
+
+  window.openTestPlayerFromUrl = function(url) {
+    openTestModal('Test Playback', 'Loading…');
+    playHlsUrl(url);
+  };
+
+  function syncTestModalFromJobs(jobs) {
+    const modal = document.getElementById('testPlayerModal');
+    if (!modal || !modal.classList.contains('open')) return;
+    if (!activeTestJobId) return;
+
+    const meta = document.getElementById('testModalMeta');
+    const job = Array.isArray(jobs) ? jobs.find(j => String(j.id) === String(activeTestJobId)) : null;
+    if (!job) {
+      if (meta) meta.textContent = 'Waiting for test job…';
+      return;
+    }
+
+    const st = String(job.status || '').toLowerCase();
+    const pct = parseInt(job.progress || 0, 10);
+    const parts = [];
+    parts.push(`status ${st || 'pending'}`);
+    if (Number.isFinite(pct)) parts.push(`${pct}%`);
+    if (job.speed) parts.push(`speed ${job.speed}`);
+    if (job.eta) parts.push(`eta ${job.eta}`);
+    if (meta) meta.textContent = parts.join(' • ');
+
+    if (st === 'done' && job.output_url) {
+      playHlsUrl(job.output_url);
+    }
+  }
+
+  // Start a test encode (HLS) and open popup
+  window.runJobTest = function(jobId, btnEl) {
+    if (testRequestInFlight) return;
+    testRequestInFlight = true;
+
+    const csrf = document.querySelector('input[name="_token"]').value;
+    const durRaw = parseInt(document.getElementById('test_time_limit')?.value || '60', 10);
+    const startRaw = parseInt(document.getElementById('test_start_time')?.value || '0', 10);
+
+    let testDuration = Number.isFinite(durRaw) ? durRaw : 60;
+    if (testDuration < 5) testDuration = 5;
+    if (testDuration > 60) testDuration = 60;
+
+    let testStart = Number.isFinite(startRaw) ? startRaw : 0;
+    if (testStart < 0) testStart = 0;
+
+    if (btnEl && btnEl.disabled !== undefined) btnEl.disabled = true;
+    openTestModal('Test Encode', 'Starting test…');
+
+    fetch(`/api/encoding-jobs/${jobId}/test`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'X-CSRF-TOKEN': csrf,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        test_duration: testDuration,
+        test_start: testStart,
+        settings: buildSettingsFromForm(),
+      })
+    })
+    .then(async (r) => {
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.message || 'Failed to start test');
+      return data;
+    })
+    .then((data) => {
+      activeTestJobId = data.test_job_id || null;
+      startJobsPolling();
+      loadTestJobs();
+      if (data.status && String(data.status).toLowerCase() === 'done' && data.output_url) {
+        playHlsUrl(data.output_url);
+      }
+    })
+    .catch(e => {
+      closeTestModal();
+      alert('❌ Error: ' + e.message);
+    })
+    .finally(() => {
+      testRequestInFlight = false;
+      if (btnEl && btnEl.disabled !== undefined) btnEl.disabled = false;
+    });
+  };
+
+  document.getElementById('testModalCloseBtn')?.addEventListener('click', closeTestModal);
+  document.getElementById('testPlayerModal')?.addEventListener('click', function(e) {
+    if (e.target && e.target.id === 'testPlayerModal') closeTestModal();
+  });
 
   document.getElementById('btn-cancel').addEventListener('click', function() {
     if (confirm('Cancel without saving?')) history.back();
@@ -1971,12 +2828,32 @@ document.addEventListener('DOMContentLoaded', function() {
       .map(cb => parseInt(cb.value, 10))
       .filter(v => Number.isFinite(v) && v > 0);
 
-    const videoIds = (selectedIds.length > 0)
+    const selectedFromMap = Array.from(selectedVideos.keys())
+      .map(id => parseInt(id, 10))
+      .filter(v => Number.isFinite(v) && v > 0);
+
+    let videoIds = (selectedIds.length > 0)
       ? selectedIds
+      : (selectedFromMap.length > 0)
+      ? selectedFromMap
       : (Array.isArray(lastFetchedVideos) ? lastFetchedVideos.map(v => parseInt(v.id, 10)).filter(v => Number.isFinite(v) && v > 0) : []);
 
+    // If no category was selected / no videos loaded, allow Convert All to use TEST-completed videos.
+    // (Same result as clicking Encode Selected, but this avoids the "select a category" blocker.)
     if (videoIds.length === 0) {
-      alert('❌ No videos to convert (select a category first)');
+      const checkedFromTests = Array.from(document.querySelectorAll('#testVideoList .js-total-encode-pick:checked'))
+        .map(cb => parseInt(cb.value, 10))
+        .filter(v => Number.isFinite(v) && v > 0);
+
+      const allFromTests = Array.from(document.querySelectorAll('#testVideoList .js-total-encode-pick'))
+        .map(cb => parseInt(cb.value, 10))
+        .filter(v => Number.isFinite(v) && v > 0);
+
+      videoIds = (checkedFromTests.length > 0) ? checkedFromTests : allFromTests;
+    }
+
+    if (videoIds.length === 0) {
+      alert('❌ No videos to convert (select a category OR run a test first)');
       return;
     }
 
@@ -2007,17 +2884,64 @@ document.addEventListener('DOMContentLoaded', function() {
       .then(data => {
         if (!data.ok) throw new Error('Failed to queue jobs');
         alert(`✅ Queued ${data.count || 0} job(s)`);
-        loadTestJobs();
+        // After queueing TOTAL (TS) encodes, jump to the monitor page for this channel.
+        window.location.href = `/vod-channels/${CHANNEL_ID}/encoding-now`;
       })
       .catch(e => alert('❌ Error: ' + e.message));
   });
+
+  // Start TOTAL (production) encoding only for videos you tested and selected.
+  // Selection checkboxes appear only for rows that have a completed TEST.
+  const encodeSelectedFromTestsBtn = document.getElementById('encodeSelectedFromTestsBtn');
+  if (encodeSelectedFromTestsBtn) {
+    encodeSelectedFromTestsBtn.addEventListener('click', function() {
+      const videoIds = Array.from(document.querySelectorAll('#testVideoList .js-total-encode-pick:checked'))
+        .map(cb => parseInt(cb.value, 10))
+        .filter(v => Number.isFinite(v) && v > 0);
+
+      if (videoIds.length === 0) {
+        alert('❌ Select at least one TEST-encoded video to encode.');
+        return;
+      }
+
+      if (!confirm(`Queue TOTAL encoding for ${videoIds.length} selected video(s)?`)) return;
+
+      fetch('/api/encoding-jobs/bulk', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          live_channel_id: CHANNEL_ID,
+          video_ids: videoIds,
+          settings: buildSettingsFromForm(),
+        })
+      })
+        .then(async (r) => {
+          const data = await r.json().catch(() => ({}));
+          if (!r.ok) throw new Error(data.message || 'Failed to queue jobs');
+          return data;
+        })
+        .then(() => {
+          alert('✅ Queued TOTAL encoding for selected videos');
+          document.querySelectorAll('#testVideoList .js-total-encode-pick:checked').forEach(cb => { cb.checked = false; });
+          // After queueing TOTAL (TS) encodes, jump to the monitor page for this channel.
+          window.location.href = `/vod-channels/${CHANNEL_ID}/encoding-now`;
+        })
+        .catch(e => alert('❌ Error: ' + e.message));
+    });
+  }
 
   document.getElementById('deleteAllBtn').addEventListener('click', function() {
     if (!confirm('Delete all jobs for this channel?')) return;
 
     fetch(`/api/encoding-jobs?live_channel_id=${CHANNEL_ID}`, {
       credentials: 'include',
-      headers: { 'Accept': 'application/json' }
+      cache: 'no-store',
+      headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' }
     })
       .then(r => r.json())
       .then(async (jobs) => {
@@ -2028,14 +2952,20 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         for (const id of ids) {
-          await fetch(`/api/encoding-jobs/${id}`, {
+          const r = await fetch(`/api/encoding-jobs/${id}`, {
             method: 'DELETE',
             credentials: 'include',
             headers: {
               'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
-              'Accept': 'application/json'
+              'Accept': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest'
             }
           });
+
+          if (!r.ok) {
+            const data = await r.json().catch(() => ({}));
+            throw new Error(data.message || `Delete failed for job ${id} (${r.status})`);
+          }
         }
 
         alert(`✅ Deleted ${ids.length} job(s)`);
@@ -2045,6 +2975,19 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   loadTestJobs();
+
+  // Auto-load the channel's default category (if configured).
+  (function initCategoryAndVideos() {
+    const catEl = document.getElementById('category_id');
+    if (!catEl) return;
+
+    const currentVal = String(catEl.value || '').trim();
+    const defaultVal = String(catEl.getAttribute('data-default-category-id') || '').trim();
+    const initial = (currentVal !== '' && currentVal !== '0') ? currentVal : ((defaultVal !== '' && defaultVal !== '0') ? defaultVal : '');
+    if (!initial) return;
+    catEl.value = initial;
+    loadVideosForCategory(initial);
+  })();
 
   renderSelectedList();
 });

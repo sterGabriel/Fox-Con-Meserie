@@ -44,15 +44,29 @@
             <table class="fox-table">
                 <thead>
                     <tr>
+                        <th style="width:80px;">Poster</th>
                         <th>Titlu</th>
                         <th>Fișier</th>
                         <th style="width:240px;">Cale</th>
+                        <th style="width:140px;text-align:center;">TMDB</th>
                         <th style="width:140px;text-align:center;">Deschide</th>
                     </tr>
                 </thead>
                 <tbody>
                 @foreach ($importedVideos as $v)
                     <tr style="{{ !($v['exists'] ?? false) ? 'opacity:0.65;' : '' }}">
+                        <td style="text-align:center;">
+                            @if (!empty($v['tmdb_poster_path']))
+                                <img
+                                    src="https://image.tmdb.org/t/p/w92{{ $v['tmdb_poster_path'] }}"
+                                    alt="Poster"
+                                    style="width:46px;height:auto;border-radius:6px;border:1px solid var(--border-color);display:inline-block;"
+                                    loading="lazy"
+                                >
+                            @else
+                                <span id="tmdb-poster-{{ (int) ($v['id'] ?? 0) }}" data-video-id="{{ (int) ($v['id'] ?? 0) }}" style="color:var(--text-muted);font-size:12px;font-weight:700;">—</span>
+                            @endif
+                        </td>
                         <td style="font-weight:700;color:var(--text-primary);">
                             {{ $v['title'] ?? '—' }}
                             @if (!($v['exists'] ?? false))
@@ -64,6 +78,16 @@
                         </td>
                         <td style="color:var(--text-muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:1px;">
                             {{ $v['path'] ?? '—' }}
+                        </td>
+                        <td style="text-align:center;white-space:nowrap;">
+                            <button
+                                type="button"
+                                class="fox-action-btn start"
+                                data-video-id="{{ (int) ($v['id'] ?? 0) }}"
+                                data-title='@json((string)($v['title'] ?? ""))'
+                                onclick="openTmdbInfo(this)"
+                                title="TMDB Info"
+                            >ℹ️</button>
                         </td>
                         <td style="text-align:center;white-space:nowrap;">
                             @if (!empty($v['dir']))
@@ -233,6 +257,22 @@
     </div>
 </div>
 
+<!-- Modal for TMDB Info -->
+<div id="tmdb-modal" class="fox-modal-backdrop" aria-hidden="true">
+    <div class="fox-modal" role="dialog" aria-modal="true" aria-labelledby="tmdb-title">
+        <div class="fox-modal-header">
+            <h3 class="fox-modal-title" id="tmdb-title">TMDB Info</h3>
+            <button type="button" onclick="closeTmdb()" class="fox-modal-close" aria-label="Close">×</button>
+        </div>
+        <div class="fox-modal-body">
+            <div id="tmdb-body" style="color:var(--text-secondary);font-size:13px;">⏳ Loading...</div>
+        </div>
+        <div class="fox-modal-footer">
+            <button type="button" onclick="closeTmdb()" class="fox-modal-secondary">Close</button>
+        </div>
+    </div>
+</div>
+
 <script>
 // Select/Deselect functions
 function selectAllFiles() {
@@ -288,6 +328,81 @@ function closePreview() {
     document.getElementById('preview-video').pause();
 }
 
+function escapeHtml(s) {
+    return String(s ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function openTmdbInfo(btnEl) {
+    const videoId = parseInt(btnEl?.getAttribute('data-video-id') || '', 10);
+    const title = btnEl?.getAttribute('data-title') || '';
+    if (!Number.isFinite(videoId) || videoId <= 0) return;
+
+    document.getElementById('tmdb-title').textContent = 'TMDB Info: ' + (title || ('Video #' + videoId));
+    const body = document.getElementById('tmdb-body');
+    body.textContent = '⏳ Loading...';
+    document.getElementById('tmdb-modal').classList.add('is-open');
+
+    fetch(`/api/videos/${videoId}/tmdb-details`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        cache: 'no-store'
+    })
+        .then(async (r) => {
+            const data = await r.json().catch(() => ({}));
+            if (!r.ok) throw new Error(data.message || 'TMDB request failed');
+            return data;
+        })
+        .then((data) => {
+            if (!data.ok) throw new Error(data.message || 'TMDB lookup failed');
+
+            const d = data.details || {};
+            const name = d.title || d.name || '';
+            const overview = d.overview || '';
+            const date = d.release_date || d.first_air_date || '';
+            const runtime = d.runtime ? `${d.runtime} min` : '';
+            const genres = Array.isArray(d.genres) ? d.genres.join(', ') : '';
+            const rating = (d.vote_average != null) ? `${d.vote_average} (${d.vote_count || 0})` : '';
+
+            const posterUrl = data.poster_url || '';
+            const backdropUrl = data.backdrop_url || '';
+
+            body.innerHTML = `
+                <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;">
+                    <div style="width:140px;flex:0 0 auto;">
+                        ${posterUrl ? `<img src="${escapeHtml(posterUrl)}" alt="Poster" style="width:140px;border-radius:6px;border:1px solid var(--border-color);" loading="lazy">` : `<div style="color:var(--text-muted);font-size:12px;font-weight:700;">No poster</div>`}
+                    </div>
+                    <div style="min-width:240px;flex:1 1 320px;">
+                        <div style="font-size:16px;font-weight:900;color:var(--text-primary);margin-bottom:6px;">${escapeHtml(name || title || '')}</div>
+                        <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--text-secondary);font-weight:700;margin-bottom:10px;">
+                            ${date ? `<span class="fox-badge blue">${escapeHtml(date)}</span>` : ''}
+                            ${runtime ? `<span class="fox-badge yellow">${escapeHtml(runtime)}</span>` : ''}
+                            ${rating ? `<span class="fox-badge green">⭐ ${escapeHtml(rating)}</span>` : ''}
+                            ${genres ? `<span class="fox-badge">${escapeHtml(genres)}</span>` : ''}
+                        </div>
+                        ${overview ? `<div style="color:var(--text-secondary);font-size:13px;line-height:1.45;">${escapeHtml(overview)}</div>` : `<div style="color:var(--text-muted);font-size:12px;font-weight:700;">No overview</div>`}
+                    </div>
+                </div>
+                ${backdropUrl ? `<div style="margin-top:14px;"><img src="${escapeHtml(backdropUrl)}" alt="Backdrop" style="width:100%;max-height:240px;object-fit:cover;border-radius:6px;border:1px solid var(--border-color);" loading="lazy"></div>` : ''}
+            `;
+        })
+        .catch((e) => {
+            body.textContent = '❌ ' + (e.message || 'Failed to load TMDB info');
+        });
+}
+
+function closeTmdb() {
+    document.getElementById('tmdb-modal').classList.remove('is-open');
+}
+
 function importSingle(path) {
     const input = document.getElementById('single-import-path');
     const form = document.getElementById('single-import-form');
@@ -318,6 +433,75 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     updateSelectedCount();
+
+    // Auto-fetch missing TMDB posters for imported videos (non-blocking).
+    // Uses existing /api/videos/tmdb-scan (max 10 ids per request).
+    (function tmdbPrefetchPosters() {
+        const nodes = Array.from(document.querySelectorAll('[id^="tmdb-poster-"][data-video-id]'));
+        const ids = nodes
+            .map(n => parseInt(n.getAttribute('data-video-id') || '', 10))
+            .filter(v => Number.isFinite(v) && v > 0);
+
+        if (ids.length === 0) return;
+
+        const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+        const chunks = [];
+        for (let i = 0; i < ids.length; i += 10) {
+            chunks.push(ids.slice(i, i + 10));
+        }
+
+        const applyPoster = (videoId, posterPath) => {
+            const el = document.getElementById('tmdb-poster-' + videoId);
+            if (!el) return;
+            if (!posterPath) return;
+
+            const img = document.createElement('img');
+            img.src = 'https://image.tmdb.org/t/p/w92' + posterPath;
+            img.alt = 'Poster';
+            img.loading = 'lazy';
+            img.style.width = '46px';
+            img.style.height = 'auto';
+            img.style.borderRadius = '6px';
+            img.style.border = '1px solid var(--border-color)';
+            img.style.display = 'inline-block';
+
+            el.replaceWith(img);
+        };
+
+        const run = async () => {
+            for (const chunk of chunks) {
+                try {
+                    const r = await fetch('/api/videos/tmdb-scan', {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: {
+                            'X-CSRF-TOKEN': token,
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: JSON.stringify({ video_ids: chunk })
+                    });
+                    const data = await r.json().catch(() => ({}));
+                    if (!r.ok || !data.ok) {
+                        continue;
+                    }
+
+                    const results = Array.isArray(data.results) ? data.results : [];
+                    for (const row of results) {
+                        const vid = parseInt(row.id, 10);
+                        if (!Number.isFinite(vid) || vid <= 0) continue;
+                        applyPoster(vid, row.tmdb_poster_path || null);
+                    }
+                } catch (_) {
+                    // ignore and continue
+                }
+            }
+        };
+
+        run();
+    })();
 });
 </script>
 

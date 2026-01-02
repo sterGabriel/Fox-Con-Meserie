@@ -52,6 +52,13 @@ class MonitorEncodingJobs extends Command
             $hasOutput = $outputPath !== '' && is_file($outputPath);
             $fileSize = $hasOutput ? ((int) @filesize($outputPath)) : 0;
 
+            $isHls = $hasOutput && str_ends_with(strtolower($outputPath), '.m3u8');
+            $hlsEnded = false;
+            if ($isHls) {
+                $c = @file_get_contents($outputPath);
+                $hlsEnded = is_string($c) && str_contains($c, '#EXT-X-ENDLIST');
+            }
+
             $pid = (int) ($job->pid ?? 0);
             $alive = $isPidAlive($pid);
 
@@ -74,6 +81,20 @@ class MonitorEncodingJobs extends Command
                 ]);
 
                 $this->info("✅ Job {$job->id} completed" . ($hasOutput ? " - {$fileSize} bytes" : ''));
+                continue;
+            }
+
+            // HLS test outputs can be small (m3u8), so also accept a finalized playlist.
+            if (($hlsEnded && $hasOutput) || (!$alive && $isHls && $hasOutput)) {
+                $job->update([
+                    'status' => 'done',
+                    'progress' => 100,
+                    'finished_at' => $now,
+                    'completed_at' => $now,
+                    'error_message' => null,
+                ]);
+
+                $this->info("✅ Job {$job->id} completed (HLS)");
                 continue;
             }
 
@@ -107,10 +128,15 @@ class MonitorEncodingJobs extends Command
         $channelIdsWithQueued = EncodingJob::query()
             ->where('status', 'queued')
             ->where('video_id', '>', 0)
-            ->whereNotNull('playlist_item_id')
-            ->where('playlist_item_id', '>', 0)
-            ->pluck('live_channel_id')
-            ->filter(fn ($v) => (int) $v > 0)
+            ->get(['live_channel_id', 'channel_id'])
+            ->flatMap(function ($row) {
+                $out = [];
+                $a = (int) ($row->live_channel_id ?? 0);
+                $b = (int) ($row->channel_id ?? 0);
+                if ($a > 0) $out[] = $a;
+                if ($b > 0) $out[] = $b;
+                return $out;
+            })
             ->unique()
             ->values()
             ->all();
@@ -131,9 +157,7 @@ class MonitorEncodingJobs extends Command
                         $qq->where('encoding_jobs.live_channel_id', $channelId)
                            ->orWhere('encoding_jobs.channel_id', $channelId);
                     })
-                    ->where('encoding_jobs.video_id', '>', 0)
-                    ->whereNotNull('encoding_jobs.playlist_item_id')
-                    ->where('encoding_jobs.playlist_item_id', '>', 0);
+                    ->where('encoding_jobs.video_id', '>', 0);
                 };
 
                 $hasRunning = $scope(EncodingJob::query())
@@ -146,14 +170,28 @@ class MonitorEncodingJobs extends Command
                     return;
                 }
 
+                // Priority: start short TEST jobs first so the user gets immediate feedback.
+                // Otherwise, tests (playlist_item_id=null) can get stuck behind long playlist encodes.
                 $next = $scope(EncodingJob::query())
                     ->where('encoding_jobs.status', 'queued')
-                    ->leftJoin('playlist_items', 'encoding_jobs.playlist_item_id', '=', 'playlist_items.id')
-                    ->orderByRaw('COALESCE(playlist_items.sort_order, 2147483647) asc')
+                    ->whereNull('encoding_jobs.playlist_item_id')
+                    ->where('encoding_jobs.settings->job_type', 'test')
                     ->orderBy('encoding_jobs.created_at')
                     ->select('encoding_jobs.*')
                     ->lockForUpdate()
                     ->first();
+
+                if (!$next) {
+                    $next = $scope(EncodingJob::query())
+                        ->where('encoding_jobs.status', 'queued')
+                        ->leftJoin('playlist_items', 'encoding_jobs.playlist_item_id', '=', 'playlist_items.id')
+                        ->orderByRaw('CASE WHEN encoding_jobs.playlist_item_id IS NULL THEN 1 ELSE 0 END asc')
+                        ->orderByRaw('COALESCE(playlist_items.sort_order, 2147483647) asc')
+                        ->orderBy('encoding_jobs.created_at')
+                        ->select('encoding_jobs.*')
+                        ->lockForUpdate()
+                        ->first();
+                }
 
                 if (!$next) {
                     $claimed = null;

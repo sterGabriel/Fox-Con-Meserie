@@ -157,6 +157,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/vod-channels/{channel}/playlist', [LiveChannelController::class, 'playlist'])
         ->name('vod-channels.playlist');
 
+    // ENCODING NOW (monitor) - PROTECTED
+    Route::get('/vod-channels/{channel}/encoding-now', [LiveChannelController::class, 'encodingNow'])
+        ->name('vod-channels.encoding-now');
+
     // Popup player (encoded TS)
     Route::get('/vod-channels/{channel}/playlist/{item}/player', [LiveChannelController::class, 'playlistPlayer'])
         ->name('vod-channels.playlist.player');
@@ -384,6 +388,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/api/videos/probe', [VideoApiController::class, 'probe'])
         ->name('api.videos.probe');
 
+    // Extract a preview frame image (JPG) from the video file
+    Route::get('/api/videos/{video}/preview-frame', [VideoApiController::class, 'previewFrame'])
+        ->name('api.videos.preview-frame');
+
+    // Generate a preview frame with overlay applied by FFmpeg (matches final encoding)
+    Route::post('/api/videos/{video}/overlay-preview', [VideoApiController::class, 'overlayPreview'])
+        ->name('api.videos.overlay-preview');
+
+    // Fetch (and optionally auto-sync) TMDB details for a single video
+    Route::get('/api/videos/{video}/tmdb-details', [VideoApiController::class, 'tmdbDetails'])
+        ->name('api.videos.tmdb-details');
+
     Route::post('/api/videos/tmdb-scan', [VideoApiController::class, 'tmdbScan'])
         ->name('api.videos.tmdb-scan');
 
@@ -401,6 +417,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('api.encoding-jobs.store');
     Route::post('/api/encoding-jobs/bulk', [EncodingJobApiController::class, 'bulk'])
         ->name('api.encoding-jobs.bulk');
+    Route::post('/api/encoding-jobs/test-from-video', [EncodingJobApiController::class, 'testFromVideo'])
+        ->name('api.encoding-jobs.test-from-video');
     Route::post('/api/encoding-jobs/{job}/test', [EncodingJobApiController::class, 'test'])
         ->name('api.encoding-jobs.test');
     Route::delete('/api/encoding-jobs/{job}', [EncodingJobApiController::class, 'destroy'])

@@ -508,6 +508,13 @@ class LiveChannelController extends Controller
         ]);
     }
 
+    public function encodingNow(LiveChannel $channel)
+    {
+        return view('admin.vod_channels.encoding_now', [
+            'channel' => $channel,
+        ]);
+    }
+
     public function playlistPlayer(LiveChannel $channel, PlaylistItem $item)
     {
         // Safety: ensure the playlist item belongs to this channel.
@@ -784,39 +791,8 @@ class LiveChannelController extends Controller
      */
     public function encoding(LiveChannel $channel)
     {
-        $categories = VideoCategory::orderBy('name')->get();
-        $profiles = EncodeProfile::orderBy('name')->get();
-        $liveProfiles = EncodeProfile::where('container', 'mpegts')->orderBy('name')->get();
-        $allVideos = Video::orderBy('title')->get();
-
-        // Load category videos for preview (if category selected)
-        $categoryVideos = collect();
-        $categoryStats = [
-            'total_videos' => 0,
-            'total_duration' => 0,
-            'avg_bitrate' => 0,
-            'dominant_resolution' => 'N/A',
-        ];
-
-        if ($channel->video_category_id) {
-            $categoryVideos = Video::where('video_category_id', $channel->video_category_id)
-                ->orderBy('title')
-                ->take(20)
-                ->get();
-
-            $categoryStats['total_videos'] = Video::where('video_category_id', $channel->video_category_id)->count();
-            $categoryStats['total_duration'] = Video::where('video_category_id', $channel->video_category_id)->sum('duration_seconds');
-        }
-
-        return view('admin.vod_channels.settings_new', [
-            'channel'           => $channel,
-            'categories'        => $categories,
-            'profiles'          => $profiles,
-            'liveProfiles'      => $liveProfiles,
-            'allVideos'         => $allVideos,
-            'categoryVideos'    => $categoryVideos,
-            'categoryStats'     => $categoryStats,
-        ]);
+        // Legacy URL kept for compatibility. The single encoding page is /create-video/{channel}.
+        return redirect()->route('create-video.show', ['channel' => $channel->id]);
     }
 
     public function updateSettings(Request $request, LiveChannel $channel)
@@ -2419,7 +2395,7 @@ class LiveChannelController extends Controller
                     'id' => $job->id,
                     'video_id' => $job->video_id,
                     'playlist_item_id' => (int) ($job->playlist_item_id ?? 0),
-                    'video_title' => $job->playlistItem?->video?->title ?? 'Unknown',
+                    'video_title' => $job->playlistItem?->video?->title ?? $job->video?->title ?? 'Unknown',
                     'status' => $job->status,
                     'progress' => $computed[$job->id]['pct'] ?? ($job->progress ?? 0),
                     'speed' => $computed[$job->id]['speed'] ?? null,

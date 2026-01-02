@@ -212,9 +212,12 @@
 <?php
   $pendingItems = isset($pendingItems) ? $pendingItems : collect();
   $pendingCount = is_countable($pendingItems) ? count($pendingItems) : 0;
+  $activeJobsCount = isset($jobCounts)
+    ? ((int)($jobCounts['running'] ?? 0) + (int)($jobCounts['queued'] ?? 0))
+    : 0;
 ?>
 
-@if($pendingCount > 0)
+@if($pendingCount > 0 && $activeJobsCount > 0)
   <div class="card" style="margin-bottom: 14px;">
     <div class="card-h">
       <div class="card-t">Encoding Queue (Not Encoded Yet)</div>
@@ -642,6 +645,8 @@
     <a class="btn btn-dark" href="{{ route('vod-channels.index') }}">Channels</a>
 
     <a class="btn btn-blue" href="{{ route('create-video.show', $channel) }}">Create Video</a>
+
+    <a class="btn btn-outline" href="{{ route('vod-channels.encoding-now', $channel) }}">Encodare acum</a>
   </div>
 
   <div class="total-pill">
