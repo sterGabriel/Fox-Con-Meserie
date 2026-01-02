@@ -112,6 +112,9 @@
       <span>Series</span>
     </a>
 
+    {{-- Tools Section Header --}}
+    <div style="margin-top: 16px; padding: 0 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; color: #64748b;">TOOLS</div>
+
     {{-- Series: Rename MUZICA --}}
     <a href="{{ route('fox.series.rename-muzica') }}"
        class="sidebar-link" style="background: {{ $isActive('series/rename-muzica') ? '#b31217' : 'transparent' }};">
@@ -124,6 +127,13 @@
        class="sidebar-link" style="background: {{ $isActive('series/rename-vod') ? '#b31217' : 'transparent' }};">
       <span class="sidebar-icon">✏️</span>
       <span>Rename VOD</span>
+    </a>
+
+    {{-- Rename VOD: Subtitles --}}
+    <a href="{{ route('fox.series.rename-vod.sub') }}"
+       class="sidebar-link" style="background: {{ $isActive('series/rename-vod/sub') ? '#b31217' : 'transparent' }};">
+      <span class="sidebar-icon">📝</span>
+      <span>VOD Sub</span>
     </a>
   </nav>
 

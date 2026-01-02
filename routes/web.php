@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\CreateVideoController;
+use App\Http\Controllers\Admin\VodSubController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\LiveChannelController;
 use App\Http\Controllers\Admin\VideoController;
@@ -161,6 +162,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::post('/series/rename-vod/apply', [SeriesRenameController::class, 'applyVod'])
         ->name('fox.series.rename-vod.apply');
+
+    // Tools: VOD Sub (under Rename VOD)
+    Route::get('/series/rename-vod/sub', [VodSubController::class, 'index'])
+        ->name('fox.series.rename-vod.sub');
 
     // ───────────── VOD CHANNELS ─────────────
 

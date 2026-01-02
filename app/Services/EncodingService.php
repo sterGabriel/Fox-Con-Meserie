@@ -530,6 +530,24 @@ class EncodingService
         $filters[] = "[scaled]pad={$outW}:{$outH}:(ow-iw)/2:(oh-ih)/2[padded]";
         $lastLabel = '[padded]';
 
+        // Optional: burn-in subtitles (SRT) if enabled for this job.
+        // This is best-effort; missing/invalid files should not block encoding.
+        try {
+            $subPath = $this->resolveSubtitlePathForJob();
+            if ($subPath) {
+                $safeSub = $this->escapeForSubtitlesFilterPath($subPath);
+                $filters[] = "{$lastLabel}subtitles=filename='{$safeSub}':charenc=UTF-8[subbed]";
+                $lastLabel = '[subbed]';
+                $this->appendLog("Subtitles: burn-in enabled path={$subPath}");
+            }
+        } catch (\Throwable $e) {
+            try {
+                $this->appendLog('Subtitles: skipped (' . $e->getMessage() . ')');
+            } catch (\Throwable $e2) {
+                // ignore
+            }
+        }
+
         // Add logo overlay if enabled
         // Support both new (overlay_logo_*) and legacy (logo_*) fields.
         $logoPath = (string) $this->setting('overlay_logo_path', (string) ($this->channel->overlay_logo_path ?? ''));
@@ -797,6 +815,68 @@ class EncodingService
         }
 
         return '';
+    }
+
+    protected function resolveSubtitlePathForJob(): ?string
+    {
+        $mode = strtolower(trim((string) $this->setting('subtitle_mode', 'none')));
+        if (!in_array($mode, ['burn_in', 'burn-in', 'burnin', 'hardcode', 'hard'], true)) {
+            return null;
+        }
+
+        $manual = trim((string) $this->setting('subtitle_path', ''));
+        if ($manual !== '') {
+            // Allow absolute paths or paths relative to the input file directory.
+            if (str_starts_with($manual, '/')) {
+                return is_file($manual) ? $manual : null;
+            }
+
+            $baseDir = dirname((string) ($this->job->input_path ?? ''));
+            $cand = rtrim($baseDir, '/') . '/' . ltrim($manual, '/');
+            return is_file($cand) ? $cand : null;
+        }
+
+        $auto = $this->settingBool('subtitle_auto', true);
+        if (!$auto) {
+            return null;
+        }
+
+        $input = trim((string) ($this->job->input_path ?? ''));
+        if ($input === '' || !is_file($input)) {
+            return null;
+        }
+
+        $dir = dirname($input);
+        $base = pathinfo($input, PATHINFO_FILENAME);
+        if ($base === '') return null;
+
+        $lang = strtolower(trim((string) $this->setting('subtitle_language', '')));
+        if ($lang === 'none') $lang = '';
+
+        $candidates = [];
+        if ($lang !== '') {
+            $candidates[] = $dir . '/' . $base . '.' . $lang . '.srt';
+            $candidates[] = $dir . '/' . $base . '_' . $lang . '.srt';
+        }
+        $candidates[] = $dir . '/' . $base . '.srt';
+
+        foreach ($candidates as $p) {
+            if (is_file($p)) {
+                return $p;
+            }
+        }
+
+        return null;
+    }
+
+    protected function escapeForSubtitlesFilterPath(string $path): string
+    {
+        // FFmpeg filter args use ':' as option separators; escape it.
+        // Also escape backslashes and single quotes inside the quoted filename.
+        $p = str_replace('\\', '\\\\', $path);
+        $p = str_replace(':', '\\:', $p);
+        $p = str_replace("'", "\\'", $p);
+        return $p;
     }
 
     /**

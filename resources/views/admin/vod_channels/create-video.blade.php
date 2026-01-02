@@ -812,6 +812,48 @@
           <div class="info-detail-row"><strong>Resolution:</strong> <span id="detail-resolution">—</span></div>
           <div class="info-detail-row"><strong>Format:</strong> <span id="detail-format">—</span></div>
           <div class="info-detail-row"><strong>Size:</strong> <span id="detail-size">—</span></div>
+
+          <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(30, 64, 175, 0.2);">
+            <div class="info-detail-row"><strong>Subtitles (SRT):</strong> burn-in (scrise pe video)</div>
+
+            <div class="grid-2" style="margin-top: 8px;">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label style="font-size: 12px;">Subtitle Mode</label>
+                <select id="subtitle_mode_ui">
+                  <option value="none" selected>None</option>
+                  <option value="burn_in">Burn-in (hardcode)</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label style="font-size: 12px;">Language</label>
+                <select id="subtitle_language_ui">
+                  <option value="none" selected>None</option>
+                  <option value="en">English</option>
+                  <option value="ro">Romanian</option>
+                  <option value="es">Spanish</option>
+                  <option value="fr">French</option>
+                  <option value="de">German</option>
+                  <option value="it">Italian</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-check" style="margin-top: 10px; margin-bottom: 10px;">
+              <input type="checkbox" id="subtitle_auto_ui" checked>
+              <label for="subtitle_auto_ui" style="font-size: 12px; font-weight: 700;">Auto-detect lângă video (ex: movie.en.srt / movie.srt)</label>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 10px;">
+              <label style="font-size: 12px;">SRT Path (manual)</label>
+              <input type="text" id="subtitle_path_ui" placeholder="/path/to/movie.srt">
+              <div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Dacă e completat, are prioritate peste auto-detect.</div>
+            </div>
+
+            <div class="selected-actions" style="margin-top: 0;">
+              <button type="button" class="btn-mini btn-mini-primary" id="subtitle_apply_all_btn">Apply to all selected</button>
+              <div class="selected-count" id="subtitle_target_hint">Applied per video</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1423,6 +1465,7 @@
 let selectedVideo = null;
 let selectedVideos = new Map();
 let totalEncodeSelected = new Set();
+let subtitleSettingsByVideoId = new Map();
 
 document.addEventListener('DOMContentLoaded', function() {
   const CHANNEL_ID = {{ (int) $channel->id }};
@@ -1631,6 +1674,129 @@ document.addEventListener('DOMContentLoaded', function() {
       if (!Number.isFinite(id) || id <= 0) return;
       cb.checked = selectedVideos.has(id);
     });
+
+    // Sync subtitle UI from first selected video (per-video settings).
+    syncSubtitleUiFromSelection();
+  }
+
+  function normalizeSubtitleMode(mode) {
+    const m = String(mode || '').trim().toLowerCase();
+    if (m === 'burn' || m === 'burnin' || m === 'burn-in' || m === 'hard' || m === 'hardcode') return 'burn_in';
+    if (m === 'burn_in') return 'burn_in';
+    return 'none';
+  }
+
+  function getFirstSelectedId() {
+    const ids = Array.from(selectedVideos.keys());
+    const id = parseInt(ids[0] || 0, 10);
+    return (Number.isFinite(id) && id > 0) ? id : 0;
+  }
+
+  function readSubtitleUi() {
+    return {
+      subtitle_mode: normalizeSubtitleMode(document.getElementById('subtitle_mode_ui')?.value || 'none'),
+      subtitle_language: String(document.getElementById('subtitle_language_ui')?.value || 'none').trim().toLowerCase(),
+      subtitle_auto: !!document.getElementById('subtitle_auto_ui')?.checked,
+      subtitle_path: String(document.getElementById('subtitle_path_ui')?.value || '').trim(),
+    };
+  }
+
+  function writeSubtitleUi(s) {
+    const modeEl = document.getElementById('subtitle_mode_ui');
+    const langEl = document.getElementById('subtitle_language_ui');
+    const autoEl = document.getElementById('subtitle_auto_ui');
+    const pathEl = document.getElementById('subtitle_path_ui');
+
+    const mode = normalizeSubtitleMode(s?.subtitle_mode || 'none');
+    const lang = String(s?.subtitle_language || 'none').trim().toLowerCase() || 'none';
+    const auto = !!s?.subtitle_auto;
+    const path = String(s?.subtitle_path || '').trim();
+
+    if (modeEl) modeEl.value = mode;
+    if (langEl) langEl.value = lang;
+    if (autoEl) autoEl.checked = auto;
+    if (pathEl) pathEl.value = path;
+
+    const hintEl = document.getElementById('subtitle_target_hint');
+    const ids = Array.from(selectedVideos.keys());
+    if (hintEl) {
+      if (ids.length <= 1) hintEl.textContent = 'Applied to selected video';
+      else hintEl.textContent = `Editing first selected (video #${ids[0]}). Use Apply to all.`;
+    }
+  }
+
+  function getSubtitleSettingsForVideo(videoId) {
+    const id = parseInt(videoId || 0, 10);
+    if (!Number.isFinite(id) || id <= 0) {
+      return { subtitle_mode: 'none', subtitle_language: 'none', subtitle_auto: true, subtitle_path: '' };
+    }
+    const existing = subtitleSettingsByVideoId.get(id);
+    if (existing && typeof existing === 'object') {
+      return {
+        subtitle_mode: normalizeSubtitleMode(existing.subtitle_mode || 'none'),
+        subtitle_language: String(existing.subtitle_language || 'none').trim().toLowerCase() || 'none',
+        subtitle_auto: !!existing.subtitle_auto,
+        subtitle_path: String(existing.subtitle_path || '').trim(),
+      };
+    }
+    return { subtitle_mode: 'none', subtitle_language: 'none', subtitle_auto: true, subtitle_path: '' };
+  }
+
+  function setSubtitleSettingsForVideo(videoId, s) {
+    const id = parseInt(videoId || 0, 10);
+    if (!Number.isFinite(id) || id <= 0) return;
+    const normalized = {
+      subtitle_mode: normalizeSubtitleMode(s?.subtitle_mode || 'none'),
+      subtitle_language: String(s?.subtitle_language || 'none').trim().toLowerCase() || 'none',
+      subtitle_auto: !!s?.subtitle_auto,
+      subtitle_path: String(s?.subtitle_path || '').trim(),
+    };
+    subtitleSettingsByVideoId.set(id, normalized);
+  }
+
+  function syncSubtitleUiFromSelection() {
+    const id = getFirstSelectedId();
+    if (id <= 0) return;
+    writeSubtitleUi(getSubtitleSettingsForVideo(id));
+  }
+
+  (function wireSubtitleUi() {
+    const ids = ['subtitle_mode_ui', 'subtitle_language_ui', 'subtitle_auto_ui', 'subtitle_path_ui'];
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('input', () => {
+        const vid = getFirstSelectedId();
+        if (vid <= 0) return;
+        setSubtitleSettingsForVideo(vid, readSubtitleUi());
+      });
+      el.addEventListener('change', () => {
+        const vid = getFirstSelectedId();
+        if (vid <= 0) return;
+        setSubtitleSettingsForVideo(vid, readSubtitleUi());
+      });
+    });
+
+    const btn = document.getElementById('subtitle_apply_all_btn');
+    if (btn) {
+      btn.addEventListener('click', () => {
+        const ids = Array.from(selectedVideos.keys());
+        if (!ids.length) return;
+        const s = readSubtitleUi();
+        ids.forEach(id => setSubtitleSettingsForVideo(id, s));
+        alert(`✅ Applied subtitle settings to ${ids.length} video(s)`);
+      });
+    }
+  })();
+
+  function buildSettingsForVideo(videoId) {
+    const s = buildSettingsFromForm();
+    const sub = getSubtitleSettingsForVideo(videoId);
+    s.subtitle_mode = sub.subtitle_mode;
+    s.subtitle_language = sub.subtitle_language;
+    s.subtitle_auto = !!sub.subtitle_auto;
+    s.subtitle_path = sub.subtitle_path;
+    return s;
   }
 
   function openRealOverlayPreview(videoId) {
@@ -1669,7 +1835,7 @@ document.addEventListener('DOMContentLoaded', function() {
       body: JSON.stringify({
         live_channel_id: CHANNEL_ID,
         ss: ss,
-        settings: buildSettingsFromForm(),
+        settings: buildSettingsForVideo(videoId),
       }),
     })
       .then(async r => {
@@ -2408,7 +2574,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let testStart = Number.isFinite(startRaw) ? startRaw : 0;
     if (testStart < 0) testStart = 0;
 
-    const settings = buildSettingsFromForm();
+    // Settings are per-video (subtitles can differ per movie)
     openTestModal('Test Encode', `Queueing ${videoIds.length} test(s)…`);
 
     (async () => {
@@ -2433,7 +2599,7 @@ document.addEventListener('DOMContentLoaded', function() {
               video_id: videoId,
               test_duration: testDuration,
               test_start: testStart,
-              settings,
+              settings: buildSettingsForVideo(videoId),
             })
           });
 
@@ -2655,7 +2821,7 @@ document.addEventListener('DOMContentLoaded', function() {
               <td>
                 <div class="table-actions">
                   ${canSelectForTotalEncode ? `<label style="display:inline-flex;align-items:center;gap:6px;margin-right:8px;"><input type="checkbox" class="js-total-encode-pick" value="${job.video_id}" ${pickChecked}> Encode</label>` : ''}
-                  <button type="button" class="btn-cancel" onclick="runJobTest(${baseJobId}, this)">Test</button>
+                  <button type="button" class="btn-cancel" onclick="runJobTest(${baseJobId}, ${job.video_id || 0}, this)">Test</button>
                   ${canPlay ? `<button type="button" class="btn-success" onclick='openTestPlayerFromUrl(${JSON.stringify(outputUrl)})'>Play</button>` : ''}
                   <button type="button" class="btn-danger" onclick="deleteJob(${deleteJobId}, event, this)">Delete</button>
                 </div>
@@ -2860,7 +3026,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // Start a test encode (HLS) and open popup
-  window.runJobTest = function(jobId, btnEl) {
+  window.runJobTest = function(jobId, videoId, btnEl) {
     if (testRequestInFlight) return;
     testRequestInFlight = true;
 
@@ -2889,7 +3055,7 @@ document.addEventListener('DOMContentLoaded', function() {
       body: JSON.stringify({
         test_duration: testDuration,
         test_start: testStart,
-        settings: buildSettingsFromForm(),
+        settings: buildSettingsForVideo(videoId),
       })
     })
     .then(async (r) => {
@@ -2938,35 +3104,43 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (!confirm(`Queue encoding for ${videoIds.length} video(s)?`)) return;
 
-    fetch('/api/encoding-jobs/bulk', {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({
-        live_channel_id: CHANNEL_ID,
-        video_ids: videoIds,
-        settings: buildSettingsFromForm(),
-      })
-    })
-      .then(async (r) => {
-        const data = await r.json().catch(() => ({}));
-        if (!r.ok) {
-          const message = data.message || 'Failed to queue jobs';
-          throw new Error(message);
+    const csrf = document.querySelector('input[name="_token"]').value;
+
+    (async () => {
+      let okCount = 0;
+      let failCount = 0;
+      for (const videoId of videoIds) {
+        try {
+          const r = await fetch('/api/encoding-jobs', {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+              'X-CSRF-TOKEN': csrf,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+              live_channel_id: CHANNEL_ID,
+              video_id: videoId,
+              settings: buildSettingsForVideo(videoId),
+            })
+          });
+
+          const data = await r.json().catch(() => ({}));
+          if (!r.ok || !data.ok) throw new Error(data.message || 'Queue failed');
+          okCount++;
+        } catch (e) {
+          failCount++;
+          console.error('Queue failed for video', videoId, e);
         }
-        return data;
-      })
-      .then(data => {
-        if (!data.ok) throw new Error('Failed to queue jobs');
-        alert(`✅ Queued ${data.count || 0} job(s)`);
-        // After queueing TOTAL (TS) encodes, jump to the monitor page for this channel.
-        window.location.href = `/vod-channels/${CHANNEL_ID}/encoding-now`;
-      })
-      .catch(e => alert('❌ Error: ' + e.message));
+      }
+
+      if (failCount > 0) alert(`⚠️ Queued ${okCount} job(s), failed ${failCount}`);
+      else alert(`✅ Queued ${okCount} job(s)`);
+
+      // After queueing TOTAL (TS) encodes, jump to the monitor page for this channel.
+      window.location.href = `/vod-channels/${CHANNEL_ID}/encoding-now`;
+    })();
   });
 
   // Start TOTAL (production) encoding only for videos you tested and selected.
@@ -2985,33 +3159,43 @@ document.addEventListener('DOMContentLoaded', function() {
 
       if (!confirm(`Queue TOTAL encoding for ${videoIds.length} selected video(s)?`)) return;
 
-      fetch('/api/encoding-jobs/bulk', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({
-          live_channel_id: CHANNEL_ID,
-          video_ids: videoIds,
-          settings: buildSettingsFromForm(),
-        })
-      })
-        .then(async (r) => {
-          const data = await r.json().catch(() => ({}));
-          if (!r.ok) throw new Error(data.message || 'Failed to queue jobs');
-          return data;
-        })
-        .then(() => {
-          alert('✅ Queued TOTAL encoding for selected videos');
-          totalEncodeSelected.clear();
-          document.querySelectorAll('#testVideoList .js-total-encode-pick:checked').forEach(cb => { cb.checked = false; });
-          // After queueing TOTAL (TS) encodes, jump to the monitor page for this channel.
-          window.location.href = `/vod-channels/${CHANNEL_ID}/encoding-now`;
-        })
-        .catch(e => alert('❌ Error: ' + e.message));
+      const csrf = document.querySelector('input[name="_token"]').value;
+      (async () => {
+        let okCount = 0;
+        let failCount = 0;
+
+        for (const videoId of videoIds) {
+          try {
+            const r = await fetch('/api/encoding-jobs', {
+              method: 'POST',
+              credentials: 'include',
+              headers: {
+                'X-CSRF-TOKEN': csrf,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+              },
+              body: JSON.stringify({
+                live_channel_id: CHANNEL_ID,
+                video_id: videoId,
+                settings: buildSettingsForVideo(videoId),
+              })
+            });
+            const data = await r.json().catch(() => ({}));
+            if (!r.ok || !data.ok) throw new Error(data.message || 'Queue failed');
+            okCount++;
+          } catch (e) {
+            failCount++;
+            console.error('Queue failed for video', videoId, e);
+          }
+        }
+
+        if (failCount > 0) alert(`⚠️ Queued ${okCount} job(s), failed ${failCount}`);
+        else alert('✅ Queued TOTAL encoding for selected videos');
+
+        totalEncodeSelected.clear();
+        document.querySelectorAll('#testVideoList .js-total-encode-pick:checked').forEach(cb => { cb.checked = false; });
+        window.location.href = `/vod-channels/${CHANNEL_ID}/encoding-now`;
+      })();
     });
   }
 
