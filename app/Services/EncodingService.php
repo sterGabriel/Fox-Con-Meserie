@@ -51,6 +51,44 @@ class EncodingService
         return $parsed === null ? $default : (bool) $parsed;
     }
 
+    protected function resolveFontFileForFamily(?string $family): ?string
+    {
+        $family = trim((string) $family);
+        if ($family === '') return null;
+
+        static $cache = [];
+        if (array_key_exists($family, $cache)) {
+            return $cache[$family];
+        }
+
+        // Use fontconfig to resolve the actual font file. This works even if "Arial"
+        // isn't installed (it will fallback to the closest available font).
+        try {
+            $process = new Process(['fc-match', '-f', '%{file}\n', $family]);
+            $process->setTimeout(2);
+            $process->run();
+            if (!$process->isSuccessful()) {
+                return $cache[$family] = null;
+            }
+            $file = trim((string) $process->getOutput());
+            if ($file === '' || !is_file($file)) {
+                return $cache[$family] = null;
+            }
+            return $cache[$family] = $file;
+        } catch (\Throwable $e) {
+            return $cache[$family] = null;
+        }
+    }
+
+    protected function escapeForDrawtextValue(string $value): string
+    {
+        $value = str_replace('\\', '\\\\', $value);
+        $value = str_replace("'", "\\'", $value);
+        $value = str_replace(':', '\\:', $value);
+        $value = str_replace(["\n", "\r"], ' ', $value);
+        return $value;
+    }
+
     /**
      * Encode single video to TS with overlay
      * Runs FFmpeg process to:
@@ -523,6 +561,8 @@ class EncodingService
             $titleEnabled = true;
             $textMode = (string) $this->setting('overlay_text_content', (string) ($this->channel->overlay_text_content ?? 'channel_name'));
             $text = $this->resolveOverlayText($textMode);
+            $fontFamily = (string) $this->setting('overlay_text_font_family', (string) ($this->channel->overlay_text_font_family ?? 'Arial'));
+            $fontFile = $this->resolveFontFileForFamily($fontFamily);
             $fontSize = (int) $this->setting('overlay_text_font_size', (int) ($this->channel->overlay_text_font_size ?? 24));
             $titleFontSize = $fontSize;
             $color = (string) $this->setting('overlay_text_color', (string) ($this->channel->overlay_text_color ?? 'white'));
@@ -563,8 +603,14 @@ class EncodingService
 
             $safeText = $this->escapeForDrawtext($text);
 
+            $fontOpt = '';
+            if ($fontFile) {
+                $safeFontFile = $this->escapeForDrawtextValue($fontFile);
+                $fontOpt = ":fontfile='{$safeFontFile}'";
+            }
+
             $this->appendLog("Overlay title: enabled=1 pos={$textPos} x={$textX} y={$textY} expr={$xExpr}:{$yExpr} fontsize={$fontSize}");
-            $filters[] = "{$lastLabel}drawtext=text='{$safeText}':x={$xExpr}:y={$yExpr}:fontsize={$fontSize}:fontcolor={$color}[txt]";
+            $filters[] = "{$lastLabel}drawtext=text='{$safeText}'{$fontOpt}:x={$xExpr}:y={$yExpr}:fontsize={$fontSize}:fontcolor={$color}[txt]";
             $lastLabel = '[txt]';
         }
 
@@ -574,6 +620,15 @@ class EncodingService
         if ($timerEnabled) {
             $timerFont = (int) $this->setting('overlay_timer_font_size', (int) ($this->channel->overlay_timer_font_size ?? 24));
             $timerColor = (string) $this->setting('overlay_timer_color', (string) ($this->channel->overlay_timer_color ?? '#FFFFFF'));
+
+            // Use the same font family as the title for a consistent look.
+            $fontFamily = (string) $this->setting('overlay_text_font_family', (string) ($this->channel->overlay_text_font_family ?? 'Arial'));
+            $fontFile = $this->resolveFontFileForFamily($fontFamily);
+            $fontOpt = '';
+            if ($fontFile) {
+                $safeFontFile = $this->escapeForDrawtextValue($fontFile);
+                $fontOpt = ":fontfile='{$safeFontFile}'";
+            }
 
             $safeMargin = (int) $this->setting('overlay_safe_margin', (int) ($this->channel->overlay_safe_margin ?? 30));
             if ($safeMargin < 0) $safeMargin = 0;
@@ -655,7 +710,7 @@ class EncodingService
 
             $this->appendLog("Overlay timer: enabled=1 pos={$timerPos} x={$timerX} y={$timerY} expr={$timerXExpr}:{$timerYExpr} fontsize={$timerFont} mode={$mode}");
 
-            $filters[] = "{$lastLabel}drawtext=text='{$timeExpr}':x={$timerXExpr}:y={$timerYExpr}:fontsize={$timerFont}:fontcolor={$timerColor}[timer]";
+            $filters[] = "{$lastLabel}drawtext=text='{$timeExpr}'{$fontOpt}:x={$timerXExpr}:y={$timerYExpr}:fontsize={$timerFont}:fontcolor={$timerColor}[timer]";
             $lastLabel = '[timer]';
         }
 

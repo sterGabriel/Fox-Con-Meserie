@@ -1195,10 +1195,18 @@ class ChannelEngineService
             $fontSize = $this->channel->overlay_text_font_size ?? 24;
             $color = $this->channel->overlay_text_color ?? 'white';
 
+            $fontFamily = (string) ($this->channel->overlay_text_font_family ?? 'Arial');
+            $fontFile = $this->resolveFontFileForFamily($fontFamily);
+            $fontOpt = '';
+            if ($fontFile) {
+                $safeFontFile = $this->escapeForDrawtextValue($fontFile);
+                $fontOpt = ":fontfile='{$safeFontFile}'";
+            }
+
             $filterNum++;
             $newLabel = "[txt{$filterNum}]";
             $safeText = $this->escapeForDrawtext((string) $text);
-            $filters[] = "{$lastLabel}drawtext=text='{$safeText}':fontsize={$fontSize}:fontcolor={$color}:x={$x}:y={$y}{$newLabel}";
+            $filters[] = "{$lastLabel}drawtext=text='{$safeText}'{$fontOpt}:fontsize={$fontSize}:fontcolor={$color}:x={$x}:y={$y}{$newLabel}";
             $lastLabel = $newLabel;
         }
 
@@ -1208,6 +1216,14 @@ class ChannelEngineService
             $y = $this->channel->overlay_timer_y ?? 20;
             $fontSize = $this->channel->overlay_timer_font_size ?? 24;
             $color = $this->channel->overlay_timer_color ?? 'white';
+
+            $fontFamily = (string) ($this->channel->overlay_text_font_family ?? 'Arial');
+            $fontFile = $this->resolveFontFileForFamily($fontFamily);
+            $fontOpt = '';
+            if ($fontFile) {
+                $safeFontFile = $this->escapeForDrawtextValue($fontFile);
+                $fontOpt = ":fontfile='{$safeFontFile}'";
+            }
 
             $filterNum++;
             $newLabel = "[timer{$filterNum}]";
@@ -1223,7 +1239,7 @@ class ChannelEngineService
                 };
                 $timeExpr = "%{localtime:{$ff}}";
             }
-            $filters[] = "{$lastLabel}drawtext=text='{$timeExpr}':fontsize={$fontSize}:fontcolor={$color}:x={$x}:y={$y}{$newLabel}";
+            $filters[] = "{$lastLabel}drawtext=text='{$timeExpr}'{$fontOpt}:fontsize={$fontSize}:fontcolor={$color}:x={$x}:y={$y}{$newLabel}";
             $lastLabel = $newLabel;
         }
 
@@ -1248,5 +1264,41 @@ class ChannelEngineService
         $text = str_replace(':', '\\:', $text);
         $text = str_replace(["\n", "\r"], ' ', $text);
         return $text;
+    }
+
+    protected function resolveFontFileForFamily(?string $family): ?string
+    {
+        $family = trim((string) $family);
+        if ($family === '') return null;
+
+        static $cache = [];
+        if (array_key_exists($family, $cache)) {
+            return $cache[$family];
+        }
+
+        try {
+            $process = new \Symfony\Component\Process\Process(['fc-match', '-f', '%{file}\n', $family]);
+            $process->setTimeout(2);
+            $process->run();
+            if (!$process->isSuccessful()) {
+                return $cache[$family] = null;
+            }
+            $file = trim((string) $process->getOutput());
+            if ($file === '' || !is_file($file)) {
+                return $cache[$family] = null;
+            }
+            return $cache[$family] = $file;
+        } catch (\Throwable $e) {
+            return $cache[$family] = null;
+        }
+    }
+
+    protected function escapeForDrawtextValue(string $value): string
+    {
+        $value = str_replace('\\', '\\\\', $value);
+        $value = str_replace("'", "\\'", $value);
+        $value = str_replace(':', '\\:', $value);
+        $value = str_replace(["\n", "\r"], ' ', $value);
+        return $value;
     }
 }

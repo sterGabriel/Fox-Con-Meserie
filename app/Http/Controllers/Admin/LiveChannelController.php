@@ -834,7 +834,7 @@ class LiveChannelController extends Controller
             'overlay_text_enabled'          => ['nullable', 'boolean'],
             'overlay_text_content'          => ['nullable', 'string', 'in:channel_name,title,custom'],
             'overlay_text_custom'           => ['nullable', 'string', 'max:255'],
-            'overlay_text_font_family'      => ['nullable', 'string', 'in:Arial,Helvetica,Courier,Times'],
+            'overlay_text_font_family'      => ['nullable', 'string', 'in:Arial,DejaVuSans,Helvetica,Courier,Times,Ubuntu'],
             'overlay_text_font_size'        => ['nullable', 'integer'],
             'overlay_text_color'            => ['nullable', 'string'],
             'overlay_text_padding'          => ['nullable', 'integer'],
