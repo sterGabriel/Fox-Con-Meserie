@@ -1176,6 +1176,9 @@
               <option value="Ubuntu" @selected($tf === 'Ubuntu')>Ubuntu</option>
               <option value="Arial" @selected($tf === 'Arial')>Arial</option>
               <option value="DejaVuSans" @selected($tf === 'DejaVuSans')>DejaVu Sans</option>
+              <option value="Helvetica" @selected($tf === 'Helvetica')>Helvetica</option>
+              <option value="Courier" @selected($tf === 'Courier')>Courier</option>
+              <option value="Times" @selected($tf === 'Times')>Times New Roman</option>
             </select>
           </div>
           <div class="form-group">
@@ -1781,7 +1784,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const limit = getSelectedLimit();
 
-    fetch(`/api/videos?category_id=${encodeURIComponent(currentCategoryId)}&limit=${encodeURIComponent(String(limit))}`, {
+    fetch(`/api/videos?category_id=${encodeURIComponent(currentCategoryId)}&channel_id=${encodeURIComponent(String(CHANNEL_ID))}&exclude_in_playlist=1&limit=${encodeURIComponent(String(limit))}`, {
       credentials: 'include',
       headers: {
         'Accept': 'application/json'

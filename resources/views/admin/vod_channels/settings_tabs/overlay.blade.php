@@ -179,7 +179,9 @@
                 <div>
                     <label class="block text-xs font-semibold text-slate-400 mb-2">Font Family</label>
                     <select name="overlay_text_font_family" class="w-full px-3 py-2 text-xs bg-slate-950/50 border border-slate-600/40 rounded-lg text-slate-200 focus:border-green-500 focus:ring-1 focus:ring-green-500">
+                        <option value="Ubuntu" {{ old('overlay_text_font_family', $channel->overlay_text_font_family ?? '') === 'Ubuntu' ? 'selected' : '' }}>Ubuntu</option>
                         <option value="Arial" {{ old('overlay_text_font_family', $channel->overlay_text_font_family ?? 'Arial') === 'Arial' ? 'selected' : '' }}>Arial</option>
+                        <option value="DejaVuSans" {{ old('overlay_text_font_family', $channel->overlay_text_font_family ?? '') === 'DejaVuSans' ? 'selected' : '' }}>DejaVu Sans</option>
                         <option value="Helvetica" {{ old('overlay_text_font_family', $channel->overlay_text_font_family ?? '') === 'Helvetica' ? 'selected' : '' }}>Helvetica</option>
                         <option value="Courier" {{ old('overlay_text_font_family', $channel->overlay_text_font_family ?? '') === 'Courier' ? 'selected' : '' }}>Courier</option>
                         <option value="Times" {{ old('overlay_text_font_family', $channel->overlay_text_font_family ?? '') === 'Times' ? 'selected' : '' }}>Times New Roman</option>
