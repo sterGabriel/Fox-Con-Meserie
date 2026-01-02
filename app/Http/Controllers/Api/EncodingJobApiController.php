@@ -186,8 +186,32 @@ class EncodingJobApiController extends Controller
             'live_channel_id' => ['required', 'integer', 'min:1'],
         ]);
 
+        $channelId = (int) $request->live_channel_id;
+        $hideDoneInPlaylist = (string) $request->query('hide_done_in_playlist', '0');
+        $hideDoneInPlaylist = in_array(strtolower($hideDoneInPlaylist), ['1', 'true', 'yes', 'on'], true);
+
+        $inPlaylistByVideoId = [];
+        if ($hideDoneInPlaylist && $channelId > 0) {
+            $ids = PlaylistItem::query()
+                ->where(function ($q) use ($channelId) {
+                    $q->where('live_channel_id', $channelId)
+                      ->orWhere('vod_channel_id', $channelId);
+                })
+                ->whereNotNull('video_id')
+                ->distinct()
+                ->pluck('video_id')
+                ->map(fn ($v) => (int) $v)
+                ->filter(fn ($v) => $v > 0)
+                ->values()
+                ->all();
+
+            foreach ($ids as $vid) {
+                $inPlaylistByVideoId[(int) $vid] = true;
+            }
+        }
+
         $jobs = EncodingJob::query()
-            ->where('live_channel_id', (int)$request->live_channel_id)
+            ->where('live_channel_id', $channelId)
             ->orderByDesc('id')
             ->limit(50)
             ->with(['video'])
@@ -326,6 +350,17 @@ class EncodingJobApiController extends Controller
                 'output_url' => $outputExists ? $this->outputUrlForPath((string) $job->output_path) : null,
             ];
         });
+
+        if ($hideDoneInPlaylist && !empty($inPlaylistByVideoId)) {
+            $jobs = $jobs->filter(function ($j) use ($inPlaylistByVideoId) {
+                $videoId = (int) ($j['video_id'] ?? 0);
+                if ($videoId <= 0) return true;
+
+                // Hide any jobs (TEST or PROD) for videos that are currently in the playlist.
+                // The goal is: once a video is in the channel playlist, it should not keep showing as selectable/encodable here.
+                return empty($inPlaylistByVideoId[$videoId]);
+            })->values();
+        }
 
         return response()->json($jobs)
             ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')

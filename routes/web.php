@@ -262,6 +262,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/vod-channels/{channel}/engine/encoding-jobs/{job}/cancel', [LiveChannelController::class, 'cancelEncodingJob'])
         ->name('vod-channels.engine.encoding-jobs.cancel');
 
+    // Encoding queue management (remove by playlist item id)
+    Route::post('/vod-channels/{channel}/engine/encoding-queue/{item}/remove', [LiveChannelController::class, 'removeEncodingQueueItem'])
+        ->name('vod-channels.engine.encoding-queue.remove');
+
+    Route::post('/vod-channels/{channel}/engine/encoding-queue/remove-bulk', [LiveChannelController::class, 'removeEncodingQueueItemsBulk'])
+        ->name('vod-channels.engine.encoding-queue.remove-bulk');
+
     Route::get('/vod-channels/{channel}/engine/check-encoded', [LiveChannelController::class, 'checkEncodedFiles'])
         ->name('vod-channels.engine.check-encoded');
 

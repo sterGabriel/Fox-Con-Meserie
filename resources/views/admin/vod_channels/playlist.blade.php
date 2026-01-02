@@ -234,9 +234,15 @@
       </div>
     </div>
     <div class="card-b table-wrap">
+      <form method="POST" action="{{ route('vod-channels.engine.encoding-queue.remove-bulk', $channel) }}" id="encQueueBulkRemoveForm" style="margin:0;">
+        @csrf
+        <div style="display:flex; justify-content:flex-end; align-items:center; gap:10px; margin: 0 0 10px 0;">
+          <button class="btn btn-red btn-sm" type="submit" onclick="return confirm('Remove selected item(s) from encoding queue?');">Delete selected</button>
+        </div>
       <table>
         <thead>
           <tr>
+            <th style="width:44px; text-align:center;"><input type="checkbox" id="encQueueSelectAll" title="Select all"></th>
             <th style="width:70px;">#</th>
             <th>Title</th>
             <th style="width:140px;">Status</th>
@@ -270,6 +276,7 @@
               $eta = $job ? (string)($job->display_eta ?? '') : '';
             ?>
             <tr class="js-enc-row" data-playlist-item-id="{{ (int) $item->id }}" data-video-id="{{ (int)($video?->id ?? 0) }}">
+              <td style="text-align:center;"><input type="checkbox" class="js-enc-queue-pick" name="playlist_item_ids[]" value="{{ (int) $item->id }}"></td>
               <td class="muted">{{ $index + 1 }}</td>
               <td class="title-cell">
                 <div class="title-wrap">
@@ -313,10 +320,10 @@
               <td>
                 <div style="display:flex; gap:8px; justify-content:flex-end;">
                   <a class="btn btn-blue btn-sm" href="{{ route('vod-channels.settings', $channel) }}">Open Settings</a>
-                  @if($job && in_array($jobStatus, ['QUEUED','RUNNING'], true))
-                    <form method="POST" action="{{ route('vod-channels.engine.encoding-jobs.cancel', [$channel, $job]) }}" style="margin:0;" onsubmit="return confirm('{{ $jobStatus === 'RUNNING' ? 'Stop this running encoding job?' : 'Remove this item from encoding queue?' }}');">
+                  @if($rawJobStatus !== 'DONE')
+                    <form method="POST" action="{{ route('vod-channels.engine.encoding-queue.remove', [$channel, $item]) }}" style="margin:0;" onsubmit="return confirm('{{ $rawJobStatus === 'RUNNING' ? 'Stop this running encoding job and remove from queue?' : 'Remove this item from encoding queue?' }}');">
                       @csrf
-                      <button class="btn btn-red btn-sm" type="submit">{{ $jobStatus === 'RUNNING' ? 'Stop' : 'Delete' }}</button>
+                      <button class="btn btn-red btn-sm" type="submit">{{ $rawJobStatus === 'RUNNING' ? 'Stop' : 'Delete' }}</button>
                     </form>
                   @else
                     <button class="btn btn-red btn-sm" type="button" disabled>Delete</button>
@@ -327,10 +334,22 @@
           @endforeach
         </tbody>
       </table>
+      </form>
       <div class="muted" style="margin-top:10px; font-size:12px;">Tip: start encoding from Settings. This page shows only TS-ready items in the Encoded Items table.</div>
     </div>
   </div>
 @endif
+
+<script>
+  (function () {
+    const selectAll = document.getElementById('encQueueSelectAll');
+    if (!selectAll) return;
+    selectAll.addEventListener('change', function () {
+      const checked = !!selectAll.checked;
+      document.querySelectorAll('.js-enc-queue-pick').forEach(cb => { cb.checked = checked; });
+    });
+  })();
+</script>
 
 <script>
   (function () {

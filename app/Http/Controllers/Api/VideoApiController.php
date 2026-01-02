@@ -30,6 +30,9 @@ class VideoApiController extends Controller
         if ($limit <= 0) $limit = 1000;
         if ($limit > 1000) $limit = 1000;
 
+        $excludeInPlaylist = (string) $request->query('exclude_in_playlist', '0');
+        $excludeInPlaylist = in_array(strtolower($excludeInPlaylist), ['1', 'true', 'yes', 'on'], true);
+
         $excludeEncoded = (string) $request->query('exclude_encoded', '0');
         $excludeEncoded = in_array(strtolower($excludeEncoded), ['1', 'true', 'yes', 'on'], true);
         
@@ -38,6 +41,27 @@ class VideoApiController extends Controller
         }
 
         $excludeVideoIds = [];
+
+        // Optional: hide videos that are already present in this channel's playlist.
+        // This prevents accidental duplicates and makes the selection list reflect what's still available.
+        if ($channelId > 0 && $excludeInPlaylist) {
+            $inPlaylistIds = PlaylistItem::query()
+                ->where(function ($q) use ($channelId) {
+                    $q->where('live_channel_id', $channelId)
+                      ->orWhere('vod_channel_id', $channelId);
+                })
+                ->whereNotNull('video_id')
+                ->distinct()
+                ->pluck('video_id')
+                ->map(fn ($v) => (int) $v)
+                ->filter(fn ($v) => $v > 0)
+                ->values()
+                ->all();
+
+            if (!empty($inPlaylistIds)) {
+                $excludeVideoIds = array_values(array_unique(array_merge($excludeVideoIds, $inPlaylistIds)));
+            }
+        }
 
         // Optional: hide videos already encoded (TS-ready) for this channel.
         // This is used by the per-channel "Encoding / Import" screen to avoid showing work that's already done.
@@ -68,7 +92,7 @@ class VideoApiController extends Controller
                     }
                 }
 
-                $excludeVideoIds = array_keys($encodedByVideoId);
+                $excludeVideoIds = array_values(array_unique(array_merge($excludeVideoIds, array_keys($encodedByVideoId))));
             }
         }
 

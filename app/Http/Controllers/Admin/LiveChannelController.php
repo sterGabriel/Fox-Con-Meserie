@@ -2514,6 +2514,119 @@ class LiveChannelController extends Controller
     }
 
     /**
+     * Remove an item from the offline TS encoding queue for this channel.
+     * This is keyed by PlaylistItem so it works even when no EncodingJob exists yet.
+     * Behavior:
+     * - If a related job is queued: delete it.
+     * - If a related job is running: stop ffmpeg (best-effort) and delete the job.
+     * - Remove the playlist item so the video returns to the category selection list.
+     */
+    public function removeEncodingQueueItem(Request $request, LiveChannel $channel, \App\Models\PlaylistItem $item)
+    {
+        $belongs = ((int) ($item->live_channel_id ?? 0) === (int) $channel->id)
+            || ((int) ($item->vod_channel_id ?? 0) === (int) $channel->id);
+
+        if (!$belongs) {
+            abort(404);
+        }
+
+        $result = $this->removeEncodingQueueItemInternal($channel, $item);
+
+        $payload = [
+            'status' => 'success',
+            'message' => !empty($result['stopped_any_running']) ? 'Stopped job and removed from queue' : 'Removed from queue',
+        ];
+
+        if ($request->expectsJson()) {
+            return response()->json($payload);
+        }
+
+        return back()->with('success', $payload['message']);
+    }
+
+    protected function removeEncodingQueueItemInternal(LiveChannel $channel, \App\Models\PlaylistItem $item): array
+    {
+        // Find jobs tied to this playlist item for this channel.
+        $jobs = \App\Models\EncodingJob::query()
+            ->where('live_channel_id', (int) $channel->id)
+            ->where('playlist_item_id', (int) $item->id)
+            ->orderByDesc('id')
+            ->get();
+
+        $stoppedAnyRunning = false;
+        $deletedJobs = 0;
+
+        foreach ($jobs as $job) {
+            $status = strtolower((string) ($job->status ?? ''));
+            if ($status === 'running') {
+                $pid = (int) ($job->pid ?? 0);
+                if ($pid > 0) {
+                    if (function_exists('posix_kill')) {
+                        @posix_kill($pid, 15);
+                    } else {
+                        @shell_exec('kill -TERM ' . (int) $pid . ' 2>/dev/null');
+                    }
+                }
+                $stoppedAnyRunning = true;
+            }
+
+            $job->delete();
+            $deletedJobs++;
+        }
+
+        // Remove playlist item so it becomes available again in category selection.
+        $item->delete();
+
+        // Continue the queue if we removed/stopped something.
+        if ($stoppedAnyRunning || $deletedJobs > 0) {
+            $this->startNextQueuedEncodingJobIfIdle($channel);
+        }
+
+        return [
+            'stopped_any_running' => $stoppedAnyRunning,
+            'deleted_jobs' => $deletedJobs,
+        ];
+    }
+
+    /**
+     * Bulk remove encoding queue items by playlist item ids.
+     */
+    public function removeEncodingQueueItemsBulk(Request $request, LiveChannel $channel)
+    {
+        $data = $request->validate([
+            'playlist_item_ids' => ['required', 'array', 'min:1'],
+            'playlist_item_ids.*' => ['integer', 'min:1'],
+        ]);
+
+        $ids = array_values(array_unique(array_map('intval', $data['playlist_item_ids'])));
+        $removed = 0;
+
+        foreach ($ids as $id) {
+            $item = \App\Models\PlaylistItem::query()->find($id);
+            if (!$item) continue;
+
+            $belongs = ((int) ($item->live_channel_id ?? 0) === (int) $channel->id)
+                || ((int) ($item->vod_channel_id ?? 0) === (int) $channel->id);
+            if (!$belongs) continue;
+
+            $this->removeEncodingQueueItemInternal($channel, $item);
+            $removed++;
+        }
+
+        $payload = [
+            'status' => 'success',
+            'message' => 'Removed ' . $removed . ' item(s) from queue',
+            'removed' => $removed,
+        ];
+
+        if ($request->expectsJson()) {
+            return response()->json($payload);
+        }
+
+        return back()->with('success', $payload['message']);
+    }
+
+    /**
      * Check if encoded TS files exist for channel
      */
     public function checkEncodedFiles(LiveChannel $channel)

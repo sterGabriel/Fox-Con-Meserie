@@ -2375,18 +2375,10 @@ document.addEventListener('DOMContentLoaded', function() {
         .filter(v => Number.isFinite(v) && v > 0);
     }
 
+    videoIds = Array.from(new Set(videoIds.map(v => parseInt(v, 10)).filter(v => Number.isFinite(v) && v > 0)));
+
     if (videoIds.length === 0) {
-      alert('❌ Selectează un video (Select) ca să rulezi TEST-ul');
-      return;
-    }
-
-    if (videoIds.length > 1) {
-      alert('ℹ️ Create Video rulează doar TEST pe un singur video. Folosesc primul selectat.');
-    }
-
-    const videoId = parseInt(videoIds[0], 10);
-    if (!Number.isFinite(videoId) || videoId <= 0) {
-      alert('❌ Video invalid');
+      alert('❌ Selectează cel puțin un video ca să rulezi TEST-ul');
       return;
     }
 
@@ -2401,46 +2393,64 @@ document.addEventListener('DOMContentLoaded', function() {
     let testStart = Number.isFinite(startRaw) ? startRaw : 0;
     if (testStart < 0) testStart = 0;
 
-    openTestModal('Test Encode', 'Starting test…');
+    const settings = buildSettingsFromForm();
+    openTestModal('Test Encode', `Queueing ${videoIds.length} test(s)…`);
 
-    fetch('/api/encoding-jobs/test-from-video', {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'X-CSRF-TOKEN': csrf,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({
-        live_channel_id: CHANNEL_ID,
-        video_id: videoId,
-        test_duration: testDuration,
-        test_start: testStart,
-        settings: buildSettingsFromForm(),
-      })
-    })
-    .then(async (r) => {
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        const message = data.message || 'Failed to start test';
-        throw new Error(message);
+    (async () => {
+      let okCount = 0;
+      let failCount = 0;
+      let lastOk = null;
+
+      for (let i = 0; i < videoIds.length; i++) {
+        const videoId = videoIds[i];
+
+        try {
+          const r = await fetch('/api/encoding-jobs/test-from-video', {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+              'X-CSRF-TOKEN': csrf,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+              live_channel_id: CHANNEL_ID,
+              video_id: videoId,
+              test_duration: testDuration,
+              test_start: testStart,
+              settings,
+            })
+          });
+
+          const data = await r.json().catch(() => ({}));
+          if (!r.ok || !data.ok) {
+            throw new Error(data.message || 'Failed to start test');
+          }
+
+          okCount++;
+          lastOk = data;
+          activeTestJobId = data.test_job_id || activeTestJobId || null;
+        } catch (err) {
+          failCount++;
+          console.error('Test queue failed for video', videoId, err);
+        }
       }
-      return data;
-    })
-    .then(data => {
-      if (!data.ok) throw new Error('Failed to create encoding job');
-      activeTestJobId = data.test_job_id || null;
+
       startJobsPolling();
       loadTestJobs();
 
-      if (data.status && String(data.status).toLowerCase() === 'done' && data.output_url) {
-        playHlsUrl(data.output_url);
+      // For single selection, keep the old convenience: auto-play if test is instantly done.
+      if (videoIds.length === 1 && lastOk && lastOk.status && String(lastOk.status).toLowerCase() === 'done' && lastOk.output_url) {
+        playHlsUrl(lastOk.output_url);
       }
-    })
-    .catch(e => {
+
       closeTestModal();
-      alert('❌ Error: ' + e.message);
-    });
+      if (failCount > 0) {
+        alert(`⚠️ Queued ${okCount} test(s), failed ${failCount}`);
+      } else {
+        alert(`✅ Queued ${okCount} test(s)`);
+      }
+    })();
   });
 
   // Create Video (TEST) button triggers the same handler (no browser submit)
@@ -2495,7 +2505,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function loadTestJobs() {
-    fetch(`/api/encoding-jobs?live_channel_id=${CHANNEL_ID}`, {
+    fetch(`/api/encoding-jobs?live_channel_id=${CHANNEL_ID}&hide_done_in_playlist=1`, {
       credentials: 'include',
       cache: 'no-store',
       headers: {
@@ -2897,36 +2907,14 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   document.getElementById('convertAllBtn').addEventListener('click', function() {
-    const selectedIds = Array.from(document.querySelectorAll('#videosList .video-checkbox:checked'))
+    // Convert All Videos = queue TOTAL (PROD) encoding only for the videos
+    // explicitly selected in the bottom TEST table (pre-encoded 60s previews).
+    const videoIds = Array.from(document.querySelectorAll('#testVideoList .js-total-encode-pick:checked'))
       .map(cb => parseInt(cb.value, 10))
       .filter(v => Number.isFinite(v) && v > 0);
 
-    const selectedFromMap = Array.from(selectedVideos.keys())
-      .map(id => parseInt(id, 10))
-      .filter(v => Number.isFinite(v) && v > 0);
-
-    let videoIds = (selectedIds.length > 0)
-      ? selectedIds
-      : (selectedFromMap.length > 0)
-      ? selectedFromMap
-      : (Array.isArray(lastFetchedVideos) ? lastFetchedVideos.map(v => parseInt(v.id, 10)).filter(v => Number.isFinite(v) && v > 0) : []);
-
-    // If no category was selected / no videos loaded, allow Convert All to use TEST-completed videos.
-    // (Same result as clicking Encode Selected, but this avoids the "select a category" blocker.)
     if (videoIds.length === 0) {
-      const checkedFromTests = Array.from(document.querySelectorAll('#testVideoList .js-total-encode-pick:checked'))
-        .map(cb => parseInt(cb.value, 10))
-        .filter(v => Number.isFinite(v) && v > 0);
-
-      const allFromTests = Array.from(document.querySelectorAll('#testVideoList .js-total-encode-pick'))
-        .map(cb => parseInt(cb.value, 10))
-        .filter(v => Number.isFinite(v) && v > 0);
-
-      videoIds = (checkedFromTests.length > 0) ? checkedFromTests : allFromTests;
-    }
-
-    if (videoIds.length === 0) {
-      alert('❌ No videos to convert (select a category OR run a test first)');
+      alert('❌ Select at least one TEST video (bottom Encode checkbox)');
       return;
     }
 
