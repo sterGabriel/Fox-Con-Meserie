@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\LiveChannel;
 use App\Models\EncodingJob;
+use App\Models\PlaylistItem;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\Process\Process;
@@ -172,6 +173,10 @@ class EncodingService
 
             $this->appendLog("✅ Encoding completed successfully");
             $this->appendLog("Output size: " . $this->formatBytes($fileSize));
+
+            // If this was a production encode and the video isn't in the playlist yet,
+            // append it automatically to the end so it will be picked up by FIFO playback.
+            $this->maybeAppendToPlaylistOnSuccess();
 
             Log::info("Encoding job {$this->job->id} completed. File: {$this->job->output_path}");
 
@@ -417,6 +422,69 @@ class EncodingService
         }
 
         return implode(' ', $cmd);
+    }
+
+    protected function maybeAppendToPlaylistOnSuccess(): void
+    {
+        try {
+            $settings = is_array($this->job->settings) ? $this->job->settings : [];
+            if ((string) ($settings['job_type'] ?? '') === 'test') {
+                return;
+            }
+
+            $channelId = (int) ($this->channel->id ?? 0);
+            $videoId = (int) ($this->job->video_id ?? 0);
+            if ($channelId <= 0 || $videoId <= 0) {
+                return;
+            }
+
+            $alreadyInPlaylist = PlaylistItem::query()
+                ->where(function ($q) use ($channelId) {
+                    $q->where('live_channel_id', $channelId)
+                        ->orWhere('vod_channel_id', $channelId);
+                })
+                ->where('video_id', $videoId)
+                ->exists();
+
+            if ($alreadyInPlaylist) {
+                return;
+            }
+
+            $maxOrder = (int) (PlaylistItem::query()
+                ->where(function ($q) use ($channelId) {
+                    $q->where('live_channel_id', $channelId)
+                        ->orWhere('vod_channel_id', $channelId);
+                })
+                ->max('sort_order') ?? 0);
+
+            $newItem = PlaylistItem::create([
+                'live_channel_id' => $channelId,
+                'vod_channel_id' => $channelId,
+                'video_id' => $videoId,
+                'sort_order' => $maxOrder > 0 ? $maxOrder + 1 : 1,
+            ]);
+
+            $this->appendLog("[System] Auto-added to playlist (item #{$newItem->id}, video #{$videoId})");
+
+            // Best-effort: ensure the playback naming convention video_{playlist_item_id}.ts exists.
+            // If we already encoded to a different filename (e.g., video_{video_id}.ts), link it.
+            $outputPath = (string) ($this->job->output_path ?? '');
+            if ($outputPath !== '' && is_file($outputPath)) {
+                $outputDir = storage_path('app/streams/' . $channelId);
+                $expected = $outputDir . '/video_' . (int) $newItem->id . '.ts';
+                if (!is_file($expected)) {
+                    // Prefer symlink; if it fails, fallback resolution via video_id still works.
+                    @symlink($outputPath, $expected);
+                }
+            }
+        } catch (\Throwable $e) {
+            // Never fail the job for this convenience feature.
+            try {
+                $this->appendLog('[System] Auto-append failed: ' . $e->getMessage());
+            } catch (\Throwable $e2) {
+                // ignore
+            }
+        }
     }
 
     /**
@@ -690,7 +758,13 @@ class EncodingService
                 $fmt = 'HH:mm:ss';
             }
 
-            $timeExpr = "%{pts\\:hms}";
+            // Default: elapsed time since filter start (monotonic).
+            // `%{pts\:hms}` can jump/reset with odd or concatenated timestamps.
+            $timeExpr = match ($fmt) {
+                'HH:mm:ss.mmm' => "%{eif\\:floor(t/3600)\\:d\\:2}\\:%{eif\\:floor(mod(t\\,3600)/60)\\:d\\:2}\\:%{eif\\:floor(mod(t\\,60))\\:d\\:2}.%{eif\\:floor(mod(t*1000\\,1000))\\:d\\:3}",
+                'HH:mm:ss' => "%{eif\\:floor(t/3600)\\:d\\:2}\\:%{eif\\:floor(mod(t\\,3600)/60)\\:d\\:2}\\:%{eif\\:floor(mod(t\\,60))\\:d\\:2}",
+                default => "%{eif\\:floor(t/3600)\\:d\\:2}\\:%{eif\\:floor(mod(t\\,3600)/60)\\:d\\:2}",
+            };
 
             if ($mode === 'realtime') {
                 $ff = match ($fmt) {

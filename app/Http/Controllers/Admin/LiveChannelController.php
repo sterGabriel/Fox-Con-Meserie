@@ -82,8 +82,20 @@ class LiveChannelController extends Controller
             $minutes = intdiv($totalDuration % 3600, 60);
             $seconds = $totalDuration % 60;
 
-            $pid = (int) ($channel->encoder_pid ?? 0);
-            $isRunning = $pid > 0 && @is_dir('/proc/' . $pid);
+            $isRunning = false;
+            $statusPid = 0;
+            $statusStartedAt = null;
+            try {
+                $engine = new \App\Services\ChannelEngineService($channel);
+                $st = $engine->getStatus();
+                $isRunning = (bool) ($st['is_running'] ?? false);
+                $statusPid = (int) ($st['pid'] ?? 0);
+                $statusStartedAt = $st['started_at'] ?? null;
+            } catch (\Throwable $e) {
+                $statusPid = (int) ($channel->encoder_pid ?? 0);
+                $isRunning = $statusPid > 0 && @is_dir('/proc/' . $statusPid);
+                $statusStartedAt = $channel->started_at;
+            }
 
             $speed = '—';
             if ($isRunning) {
@@ -99,8 +111,8 @@ class LiveChannelController extends Controller
             }
 
             $uptime = '—';
-            if ($isRunning && !empty($channel->started_at)) {
-                $startedAt = Carbon::parse($channel->started_at);
+            if ($isRunning && !empty($statusStartedAt)) {
+                $startedAt = Carbon::parse($statusStartedAt);
                 $elapsed = max(0, $startedAt->diffInSeconds(Carbon::now()));
                 $d = intdiv($elapsed, 86400);
                 $h = intdiv($elapsed % 86400, 3600);
@@ -1027,19 +1039,22 @@ class LiveChannelController extends Controller
             // Strong duplicate protection: detect ffmpeg already writing into this channel output dir.
             $detectedPid = $engine->detectRunningFfmpegPid();
             if ($detectedPid) {
+                // Treat as success (idempotent start): sync and return ok.
                 $channel->update(['encoder_pid' => $detectedPid, 'status' => 'live']);
                 return response()->json([
-                    'status' => 'error',
-                    'message' => 'Channel is already running (detected ffmpeg PID ' . $detectedPid . ')'
-                ], 400);
+                    'status' => 'success',
+                    'message' => 'Channel already running',
+                    'pid' => (int) $detectedPid,
+                ], 200);
             }
 
             // Check if already running
             if ($engine->isRunning($channel->encoder_pid)) {
                 return response()->json([
-                    'status' => 'error',
-                    'message' => 'Channel is already running'
-                ], 400);
+                    'status' => 'success',
+                    'message' => 'Channel already running',
+                    'pid' => (int) ($channel->encoder_pid ?? 0),
+                ], 200);
             }
 
             // Prefer looping from playlist TS-ready items (exactly what was encoded).
@@ -1064,8 +1079,10 @@ class LiveChannelController extends Controller
             }
 
             if (!empty($encodedPaths)) {
-                $ffmpegCommand = $engine->generatePlayCommandFromFiles($encodedPaths, loop: true);
-                $mode = 'PLAY LOOP (playlist encoded: ' . count($encodedPaths) . ' files)';
+                // Use FIFO stream mode so the running channel can pick up new TS-ready items
+                // at the end of each cycle without restarting FFmpeg.
+                $ffmpegCommand = $engine->generatePlayCommandFromFilesFifo();
+                $mode = 'PLAY LOOP FIFO (auto-picks new encoded items)';
             } else {
                 $ffmpegCommand = $engine->generateLoopingCommand(includeOverlay: true);
                 $mode = 'ENCODE LOOP (concat playlist)';
@@ -1080,7 +1097,8 @@ class LiveChannelController extends Controller
             }
 
             if ($request->expectsJson()) {
-                return response()->json($result);
+                $ok = (($result['status'] ?? '') === 'success');
+                return response()->json($result, $ok ? 200 : 400);
             }
 
             if (($result['status'] ?? '') === 'success') {
@@ -1105,7 +1123,8 @@ class LiveChannelController extends Controller
             $result = $engine->stop();
 
             if ($request->expectsJson()) {
-                return response()->json($result);
+                $ok = (($result['status'] ?? '') === 'success');
+                return response()->json($result, $ok ? 200 : 400);
             }
 
             if (($result['status'] ?? '') === 'success') {
@@ -1738,17 +1757,19 @@ class LiveChannelController extends Controller
             if ($detectedPid) {
                 $channel->update(['encoder_pid' => $detectedPid, 'status' => 'live']);
                 return response()->json([
-                    'status' => 'error',
-                    'message' => 'Channel already running (detected ffmpeg PID ' . $detectedPid . ')',
-                ], 409);
+                    'status' => 'success',
+                    'message' => 'Channel already running',
+                    'pid' => (int) $detectedPid,
+                ], 200);
             }
 
             // Check if already running
             if ($engine->isRunning($channel->encoder_pid)) {
                 return response()->json([
-                    'status' => 'error',
+                    'status' => 'success',
                     'message' => 'Channel already running',
-                ], 409);
+                    'pid' => (int) ($channel->encoder_pid ?? 0),
+                ], 200);
             }
 
             // Prefer looping from playlist TS-ready items (exactly what was encoded).
@@ -1912,6 +1933,24 @@ class LiveChannelController extends Controller
             @mkdir($outputDir, 0755, true);
 
             $createdJobs = 0;
+
+            // If overlays are enabled, TS inputs must be re-encoded to burn in logo/title/timer.
+            // A raw TS copy cannot add overlays (PLAY mode uses stream copy).
+            $settingBool = function (string $key, bool $default = false) use ($settings, $channel): bool {
+                if (array_key_exists($key, $settings)) {
+                    return (bool) $settings[$key];
+                }
+                return (bool) ($channel->{$key} ?? $default);
+            };
+
+            $needsOverlay = (
+                $settingBool('overlay_logo_enabled')
+                || $settingBool('overlay_text_enabled')
+                || $settingBool('overlay_timer_enabled')
+                || (bool) ($channel->overlay_title ?? false)
+                || (bool) ($channel->overlay_timer ?? false)
+                || (bool) ($channel->logo_path ?? false)
+            );
             
             foreach ($playlistItems as $item) {
                 $video = $item->video;
@@ -1993,19 +2032,22 @@ class LiveChannelController extends Controller
                 $isTs = ($ext === 'ts') || (strtolower((string)($video->format ?? '')) === 'ts');
 
                 if ($isTs) {
-                    if (!file_exists($outputPath)) {
-                        @copy($inputPath, $outputPath);
+                    // If overlays are needed, do NOT copy; let EncodingService re-encode and apply overlays.
+                    if (!$needsOverlay) {
+                        if (!file_exists($outputPath)) {
+                            @copy($inputPath, $outputPath);
+                        }
+
+                        $job->update([
+                            'status' => file_exists($outputPath) ? 'done' : 'failed',
+                            'progress' => file_exists($outputPath) ? 100 : 0,
+                            'completed_at' => now(),
+                            'finished_at' => now(),
+                            'error_message' => file_exists($outputPath) ? null : 'Failed to copy TS input',
+                        ]);
+
+                        continue;
                     }
-
-                    $job->update([
-                        'status' => file_exists($outputPath) ? 'done' : 'failed',
-                        'progress' => file_exists($outputPath) ? 100 : 0,
-                        'completed_at' => now(),
-                        'finished_at' => now(),
-                        'error_message' => file_exists($outputPath) ? null : 'Failed to copy TS input',
-                    ]);
-
-                    continue;
                 }
 
                 // Queue job (do NOT start immediately here; we run sequentially).

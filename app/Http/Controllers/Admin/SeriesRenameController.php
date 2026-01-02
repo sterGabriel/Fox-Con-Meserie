@@ -4,8 +4,11 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\VideoCategory;
+use App\Models\AppSetting;
 use App\Services\CategoryFileTransferService;
 use App\Services\MuzicaRenameService;
+use App\Services\VodRenameService;
+use App\Services\TmdbService;
 use App\Services\VideoLibraryImportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -14,6 +17,8 @@ class SeriesRenameController extends Controller
 {
     public function __construct(
         private readonly MuzicaRenameService $muzicaRenameService,
+        private readonly VodRenameService $vodRenameService,
+        private readonly TmdbService $tmdbService,
         private readonly CategoryFileTransferService $categoryFileTransferService,
         private readonly VideoLibraryImportService $videoLibraryImportService,
     )
@@ -101,6 +106,279 @@ class SeriesRenameController extends Controller
         return redirect()
             ->route('fox.series.rename-muzica', ['path' => $currentPath, 'q' => $q])
             ->with('success', $result['message']);
+    }
+
+    public function vod(Request $request)
+    {
+        $baseDir = $this->vodRenameService->baseDir();
+        $currentPath = $this->vodRenameService->resolvePathWithinBase($request->query('path'));
+        $q = (string) $request->query('q', '');
+        $sort = (string) $request->query('sort', 'name');
+        $order = (string) $request->query('order', 'asc');
+        $dirOrder = (string) $request->query('dir_order', 'asc');
+
+        if (!$this->vodRenameService->isReadableDir($baseDir)) {
+            return view('admin.series.rename-vod', [
+                'basePath' => $baseDir,
+                'currentPath' => $baseDir,
+                'parentPath' => $baseDir,
+                'breadcrumb' => $this->vodRenameService->getBreadcrumb($baseDir),
+                'q' => $q,
+                'sort' => $sort,
+                'order' => $order,
+                'dir_order' => $dirOrder,
+                'dirs' => [],
+                'files' => [],
+                'preview' => [],
+                'error' => 'Folderul nu există sau nu este accesibil: ' . $baseDir,
+            ]);
+        }
+
+        $parent = $baseDir;
+        if ($currentPath !== $baseDir) {
+            $parent = dirname($currentPath);
+            $parent = $this->vodRenameService->resolvePathWithinBase($parent);
+        }
+
+        return view('admin.series.rename-vod', [
+            'basePath' => $baseDir,
+            'currentPath' => $currentPath,
+            'parentPath' => $parent,
+            'breadcrumb' => $this->vodRenameService->getBreadcrumb($currentPath),
+            'q' => $q,
+            'sort' => $sort,
+            'order' => $order,
+            'dir_order' => $dirOrder,
+            'dirs' => $this->vodRenameService->listDirs($currentPath, 'name', $dirOrder),
+            'files' => $this->vodRenameService->listFiles($currentPath, $q, $sort, $order),
+            'preview' => [],
+            'error' => null,
+        ]);
+    }
+
+    public function previewVod(Request $request)
+    {
+        $validated = $request->validate([
+            'path' => ['nullable', 'string', 'max:2048'],
+            'q' => ['nullable', 'string', 'max:255'],
+            'sort' => ['nullable', 'string', 'max:32'],
+            'order' => ['nullable', 'string', 'max:8'],
+            'dir_order' => ['nullable', 'string', 'max:8'],
+        ]);
+
+        $baseDir = $this->vodRenameService->baseDir();
+        $currentPath = $this->vodRenameService->resolvePathWithinBase($validated['path'] ?? $baseDir);
+        $q = (string) ($validated['q'] ?? '');
+        $sort = (string) ($validated['sort'] ?? 'name');
+        $order = (string) ($validated['order'] ?? 'asc');
+        $dirOrder = (string) ($validated['dir_order'] ?? 'asc');
+
+        $files = $this->vodRenameService->listFiles($currentPath, $q, $sort, $order);
+
+        $apiKey = (string) AppSetting::getValue('tmdb_api_key', (string) env('TMDB_API_KEY', ''));
+        if (trim($apiKey) === '') {
+            return view('admin.series.rename-vod', [
+                'basePath' => $baseDir,
+                'currentPath' => $currentPath,
+                'parentPath' => $currentPath === $baseDir ? $baseDir : $this->vodRenameService->resolvePathWithinBase(dirname($currentPath)),
+                'breadcrumb' => $this->vodRenameService->getBreadcrumb($currentPath),
+                'q' => $q,
+                'sort' => $sort,
+                'order' => $order,
+                'dir_order' => $dirOrder,
+                'dirs' => $this->vodRenameService->listDirs($currentPath, 'name', $dirOrder),
+                'files' => $files,
+                'preview' => [],
+                'error' => 'TMDB key missing. Set it in TMDB Settings.',
+            ]);
+        }
+
+        // Avoid hammering TMDb: preview only the first N files.
+        $limit = 80;
+        $preview = [];
+        $count = 0;
+
+        foreach ($files as $f) {
+            $count++;
+            if ($count > $limit) {
+                break;
+            }
+
+            $candidate = $this->vodRenameService->parseMediaCandidate((string) ($f['basename'] ?? ''));
+            $type = (string) ($candidate['type'] ?? 'movie');
+            $query = (string) ($candidate['query'] ?? '');
+            $year = isset($candidate['year']) ? (int) $candidate['year'] : null;
+            $season = isset($candidate['season']) ? (int) $candidate['season'] : null;
+            $episode = isset($candidate['episode']) ? (int) $candidate['episode'] : null;
+
+            if ($query === '') {
+                $preview[$f['filename']] = [
+                    'ok' => false,
+                    'message' => 'Cannot parse title',
+                ];
+                continue;
+            }
+
+            $res = $type === 'tv'
+                ? $this->tmdbService->searchTv($apiKey, $query, $year)
+                : $this->tmdbService->searchMovie($apiKey, $query, $year);
+
+            if (!(bool) ($res['ok'] ?? false)) {
+                $preview[$f['filename']] = [
+                    'ok' => false,
+                    'message' => (string) ($res['message'] ?? 'TMDb: no match'),
+                    'type' => $type,
+                    'query' => $query,
+                    'year' => $year,
+                ];
+                continue;
+            }
+
+            if ($type === 'tv') {
+                $name = (string) ($res['name'] ?? '');
+                $firstAir = (string) ($res['first_air_date'] ?? '');
+                $y = null;
+                if (preg_match('/^(\d{4})-/', $firstAir, $m)) {
+                    $y = (int) $m[1];
+                }
+                $new = $this->vodRenameService->formatVodFilenameFromTmdb(
+                    'tv',
+                    $name !== '' ? $name : $query,
+                    $y,
+                    (string) ($f['extension'] ?? ''),
+                    $season,
+                    $episode,
+                );
+                $preview[$f['filename']] = [
+                    'ok' => true,
+                    'type' => 'tv',
+                    'tmdb_id' => $res['tmdb_id'] ?? null,
+                    'tmdb_title' => $name,
+                    'tmdb_year' => $y,
+                    'new' => $new,
+                ];
+            } else {
+                $title = (string) ($res['title'] ?? '');
+                $release = (string) ($res['release_date'] ?? '');
+                $y = null;
+                if (preg_match('/^(\d{4})-/', $release, $m)) {
+                    $y = (int) $m[1];
+                }
+                $new = $this->vodRenameService->formatVodFilenameFromTmdb(
+                    'movie',
+                    $title !== '' ? $title : $query,
+                    $y,
+                    (string) ($f['extension'] ?? ''),
+                    null,
+                    null,
+                );
+                $preview[$f['filename']] = [
+                    'ok' => true,
+                    'type' => 'movie',
+                    'tmdb_id' => $res['tmdb_id'] ?? null,
+                    'tmdb_title' => $title,
+                    'tmdb_year' => $y,
+                    'new' => $new,
+                ];
+            }
+        }
+
+        $parent = $baseDir;
+        if ($currentPath !== $baseDir) {
+            $parent = $this->vodRenameService->resolvePathWithinBase(dirname($currentPath));
+        }
+
+        $error = null;
+        if (count($files) > $limit) {
+            $error = 'Preview limited to first ' . $limit . ' files (for speed). Narrow search or enter a subfolder.';
+        }
+
+        return view('admin.series.rename-vod', [
+            'basePath' => $baseDir,
+            'currentPath' => $currentPath,
+            'parentPath' => $parent,
+            'breadcrumb' => $this->vodRenameService->getBreadcrumb($currentPath),
+            'q' => $q,
+            'sort' => $sort,
+            'order' => $order,
+            'dir_order' => $dirOrder,
+            'dirs' => $this->vodRenameService->listDirs($currentPath, 'name', $dirOrder),
+            'files' => $files,
+            'preview' => $preview,
+            'error' => $error,
+        ]);
+    }
+
+    public function applyVod(Request $request)
+    {
+        $validated = $request->validate([
+            'path' => ['nullable', 'string', 'max:2048'],
+            'q' => ['nullable', 'string', 'max:255'],
+            'sort' => ['nullable', 'string', 'max:32'],
+            'order' => ['nullable', 'string', 'max:8'],
+            'dir_order' => ['nullable', 'string', 'max:8'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.selected' => ['nullable'],
+            'items.*.old' => ['required', 'string', 'max:255'],
+            'items.*.new' => ['required', 'string', 'max:255'],
+        ]);
+
+        $baseDir = $this->vodRenameService->baseDir();
+        $currentPath = $this->vodRenameService->resolvePathWithinBase($validated['path'] ?? $baseDir);
+
+        $q = (string) ($validated['q'] ?? '');
+        $sort = (string) ($validated['sort'] ?? 'name');
+        $order = (string) ($validated['order'] ?? 'asc');
+        $dirOrder = (string) ($validated['dir_order'] ?? 'asc');
+
+        $selectedCount = 0;
+        foreach (($validated['items'] ?? []) as $item) {
+            $selected = (string) ($item['selected'] ?? '');
+            if ($selected === '1' || $selected === 'on' || $selected === 'true') {
+                $selectedCount++;
+            }
+        }
+
+        if ($selectedCount === 0) {
+            return redirect()
+                ->route('fox.series.rename-vod', ['path' => $currentPath, 'q' => $q, 'sort' => $sort, 'order' => $order, 'dir_order' => $dirOrder])
+                ->with('error', 'Nu ai selectat niciun fișier.');
+        }
+
+        $okCount = 0;
+        $failCount = 0;
+        $errors = [];
+
+        foreach (($validated['items'] ?? []) as $item) {
+            $selected = (string) ($item['selected'] ?? '');
+            if ($selected !== '1' && $selected !== 'on' && $selected !== 'true') {
+                continue;
+            }
+
+            $result = $this->vodRenameService->renameInDirWithinBase(
+                $currentPath,
+                (string) ($item['old'] ?? ''),
+                (string) ($item['new'] ?? ''),
+            );
+
+            if (!(bool) ($result['ok'] ?? false)) {
+                $failCount++;
+                $errors[] = (string) ($result['message'] ?? 'Rename failed');
+            } else {
+                $okCount++;
+            }
+        }
+
+        if ($failCount > 0) {
+            return redirect()
+                ->route('fox.series.rename-vod', ['path' => $currentPath, 'q' => $q, 'sort' => $sort, 'order' => $order, 'dir_order' => $dirOrder])
+                ->with('error', 'Unele redenumiri au eșuat. OK=' . $okCount . ', FAIL=' . $failCount)
+                ->with('bulk_errors', $errors);
+        }
+
+        return redirect()
+            ->route('fox.series.rename-vod', ['path' => $currentPath, 'q' => $q, 'sort' => $sort, 'order' => $order, 'dir_order' => $dirOrder])
+            ->with('success', 'Redenumire completă. OK=' . $okCount);
     }
 
     public function bulkRenameMuzica(Request $request)

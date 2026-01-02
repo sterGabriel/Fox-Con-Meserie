@@ -42,6 +42,50 @@ class ChannelEngineService
     }
 
     /**
+     * Best-effort cleanup of stream outputs (HLS + TS) before starting ffmpeg.
+     * This prevents stale/cached segments from being served after restarts.
+     */
+    protected function cleanupStreamOutputs(): void
+    {
+        $outputDir = $this->outputDir;
+        $hlsDir = $outputDir . '/hls';
+
+        $filesToRemove = [
+            $outputDir . '/stream.ts',
+            $outputDir . '/stream.m3u8',
+            $hlsDir . '/stream.m3u8',
+        ];
+
+        foreach ($filesToRemove as $path) {
+            try {
+                if (is_file($path)) {
+                    if (!@unlink($path)) {
+                        $this->appendLog("[System] Cleanup: failed to remove {$path}");
+                    }
+                }
+            } catch (\Throwable $e) {
+                $this->appendLog('[System] Cleanup error: ' . $e->getMessage());
+            }
+        }
+
+        if (is_dir($hlsDir)) {
+            $patterns = ['*.ts', '*.m3u8', '*.tmp', '*.part'];
+            foreach ($patterns as $pattern) {
+                $matches = @glob($hlsDir . '/' . $pattern) ?: [];
+                foreach ($matches as $path) {
+                    try {
+                        if (is_file($path) && !@unlink($path)) {
+                            $this->appendLog("[System] Cleanup: failed to remove {$path}");
+                        }
+                    } catch (\Throwable $e) {
+                        $this->appendLog('[System] Cleanup error: ' . $e->getMessage());
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Detect a running ffmpeg process for this channel by scanning the process list.
      * This is used to prevent duplicate ffmpeg instances when PID tracking is stale
      * (e.g. after reboot or when the process is owned by a different user).
@@ -94,15 +138,102 @@ class ChannelEngineService
             return;
         }
 
-        if ((int) ($this->channel->encoder_pid ?? 0) !== $pid) {
-            try {
-                $this->channel->update([
-                    'encoder_pid' => $pid,
-                    'status' => 'live',
-                ]);
-            } catch (\Throwable $e) {
-                // ignore
+        $updates = [
+            'encoder_pid' => $pid,
+            'status' => 'live',
+        ];
+
+        if (empty($this->channel->started_at)) {
+            $startedAt = $this->getProcessStartedAt($pid);
+            if ($startedAt) {
+                $updates['started_at'] = $startedAt;
             }
+        }
+
+        try {
+            $this->channel->update($updates);
+        } catch (\Throwable $e) {
+            // ignore
+        }
+
+        // Keep PID file in sync so normal polling works.
+        try {
+            $this->savePid($pid);
+        } catch (\Throwable $e) {
+            // ignore
+        }
+    }
+
+    /**
+     * Best-effort: get process start time as a real wallclock timestamp.
+     * Used to show accurate uptime when the channel was started outside this app
+     * or when DB started_at is missing.
+     */
+    protected function getProcessStartedAt(int $pid): ?Carbon
+    {
+        try {
+            if ($pid <= 1) return null;
+            $statPath = '/proc/' . $pid . '/stat';
+            if (!is_readable($statPath)) return null;
+
+            $stat = trim((string) @file_get_contents($statPath));
+            if ($stat === '') return null;
+
+            // /proc/<pid>/stat: field 22 is starttime (clock ticks since boot)
+            // comm is in parentheses and may contain spaces.
+            $endComm = strrpos($stat, ')');
+            if ($endComm === false) return null;
+            $after = trim(substr($stat, $endComm + 1));
+            $parts = preg_split('/\s+/', $after);
+            if (!$parts || count($parts) < 22) return null;
+
+            $starttimeTicks = (int) ($parts[19] ?? 0); // 22nd overall => 20th after ')'
+            if ($starttimeTicks <= 0) return null;
+
+            $clkTck = 100;
+            if (function_exists('posix_sysconf') && defined('POSIX_SC_CLK_TCK')) {
+                $v = @posix_sysconf(POSIX_SC_CLK_TCK);
+                if (is_int($v) && $v > 0) $clkTck = $v;
+            }
+
+            $btime = null;
+            $procStat = @file_get_contents('/proc/stat');
+            if (is_string($procStat) && preg_match('/^btime\s+(\d+)$/m', $procStat, $m)) {
+                $btime = (int) $m[1];
+            }
+            if (!$btime) return null;
+
+            $startedEpoch = $btime + ($starttimeTicks / $clkTck);
+            return Carbon::createFromTimestamp((int) floor($startedEpoch));
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    protected function ensureChannelMarkedLive(int $pid): void
+    {
+        if ($pid <= 1) return;
+
+        $updates = [
+            'status' => 'live',
+            'encoder_pid' => $pid,
+        ];
+
+        if (empty($this->channel->started_at)) {
+            $startedAt = $this->getProcessStartedAt($pid);
+            $updates['started_at'] = $startedAt ?: Carbon::now();
+        }
+
+        try {
+            $this->channel->update($updates);
+        } catch (\Throwable $e) {
+            // ignore
+        }
+
+        try {
+            $this->savePid($pid);
+        } catch (\Throwable $e) {
+            // ignore
         }
     }
 
@@ -122,24 +253,36 @@ class ChannelEngineService
 
         if (file_exists($fifo) && !@is_link($fifo) && !@is_dir($fifo)) {
             $type = @filetype($fifo);
+            // If a regular file exists here, remove it.
             if ($type !== 'fifo') {
                 @unlink($fifo);
+            } else {
+                // If FIFO exists but is not writable (common when created as root with 0644), recreate it.
+                if (!@is_writable($fifo)) {
+                    @unlink($fifo);
+                }
             }
         }
 
         $type = file_exists($fifo) ? @filetype($fifo) : null;
         if ($type !== 'fifo') {
             if (function_exists('posix_mkfifo')) {
-                @posix_mkfifo($fifo, 0644);
+                @posix_mkfifo($fifo, 0666);
             } else {
                 try {
                     $p = new Process(['mkfifo', $fifo]);
                     $p->setTimeout(2);
                     $p->run();
+                    @chmod($fifo, 0666);
                 } catch (\Throwable $e) {
                     // ignore
                 }
             }
+        }
+
+        // Best-effort: ensure write permission for feeder.
+        if (file_exists($fifo) && @filetype($fifo) === 'fifo') {
+            @chmod($fifo, 0666);
         }
 
         if (!file_exists($fifo) || @filetype($fifo) !== 'fifo') {
@@ -158,6 +301,10 @@ class ChannelEngineService
             $type = @filetype($fifo);
             if ($type !== 'fifo') {
                 @unlink($fifo);
+            } else {
+                if (!@is_writable($fifo)) {
+                    @unlink($fifo);
+                }
             }
         }
 
@@ -165,16 +312,21 @@ class ChannelEngineService
         if ($type !== 'fifo') {
             // Create FIFO (named pipe)
             if (function_exists('posix_mkfifo')) {
-                @posix_mkfifo($fifo, 0644);
+                @posix_mkfifo($fifo, 0666);
             } else {
                 try {
                     $p = new Process(['mkfifo', $fifo]);
                     $p->setTimeout(2);
                     $p->run();
+                    @chmod($fifo, 0666);
                 } catch (\Throwable $e) {
                     // ignore
                 }
             }
+        }
+
+        if (file_exists($fifo) && @filetype($fifo) === 'fifo') {
+            @chmod($fifo, 0666);
         }
 
         if (!file_exists($fifo) || @filetype($fifo) !== 'fifo') {
@@ -184,20 +336,21 @@ class ChannelEngineService
         return $fifo;
     }
 
-    protected function startPlaylistFeeder(): ?int
+    protected function startPlaylistFeeder(string $ffmpegCommand): ?int
     {
-        // Start feeder only if stream FIFO exists.
+        // Only start feeder when FFmpeg is actually consuming the FIFO.
         $fifo = $this->streamFifoPath();
+        if ($fifo === '' || strpos($ffmpegCommand, $fifo) === false) {
+            return null;
+        }
+
+        // Start feeder only if stream FIFO exists.
         if (!file_exists($fifo) || @filetype($fifo) !== 'fifo') {
             return null;
         }
 
         $cmd = 'php ' . escapeshellarg(base_path('artisan')) . ' channel:feed-stream ' . (int) $this->channel->id;
-        $launch = "nohup {$cmd} >> " . escapeshellarg($this->logPath) . " 2>&1 < /dev/null & echo $!";
-        $p = Process::fromShellCommandline($launch);
-        $p->setTimeout(5);
-        $p->run();
-        $pid = (int) trim((string) $p->getOutput());
+        $pid = $this->launchDetached($cmd, $this->logPath);
 
         if ($pid > 1 && $this->isRunning($pid)) {
             @file_put_contents($this->feederPidFile, (string) $pid);
@@ -205,6 +358,64 @@ class ChannelEngineService
             return $pid;
         }
 
+        return null;
+    }
+
+    /**
+     * Launch a command detached and return the spawned PID.
+     * If this PHP process runs as root (e.g. cron/scheduler), drop privileges to www-data
+     * so web stop/start can manage the process reliably.
+     */
+    protected function launchDetached(string $cmd, string $logPath): int
+    {
+        $cmd = trim($cmd);
+        if ($cmd === '') return 0;
+
+        @mkdir(dirname($logPath), 0755, true);
+        $inner = "nohup {$cmd} >> " . escapeshellarg($logPath) . " 2>&1 < /dev/null & echo $!";
+
+        try {
+            $euid = function_exists('posix_geteuid') ? (int) @posix_geteuid() : -1;
+
+            // Prefer runuser when running as root.
+            if ($euid === 0) {
+                foreach (['/usr/sbin/runuser', '/sbin/runuser', '/bin/runuser', '/usr/bin/runuser'] as $bin) {
+                    if (is_file($bin) && is_executable($bin)) {
+                        $p = new Process([$bin, '-u', 'www-data', '--', 'sh', '-lc', $inner]);
+                        $p->setTimeout(5);
+                        $p->mustRun();
+                        return (int) trim((string) $p->getOutput());
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            // fall back below
+        }
+
+        try {
+            $p = Process::fromShellCommandline($inner);
+            $p->setTimeout(5);
+            $p->mustRun();
+            return (int) trim((string) $p->getOutput());
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }
+
+    protected function getProcessOwnerUid(int $pid): ?int
+    {
+        try {
+            if ($pid <= 1) return null;
+            $path = '/proc/' . $pid . '/status';
+            if (!is_readable($path)) return null;
+            $txt = (string) @file_get_contents($path);
+            if ($txt === '') return null;
+            if (preg_match('/^Uid:\s+(\d+)\s+/m', $txt, $m)) {
+                return (int) $m[1];
+            }
+        } catch (\Throwable $e) {
+            return null;
+        }
         return null;
     }
 
@@ -217,16 +428,20 @@ class ChannelEngineService
         try {
             // Check if already running (PID file, stored PID, or detected ffmpeg writing into this channel output dir)
             $storedPid = (int) ($this->channel->encoder_pid ?? 0);
-            if ($this->isRunning() || ($storedPid > 1 && $this->isRunning($storedPid))) {
-                return ['status' => 'error', 'message' => 'Channel already running'];
+            $pidFromFile = $this->readPid();
+            if (($pidFromFile && $this->isRunning($pidFromFile)) || ($storedPid > 1 && $this->isRunning($storedPid))) {
+                $pid = ($pidFromFile && $this->isRunning($pidFromFile)) ? $pidFromFile : $storedPid;
+                $this->ensureChannelMarkedLive((int) $pid);
+                return ['status' => 'success', 'message' => 'Channel already running', 'pid' => (int) $pid];
             }
 
             $detectedPid = $this->detectRunningFfmpegPid();
             if ($detectedPid) {
                 $this->syncDetectedPidToChannel($detectedPid);
                 return [
-                    'status' => 'error',
-                    'message' => 'Channel already running (detected ffmpeg PID ' . $detectedPid . ')',
+                    'status' => 'success',
+                    'message' => 'Channel already running',
+                    'pid' => (int) $detectedPid,
                 ];
             }
 
@@ -249,13 +464,11 @@ class ChannelEngineService
                 return ['status' => 'error', 'message' => 'Empty ffmpeg command'];
             }
 
-            @mkdir(dirname($this->logPath), 0755, true);
-            $launch = "nohup {$cmd} >> " . escapeshellarg($this->logPath) . " 2>&1 < /dev/null & echo $!";
-            $launcher = Process::fromShellCommandline($launch);
-            $launcher->setTimeout(5);
-            $launcher->mustRun();
+            // Ensure HLS/TS outputs are fresh for this run.
+            // If old segments remain (or are owned by a different user), players can keep showing stale video.
+            $this->cleanupStreamOutputs();
 
-            $pidNow = (int) trim((string) $launcher->getOutput());
+            $pidNow = $this->launchDetached($cmd, $this->logPath);
             usleep(300000); // let ffmpeg initialize
 
             if ($pidNow <= 1 || !$this->isRunning($pidNow)) {
@@ -280,10 +493,10 @@ class ChannelEngineService
             // Save PID
             $this->savePid($pidNow);
 
-            // If this channel is started in FIFO playlist mode, start the feeder.
+            // If this channel is started in FIFO stream mode, start the feeder.
             // This enables appending new TS-ready items without restarting FFmpeg.
             try {
-                $this->startPlaylistFeeder();
+                $this->startPlaylistFeeder($cmd);
             } catch (\Throwable $e) {
                 $this->appendLog('[System] Playlist feeder failed: ' . $e->getMessage() . "\n");
             }
@@ -379,6 +592,17 @@ class ChannelEngineService
             if ((!$pid || !$this->isRunning($pid)) && empty($extraPids)) {
                 $this->channel->update(['status' => 'idle']);
                 return ['status' => 'success', 'message' => 'Channel already stopped'];
+            }
+
+            // Permission guard: if the ffmpeg process is owned by a different user and we're not root,
+            // we cannot stop it from the web UI.
+            $euid = function_exists('posix_geteuid') ? (int) @posix_geteuid() : null;
+            $ownerUid = $pid ? $this->getProcessOwnerUid((int) $pid) : null;
+            if ($pid && $ownerUid !== null && $euid !== null && $euid !== 0 && $ownerUid !== $euid) {
+                return [
+                    'status' => 'error',
+                    'message' => 'Cannot stop channel: ffmpeg PID ' . (int) $pid . ' is owned by UID ' . (int) $ownerUid . ' (current UID ' . (int) $euid . '). Start/stop must run under the same OS user (recommended: www-data).',
+                ];
             }
 
             // If pid is invalid but we found ffmpeg PIDs, stop them.
@@ -491,7 +715,7 @@ class ChannelEngineService
             '-f', 'hls',
             '-hls_time', '10',
             '-hls_list_size', '6',
-            '-hls_flags', 'delete_segments',
+            '-hls_flags', 'delete_segments+program_date_time',
             '-start_number', '0',
             escapeshellarg("{$outputDir}/hls/stream.m3u8"),
         ]);
@@ -538,11 +762,44 @@ class ChannelEngineService
         $pid = $this->readPid();
         $isRunning = $this->isRunning($pid);
 
+        // Fallback to DB PID when pidfile is missing/stale.
+        if (!$isRunning) {
+            $dbPid = (int) ($this->channel->encoder_pid ?? 0);
+            if ($dbPid > 1 && $this->isRunning($dbPid)) {
+                $pid = $dbPid;
+                $isRunning = true;
+                $this->ensureChannelMarkedLive($pid);
+            }
+        }
+
+        // Last resort: scan process list to find ffmpeg writing into this channel.
+        if (!$isRunning) {
+            $detectedPid = $this->detectRunningFfmpegPid();
+            if ($detectedPid && $this->isRunning($detectedPid)) {
+                $pid = $detectedPid;
+                $isRunning = true;
+                $this->ensureChannelMarkedLive($pid);
+            }
+        }
+
+        $startedAt = $this->channel->started_at;
+        if ($isRunning && empty($startedAt) && $pid) {
+            $pStart = $this->getProcessStartedAt((int) $pid);
+            if ($pStart) {
+                $startedAt = $pStart;
+                try {
+                    $this->channel->update(['started_at' => $pStart]);
+                } catch (\Throwable $e) {
+                    // ignore
+                }
+            }
+        }
+
         return [
             'status' => $isRunning ? 'live' : 'idle',
             'pid' => $isRunning ? $pid : null,
             'is_running' => $isRunning,
-            'started_at' => $this->channel->started_at,
+            'started_at' => $startedAt,
             'log_path' => $this->logPath,
         ];
     }
@@ -808,7 +1065,7 @@ class ChannelEngineService
             '-f', 'hls',
             '-hls_time', '10',
             '-hls_list_size', '6',
-            '-hls_flags', 'delete_segments',
+            '-hls_flags', 'delete_segments+program_date_time',
             '-start_number', '0',
             escapeshellarg("{$this->outputDir}/hls/stream.m3u8"),
         ]);
@@ -914,7 +1171,7 @@ class ChannelEngineService
             '-f', 'hls',
             '-hls_time', '10',
             '-hls_list_size', '6',
-            '-hls_flags', 'delete_segments',
+            '-hls_flags', 'delete_segments+program_date_time',
             '-start_number', '0',
             escapeshellarg("{$this->outputDir}/hls/stream.m3u8"),
         ]);
@@ -996,7 +1253,7 @@ class ChannelEngineService
             '-f', 'hls',
             '-hls_time', '10',
             '-hls_list_size', '6',
-            '-hls_flags', 'delete_segments',
+            '-hls_flags', 'delete_segments+program_date_time',
             '-start_number', '0',
             escapeshellarg("{$outputDir}/hls/stream.m3u8"),
         ]);
@@ -1084,7 +1341,7 @@ class ChannelEngineService
             '-f', 'hls',
             '-hls_time', '10',
             '-hls_list_size', '6',
-            '-hls_flags', 'delete_segments',
+            '-hls_flags', 'delete_segments+program_date_time',
             '-start_number', '0',
             escapeshellarg("{$outputDir}/hls/stream.m3u8"),
         ]);
@@ -1227,10 +1484,15 @@ class ChannelEngineService
 
             $filterNum++;
             $newLabel = "[timer{$filterNum}]";
-            // Use timecode for elapsed time
+            // Use a monotonic clock for elapsed time.
+            // `%{pts\:hms}` depends on input PTS and can reset/jump across concatenated sources.
             $mode = strtolower(trim((string) ($this->channel->overlay_timer_mode ?? 'elapsed')));
             $fmt = (string) ($this->channel->overlay_timer_format ?? 'HH:mm');
-            $timeExpr = "%{pts\\:hms}";
+            $timeExpr = match ($fmt) {
+                'HH:mm:ss.mmm' => "%{eif\\:floor(t/3600)\\:d\\:2}\\:%{eif\\:floor(mod(t\\,3600)/60)\\:d\\:2}\\:%{eif\\:floor(mod(t\\,60))\\:d\\:2}.%{eif\\:floor(mod(t*1000\\,1000))\\:d\\:3}",
+                'HH:mm:ss' => "%{eif\\:floor(t/3600)\\:d\\:2}\\:%{eif\\:floor(mod(t\\,3600)/60)\\:d\\:2}\\:%{eif\\:floor(mod(t\\,60))\\:d\\:2}",
+                default => "%{eif\\:floor(t/3600)\\:d\\:2}\\:%{eif\\:floor(mod(t\\,3600)/60)\\:d\\:2}",
+            };
             if ($mode === 'realtime') {
                 $ff = match ($fmt) {
                     'HH:mm:ss' => '%H\\:%M\\:%S',

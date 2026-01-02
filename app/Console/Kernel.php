@@ -9,6 +9,7 @@ use App\Console\Commands\MonitorEncodingJobs;
 use App\Console\Commands\PurgeChannelTs;
 use App\Console\Commands\DedupeEncodingJobs;
 use App\Console\Commands\AutostartChannels;
+use App\Console\Commands\MigrateChannelsToFifo;
 use App\Console\Commands\BackupFull;
 use App\Console\Commands\GitAutoBackup;
 
@@ -20,6 +21,7 @@ class Kernel extends ConsoleKernel
         PurgeChannelTs::class,
         DedupeEncodingJobs::class,
         AutostartChannels::class,
+        MigrateChannelsToFifo::class,
         BackupFull::class,
         GitAutoBackup::class,
     ];

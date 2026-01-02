@@ -90,7 +90,7 @@
 <div class="page-header">
   <div>
     <h1 class="page-title">Playlist (Encoded Only) — {{ $channel->name }}</h1>
-    <div class="page-subtitle">Shows only TS-ready items for quick playback.</div>
+    <div class="page-subtitle">Shows TS-ready items for quick playback. If items are not encoded yet, they appear below.</div>
 
     <div class="btn-row" style="margin-top:10px; justify-content:flex-start;">
       <form method="POST" action="{{ route('vod-channels.engine.start-looping', $channel) }}" style="margin:0;">
@@ -222,7 +222,7 @@
     : 0;
 ?>
 
-@if($pendingCount > 0 && $activeJobsCount > 0)
+@if($pendingCount > 0)
   <div class="card" style="margin-bottom: 14px;">
     <div class="card-h">
       <div class="card-t">Encoding Queue (Not Encoded Yet)</div>

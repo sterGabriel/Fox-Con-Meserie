@@ -1422,6 +1422,7 @@
 <script>
 let selectedVideo = null;
 let selectedVideos = new Map();
+let totalEncodeSelected = new Set();
 
 document.addEventListener('DOMContentLoaded', function() {
   const CHANNEL_ID = {{ (int) $channel->id }};
@@ -2347,6 +2348,20 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  // The Test Video table is re-rendered frequently (polling). Persist checkbox picks.
+  const testVideoListEl = document.getElementById('testVideoList');
+  if (testVideoListEl) {
+    testVideoListEl.addEventListener('change', (e) => {
+      const target = e.target;
+      if (target && target.classList && target.classList.contains('js-total-encode-pick')) {
+        const id = parseInt(String(target.value || '0'), 10) || 0;
+        if (id <= 0) return;
+        if (target.checked) totalEncodeSelected.add(id);
+        else totalEncodeSelected.delete(id);
+      }
+    });
+  }
+
   updateOverlayPreview();
 
   // Watch video
@@ -2618,6 +2633,9 @@ document.addEventListener('DOMContentLoaded', function() {
           const canPlay = !!outputUrl;
           const canSelectForTotalEncode = !!outputUrl;
 
+          const pickId = parseInt(String(job.video_id || '0'), 10) || 0;
+          const pickChecked = (pickId > 0 && totalEncodeSelected.has(pickId)) ? 'checked' : '';
+
           html += `
             <tr>
               <td>${(displayJob.video_title ?? job.video_title ?? 'N/A')}</td>
@@ -2636,7 +2654,7 @@ document.addEventListener('DOMContentLoaded', function() {
               </td>
               <td>
                 <div class="table-actions">
-                  ${canSelectForTotalEncode ? `<label style="display:inline-flex;align-items:center;gap:6px;margin-right:8px;"><input type="checkbox" class="js-total-encode-pick" value="${job.video_id}"> Encode</label>` : ''}
+                  ${canSelectForTotalEncode ? `<label style="display:inline-flex;align-items:center;gap:6px;margin-right:8px;"><input type="checkbox" class="js-total-encode-pick" value="${job.video_id}" ${pickChecked}> Encode</label>` : ''}
                   <button type="button" class="btn-cancel" onclick="runJobTest(${baseJobId}, this)">Test</button>
                   ${canPlay ? `<button type="button" class="btn-success" onclick='openTestPlayerFromUrl(${JSON.stringify(outputUrl)})'>Play</button>` : ''}
                   <button type="button" class="btn-danger" onclick="deleteJob(${deleteJobId}, event, this)">Delete</button>
@@ -2988,6 +3006,7 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(() => {
           alert('✅ Queued TOTAL encoding for selected videos');
+          totalEncodeSelected.clear();
           document.querySelectorAll('#testVideoList .js-total-encode-pick:checked').forEach(cb => { cb.checked = false; });
           // After queueing TOTAL (TS) encodes, jump to the monitor page for this channel.
           window.location.href = `/vod-channels/${CHANNEL_ID}/encoding-now`;

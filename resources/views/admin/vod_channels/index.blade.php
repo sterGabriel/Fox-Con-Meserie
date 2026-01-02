@@ -1,6 +1,11 @@
 @extends('layouts.panel')
 
+@section('full_width')
+@endsection
+
 @section('content')
+
+<div style="padding: 24px;">
 
 <style>
 html, body { overflow-x: hidden; }
@@ -95,6 +100,8 @@ html, body { overflow-x: hidden; }
 <!-- PAGE HEADER -->
 <div class="page-header">
   <div>
+
+  </div>
     <h1 class="page-title">
       Vod Channels <span class="server-highlight">[Server 1]</span>
     </h1>
@@ -447,5 +454,7 @@ function handleRowAction(action, id) {
   }
 }
 </script>
+
+</div>
 
 @endsection

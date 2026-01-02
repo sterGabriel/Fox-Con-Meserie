@@ -118,6 +118,13 @@
       <span class="sidebar-icon">✏️</span>
       <span>Rename MUZICA</span>
     </a>
+
+    {{-- Series: Rename VOD (Movies + TV) --}}
+    <a href="{{ route('fox.series.rename-vod') }}"
+       class="sidebar-link" style="background: {{ $isActive('series/rename-vod') ? '#b31217' : 'transparent' }};">
+      <span class="sidebar-icon">✏️</span>
+      <span>Rename VOD</span>
+    </a>
   </nav>
 
   {{-- highlight bar roșu în dreapta (ca în poză) --}}

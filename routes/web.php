@@ -153,6 +153,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/series/rename-muzica/bulk', [SeriesRenameController::class, 'bulkRenameMuzica'])
         ->name('fox.series.rename-muzica.bulk');
 
+    Route::get('/series/rename-vod', [SeriesRenameController::class, 'vod'])
+        ->name('fox.series.rename-vod');
+
+    Route::post('/series/rename-vod/preview', [SeriesRenameController::class, 'previewVod'])
+        ->name('fox.series.rename-vod.preview');
+
+    Route::post('/series/rename-vod/apply', [SeriesRenameController::class, 'applyVod'])
+        ->name('fox.series.rename-vod.apply');
+
     // ───────────── VOD CHANNELS ─────────────
 
     Route::get('/vod-channels', [LiveChannelController::class, 'index'])
