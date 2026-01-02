@@ -63,6 +63,27 @@ Route::get('/streams/all.m3u8', function () {
 });
 
 // Streaming outputs (TS + HLS)
+// Compatibility: many players hit stream.ts directly. Serving a growing TS file as a static file
+// is not reliable for "TV-like" playback. Redirect to the HLS live playlist instead.
+Route::get('/streams/{channel}/stream.ts', function ($channel) {
+    $url = "/streams/{$channel}/hls/stream.m3u8";
+    return redirect($url, 302)->withHeaders([
+        'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+        'Pragma' => 'no-cache',
+        'Access-Control-Allow-Origin' => '*',
+    ]);
+});
+
+// Convenience alias: /streams/{channel}/stream.m3u8 -> /streams/{channel}/hls/stream.m3u8
+Route::get('/streams/{channel}/stream.m3u8', function ($channel) {
+    $url = "/streams/{$channel}/hls/stream.m3u8";
+    return redirect($url, 302)->withHeaders([
+        'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+        'Pragma' => 'no-cache',
+        'Access-Control-Allow-Origin' => '*',
+    ]);
+});
+
 Route::get('/streams/{channel}/{file}', function ($channel, $file) {
     $path = storage_path("app/streams/{$channel}/{$file}");
     if (file_exists($path)) {

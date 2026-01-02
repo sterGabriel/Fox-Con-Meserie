@@ -105,8 +105,18 @@ class VideoApiController extends Controller
             ], 404);
         }
 
-        $ss = (float) $request->query('ss', 2);
+        $dur = (int) ($video->duration_seconds ?? 0);
+        if ($request->has('ss')) {
+            $ss = (float) $request->query('ss', 2);
+        } else {
+            // Pick a more representative frame than the first seconds (often black).
+            $ss = $dur > 0 ? max(2.0, min(600.0, round($dur * 0.10))) : 30.0;
+        }
         if (!is_finite($ss) || $ss < 0) $ss = 2;
+        if ($dur > 0) {
+            $maxWithin = max(0, $dur - 2);
+            if ($ss > $maxWithin) $ss = (float) $maxWithin;
+        }
         if ($ss > 600) $ss = 600;
 
         $dir = storage_path('app/video_previews');
@@ -180,8 +190,18 @@ class VideoApiController extends Controller
             ], 404);
         }
 
-        $ss = (float) ($data['ss'] ?? 2);
+        $dur = (int) ($video->duration_seconds ?? 0);
+        if (array_key_exists('ss', $data) && $data['ss'] !== null) {
+            $ss = (float) $data['ss'];
+        } else {
+            // Pick a more representative frame than the first seconds (often black).
+            $ss = $dur > 0 ? max(2.0, min(600.0, round($dur * 0.10))) : 30.0;
+        }
         if (!is_finite($ss) || $ss < 0) $ss = 2;
+        if ($dur > 0) {
+            $maxWithin = max(0, $dur - 2);
+            if ($ss > $maxWithin) $ss = (float) $maxWithin;
+        }
         if ($ss > 600) $ss = 600;
 
         $settings = $request->input('settings', []);

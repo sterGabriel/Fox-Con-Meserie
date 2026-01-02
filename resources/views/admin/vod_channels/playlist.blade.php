@@ -143,7 +143,9 @@
     : $domain;
 
   $hlsUrl = $domain . "/streams/{$channel->id}/hls/stream.m3u8";
+  // Compatibility URL (redirects to HLS for TV-like playback)
   $tsUrlLive = $domain . "/streams/{$channel->id}/stream.ts";
+  $hlsAliasUrl = $domain . "/streams/{$channel->id}/stream.m3u8";
   $masterUrl = $domain . "/streams/all.m3u8";
   $epgUrl = $domain . "/epg/all.xml";
 
@@ -192,6 +194,9 @@
       <div class="muted" style="font-weight:900;">HLS (M3U8)</div>
       <a class="muted" href="{{ $hlsUrl }}" target="_blank" rel="noopener">{{ $hlsUrl }}</a>
 
+      <div class="muted" style="font-weight:900;">HLS Alias (M3U8)</div>
+      <a class="muted" href="{{ $hlsAliasUrl }}" target="_blank" rel="noopener">{{ $hlsAliasUrl }}</a>
+
       <div class="muted" style="font-weight:900;">TS (MPEG-TS)</div>
       <a class="muted" href="{{ $tsUrlLive }}" target="_blank" rel="noopener">{{ $tsUrlLive }}</a>
 
@@ -204,7 +209,7 @@
         <a class="btn btn-outline btn-sm" href="{{ $epgUrl }}" target="_blank" rel="noopener">Export EPG (All)</a>
       </div>
 
-      <div class="muted">Note: Streams are available only when the channel is running.</div>
+      <div class="muted">Note: Streams are available only when the channel is running. Pentru comportament "TV" (toți văd același lucru), folosește link-ul HLS.</div>
     </div>
   </div>
 </div>

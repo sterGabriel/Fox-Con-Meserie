@@ -2070,7 +2070,7 @@ class LiveChannelController extends Controller
         // Use a DB transaction + row locks to guarantee only one job becomes running.
         $claimed = null;
 
-        $scope = function ($q) use ($channel, $outputDir) {
+        $scope = function ($q) use ($channel, $outputDir, $outputRelLike) {
             return $q->where(function ($qq) use ($channel) {
                 // Qualify columns because some queries join playlist_items (which also has live_channel_id)
                 $qq->where('encoding_jobs.live_channel_id', $channel->id)
@@ -2078,7 +2078,7 @@ class LiveChannelController extends Controller
             })
             // Only offline encoding jobs (exclude engine "streaming" jobs)
             ->where('encoding_jobs.video_id', '>', 0)
-            ->where(function ($qq) use ($outputDir) {
+                        ->where(function ($qq) use ($outputDir, $outputRelLike) {
                 $qq->where(function ($q2) {
                     $q2->whereNotNull('encoding_jobs.playlist_item_id')
                        ->where('encoding_jobs.playlist_item_id', '>', 0);

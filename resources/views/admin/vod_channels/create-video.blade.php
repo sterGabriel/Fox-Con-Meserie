@@ -1426,6 +1426,59 @@ document.addEventListener('DOMContentLoaded', function() {
   let lastFetchedVideos = [];
   let currentCategoryId = '';
 
+  const LOCAL_KEY = `create_video_defaults_channel_${CHANNEL_ID}`;
+
+  function getPreviewSsForVideo(v) {
+    const dur = parseInt(v?.duration_seconds || 0, 10) || 0;
+    if (dur > 0) {
+      const ss = Math.round(dur * 0.10);
+      return Math.max(2, Math.min(600, Math.min(ss, Math.max(0, dur - 2))));
+    }
+    return 30;
+  }
+
+  function applyUiDefaultsFromLocalStorage() {
+    try {
+      const raw = localStorage.getItem(LOCAL_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (!saved || typeof saved !== 'object') return;
+
+      const fields = ['encoder', 'video_codec', 'preset', 'tune', 'crf_mode', 'crf_value', 'frame_rate'];
+      fields.forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const v = saved[id];
+        if (v === undefined || v === null) return;
+        el.value = String(v);
+      });
+
+      const crfModeEl = document.getElementById('crf_mode');
+      const crfValEl = document.getElementById('crf_value');
+      if (crfModeEl && crfValEl) {
+        crfValEl.classList.toggle('hidden', crfModeEl.value !== 'manual');
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  function persistUiDefaultsToLocalStorage() {
+    try {
+      localStorage.setItem(LOCAL_KEY, JSON.stringify({
+        encoder: document.getElementById('encoder')?.value || 'libx264',
+        video_codec: document.getElementById('video_codec')?.value || 'h264',
+        preset: document.getElementById('preset')?.value || 'fast',
+        tune: document.getElementById('tune')?.value || 'film',
+        crf_mode: document.getElementById('crf_mode')?.value || 'auto',
+        crf_value: document.getElementById('crf_value')?.value || '23',
+        frame_rate: document.getElementById('frame_rate')?.value || '30',
+      }));
+    } catch (e) {
+      // ignore
+    }
+  }
+
   (function syncOverlayPreviewAspectRatio() {
     const setFromResolution = (el) => {
       if (!el) return;
@@ -1599,6 +1652,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const csrfEl = document.querySelector('input[name="_token"]');
     const csrf = csrfEl ? csrfEl.value : '';
 
+    const ss = getPreviewSsForVideo(v);
+
     fetch(`/api/videos/${videoId}/overlay-preview`, {
       method: 'POST',
       credentials: 'include',
@@ -1609,7 +1664,7 @@ document.addEventListener('DOMContentLoaded', function() {
       },
       body: JSON.stringify({
         live_channel_id: CHANNEL_ID,
-        ss: 2,
+        ss: ss,
         settings: buildSettingsFromForm(),
       }),
     })
@@ -2065,10 +2120,20 @@ document.addEventListener('DOMContentLoaded', function() {
       const videoData = JSON.stringify(v).replace(/"/g, '&quot;');
       const checkedAttr = selectedVideos.has(parseInt(v.id, 10)) ? 'checked' : '';
 
+      const ss = getPreviewSsForVideo(v);
+      const thumbUrl = `/api/videos/${v.id}/preview-frame?ss=${encodeURIComponent(String(ss))}`;
       const posterPath = (v && v.tmdb_poster_path) ? String(v.tmdb_poster_path) : '';
-      const posterHtml = posterPath
-        ? `<img src="https://image.tmdb.org/t/p/w92${posterPath}" alt="Poster" style="width:46px;height:auto;border-radius:6px;border:1px solid var(--border-color);display:inline-block;" loading="lazy">`
-        : `<span style="color:var(--text-muted);font-size:12px;font-weight:700;">—</span>`;
+      const tmdbUrl = posterPath ? `https://image.tmdb.org/t/p/w92${posterPath}` : '';
+
+      const posterHtml = `
+        <img
+          src="${thumbUrl}"
+          alt="Preview"
+          style="width:64px;height:36px;border-radius:6px;border:1px solid var(--border-color);display:inline-block;object-fit:cover;background:#111827;"
+          loading="lazy"
+          onerror="${tmdbUrl ? `this.onerror=null;this.src='${tmdbUrl}';this.style.width='46px';this.style.height='auto';this.style.objectFit='contain';` : `this.style.display='none';` }"
+        >
+      `;
 
       html += `
         <tr>
@@ -2402,11 +2467,16 @@ document.addEventListener('DOMContentLoaded', function() {
           return data;
         })
         .then(() => {
+          // The API stores bitrate/fps/overlay defaults; persist encoder-side dropdowns locally.
+          persistUiDefaultsToLocalStorage();
           alert('✅ Saved to channel');
         })
         .catch(e => alert('❌ Error: ' + e.message));
     });
   }
+
+  // Restore saved encoder-side defaults (if any)
+  applyUiDefaultsFromLocalStorage();
 
   // Load test jobs
   let jobsPollTimer = null;

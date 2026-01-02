@@ -140,13 +140,38 @@
       }).join('');
     }
 
+    function showLoadError(message) {
+      if (runningEl) runningEl.textContent = '—';
+      if (queuedEl) queuedEl.textContent = '—';
+      if (doneEl) doneEl.textContent = '—';
+      if (failedEl) failedEl.textContent = '—';
+      if (lastUpdateEl) lastUpdateEl.textContent = 'Eroare la încărcare';
+      if (bodyEl) {
+        bodyEl.innerHTML = `<tr><td colspan="7" class="muted" style="padding:18px;">Nu se poate încărca lista joburilor. ${esc(message || '')}</td></tr>`;
+      }
+    }
+
     async function poll() {
-      const res = await fetch(`/vod-channels/${channelId}/engine/encoding-jobs`, {
-        headers: { 'X-Requested-With': 'XMLHttpRequest' },
-        cache: 'no-store',
-      });
+      let res;
+      try {
+        res = await fetch(`/vod-channels/${channelId}/engine/encoding-jobs`, {
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          cache: 'no-store',
+        });
+      } catch (e) {
+        showLoadError('Network error');
+        return;
+      }
+
       const json = await res.json().catch(() => ({}));
-      if (!res.ok || json.status !== 'success') return;
+      if (!res.ok) {
+        showLoadError(`HTTP ${res.status}`);
+        return;
+      }
+      if (json.status !== 'success') {
+        showLoadError(json.message || 'Unknown error');
+        return;
+      }
 
       const jobs = Array.isArray(json.jobs) ? json.jobs : [];
       const running = jobs.filter(j => String(j.status || '').toLowerCase() === 'running').length;
