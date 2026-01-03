@@ -676,6 +676,7 @@ class EncodingJobApiController extends Controller
             'overlay_logo_enabled', 'overlay_logo_position', 'overlay_logo_x', 'overlay_logo_y', 'overlay_logo_width', 'overlay_logo_height', 'overlay_logo_opacity',
             'overlay_text_enabled', 'overlay_text_content', 'overlay_text_custom', 'overlay_text_font_family', 'overlay_text_font_size', 'overlay_text_color', 'overlay_text_position', 'overlay_text_x', 'overlay_text_y', 'overlay_text_opacity', 'overlay_text_bg_color', 'overlay_text_bg_opacity', 'overlay_text_padding',
             'overlay_timer_enabled', 'overlay_timer_mode', 'overlay_timer_format', 'overlay_timer_position', 'overlay_timer_x', 'overlay_timer_y', 'overlay_timer_font_size', 'overlay_timer_color',
+            'subtitle_mode', 'subtitle_language', 'subtitle_auto', 'subtitle_path',
             'test_duration_seconds', 'test_start_seconds', 'hls_time',
         ];
         $sigPayload = [];

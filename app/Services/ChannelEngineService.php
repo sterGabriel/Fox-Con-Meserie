@@ -699,6 +699,8 @@ class ChannelEngineService
         ];
 
         // No re-encoding - just copy streams
+        // Note: ffmpeg option scoping is per-output. These codec options apply only
+        // to the *next* output file. We must repeat them for each output.
         $cmd = array_merge($cmd, ['-c:v', 'copy', '-c:a', 'copy']);
 
         // Output 1: MPEGTS stream
@@ -712,6 +714,9 @@ class ChannelEngineService
         // Output 2: HLS
         @mkdir("{$outputDir}/hls", 0755, true);
         $cmd = array_merge($cmd, [
+            // Ensure HLS is also stream-copied (avoid accidental transcoding).
+            '-c:v', 'copy',
+            '-c:a', 'copy',
             '-f', 'hls',
             '-hls_time', '10',
             '-hls_list_size', '6',

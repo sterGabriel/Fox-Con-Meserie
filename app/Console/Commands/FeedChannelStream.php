@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\LiveChannel;
+use App\Models\EncodingJob;
 use App\Models\PlaylistItem;
 use Illuminate\Console\Command;
 
@@ -39,12 +40,12 @@ class FeedChannelStream extends Command
         $this->info('Feeding stream FIFO: ' . $fifoPath);
 
         // Open FIFO for writing. This will block until FFmpeg opens it for reading.
-        $out = @fopen($fifoPath, 'wb');
-        if (!is_resource($out)) {
+        $fifoHandle = @fopen($fifoPath, 'wb');
+        if (!is_resource($fifoHandle)) {
             $this->error('Failed to open FIFO for writing.');
             return self::FAILURE;
         }
-        stream_set_write_buffer($out, 0);
+        stream_set_write_buffer($fifoHandle, 0);
 
         $lastPathCount = null;
 
@@ -57,6 +58,40 @@ class FeedChannelStream extends Command
                 ->orderBy('sort_order')
                 ->get(['id', 'video_id']);
 
+            $videoIds = $items
+                ->pluck('video_id')
+                ->filter(fn ($v) => (int) $v > 0)
+                ->map(fn ($v) => (int) $v)
+                ->unique()
+                ->values()
+                ->all();
+
+            $jobOutputPathByVideoId = [];
+            if (!empty($videoIds)) {
+                $jobs = EncodingJob::query()
+                    ->where(function ($q) use ($channelId) {
+                        $q->where('live_channel_id', $channelId)
+                          ->orWhere('channel_id', $channelId);
+                    })
+                    ->whereIn('video_id', $videoIds)
+                    ->whereNotNull('output_path')
+                    ->orderByDesc('ended_at')
+                    ->orderByDesc('created_at')
+                    ->orderByDesc('id')
+                    ->get(['video_id', 'output_path']);
+
+                foreach ($jobs as $job) {
+                    $vid = (int) ($job->video_id ?? 0);
+                    if ($vid <= 0) continue;
+                    if (isset($jobOutputPathByVideoId[$vid])) continue;
+
+                    $p = (string) ($job->output_path ?? '');
+                    if ($p !== '' && is_file($p)) {
+                        $jobOutputPathByVideoId[$vid] = $p;
+                    }
+                }
+            }
+
             $paths = [];
             foreach ($items as $item) {
                 $primary = $outputDir . '/video_' . (int) $item->id . '.ts';
@@ -66,6 +101,19 @@ class FeedChannelStream extends Command
                     $paths[] = $primary;
                 } elseif (($item->video_id ?? 0) && is_file($fallback)) {
                     $paths[] = $fallback;
+                } elseif (($item->video_id ?? 0)) {
+                    // Playlist item IDs may change after a sync/reorder. If we already encoded
+                    // this video before, the TS might exist at a job output_path.
+                    $vid = (int) $item->video_id;
+                    $jobOutputPath = (string) ($jobOutputPathByVideoId[$vid] ?? '');
+                    if ($jobOutputPath !== '') {
+                        $paths[] = $jobOutputPath;
+
+                        // Best-effort: create canonical symlink so future scans are fast.
+                        if (!is_file($primary) && $jobOutputPath !== $primary) {
+                            @symlink($jobOutputPath, $primary);
+                        }
+                    }
                 }
             }
 
@@ -92,13 +140,13 @@ class FeedChannelStream extends Command
                         break;
                     }
 
-                    $written = @fwrite($out, $chunk);
-                    @fflush($out);
+                    $written = @fwrite($fifoHandle, $chunk);
+                    @fflush($fifoHandle);
 
                     if ($written === false) {
                         $this->error('Write failed. FFmpeg may have stopped reading the FIFO.');
                         @fclose($in);
-                        @fclose($out);
+                        @fclose($fifoHandle);
                         return self::FAILURE;
                     }
                 }

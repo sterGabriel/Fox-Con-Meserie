@@ -450,9 +450,9 @@ class LiveChannelController extends Controller
 
         $jobByVideoId = $jobs->groupBy('video_id')->map(fn ($g) => $g->first());
 
-        // TS READY means: TS exists AND there is no RUNNING job for it.
-        // NOTE: a TS file may already exist from a previous encode even if a new job is queued
-        // (e.g. user clicked Start Encoding again). In that case we still show it as encoded.
+        // TS READY means: TS exists.
+        // NOTE: We intentionally treat a playlist item as encoded if a TS file exists, even if a new job is running.
+        // This avoids “missing items” after playlist sync / job state glitches, and keeps the playlist page complete.
         foreach ($allPlaylistItems as $item) {
             $job = null;
             if ((int) ($item->id ?? 0) > 0) {
@@ -463,7 +463,37 @@ class LiveChannelController extends Controller
             }
 
             $status = $job ? strtolower((string) ($job->status ?? '')) : '';
-            $item->ts_ready = (bool) ($item->ts_exists ?? false) && ($status === '' || $status === 'done' || $status === 'queued');
+
+            // If the expected TS file name doesn't exist, but we have a job output that exists on disk,
+            // treat that as the encoded TS for this item (covers legacy filenames and playlist re-syncs).
+            if (!(bool) ($item->ts_exists ?? false) && $job) {
+                $outputPathRaw = trim((string) ($job->output_path ?? ''));
+                $candidates = [];
+                if ($outputPathRaw !== '') {
+                    $candidates[] = $outputPathRaw;
+                    if (!str_starts_with($outputPathRaw, '/')) {
+                        $candidates[] = storage_path('app/' . ltrim($outputPathRaw, '/'));
+                    }
+                }
+
+                foreach ($candidates as $cand) {
+                    if ($cand !== '' && is_file($cand)) {
+                        $item->ts_path = $cand;
+                        $item->ts_file = basename($cand);
+                        $item->ts_exists = true;
+
+                        // Best-effort: create the canonical filename for this playlist item.
+                        $expected = $outputDir . '/video_' . (int) ($item->id ?? 0) . '.ts';
+                        if (!is_file($expected) && $expected !== $cand) {
+                            @symlink($cand, $expected);
+                        }
+                        break;
+                    }
+                }
+            }
+
+            $item->ts_in_progress = ($status === 'running');
+            $item->ts_ready = (bool) ($item->ts_exists ?? false);
         }
 
         // Playlist page shows encoded items, but we also expose the non-encoded queue for visibility.
@@ -1075,6 +1105,30 @@ class LiveChannelController extends Controller
                     $encodedPaths[] = $primary;
                 } elseif (($item->video_id ?? 0) && is_file($fallback)) {
                     $encodedPaths[] = $fallback;
+                } elseif (($item->video_id ?? 0)) {
+                    // Playlist item IDs may change after sync. Prefer any existing TS output
+                    // from the latest encoding job for this channel+video.
+                    $job = \App\Models\EncodingJob::query()
+                        ->where(function ($q) use ($channel) {
+                            $q->where('live_channel_id', $channel->id)
+                              ->orWhere('channel_id', $channel->id);
+                        })
+                        ->where('video_id', (int) $item->video_id)
+                        ->whereNotNull('output_path')
+                        ->orderByDesc('ended_at')
+                        ->orderByDesc('created_at')
+                        ->orderByDesc('id')
+                        ->first(['id', 'output_path']);
+
+                    $jobOutputPath = $job ? (string) ($job->output_path ?? '') : '';
+                    if ($jobOutputPath !== '' && is_file($jobOutputPath)) {
+                        $encodedPaths[] = $jobOutputPath;
+
+                        // Best-effort: symlink to canonical name to keep things consistent.
+                        if (!is_file($primary) && $jobOutputPath !== $primary) {
+                            @symlink($jobOutputPath, $primary);
+                        }
+                    }
                 }
             }
 
