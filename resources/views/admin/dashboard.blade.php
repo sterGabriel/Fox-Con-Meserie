@@ -1,5 +1,7 @@
 @extends('layouts.panel')
 
+@section('full_width', true)
+
 @section('content')
 @php
     $fmtPct = function ($value): string {
@@ -210,9 +212,9 @@
 </div>
 
 {{-- KPIs --}}
-<div class="fox-cards-grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));align-items:stretch;">
+<div class="fox-cards-grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));align-items:stretch;">
     @foreach($cards as $card)
-        <div class="fox-card {{ $card['variant'] }}" style="min-height:110px;">
+        <div class="fox-card {{ $card['variant'] }}" style="min-height:140px;">
             <div class="fox-card-label">{{ $card['label'] }}</div>
             <div class="fox-card-value">{{ $card['value'] }}</div>
             @if(!empty($card['subtitle']))
