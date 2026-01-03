@@ -114,6 +114,8 @@
         $streamBase = rtrim((string) request()->getSchemeAndHttpHost(), '/');
     }
 
+    $masterM3uUrl = url('/streams/all.m3u8');
+
     $formatHHMM = function (?int $seconds): string {
         if (!is_int($seconds) || $seconds < 0) return '—';
         $hours = intdiv($seconds, 3600);
@@ -149,6 +151,7 @@
             @foreach(($quickLinks ?? []) as $l)
                 <a class="dash-link" href="{{ $l['url'] }}">{{ $l['label'] }}</a>
             @endforeach
+            <a class="dash-link primary" href="{{ $masterM3uUrl }}">Download Master M3U</a>
         </div>
     </div>
 </div>
@@ -221,7 +224,6 @@
 
 {{-- Action Center + Integrations --}}
 @php
-    $masterM3uUrl = url('/streams/all.m3u8');
     $actionChannels = collect($recentChannels ?? [])->take(3);
 @endphp
 
@@ -230,41 +232,31 @@
         <div class="dash-section-title">Action Center</div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
             <a class="dash-link" style="padding:8px 10px;" href="{{ route('vod-channels.index') }}">View all channels</a>
-            <a class="dash-link primary" style="padding:8px 10px;" href="{{ $masterM3uUrl }}">Download Master M3U</a>
         </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:1.25fr .75fr;gap:0;align-items:stretch;">
-        <div style="padding:16px;display:flex;flex-direction:column;gap:12px;">
-            @forelse($actionChannels as $ch)
-                @php
-                    [$badgeColor, $badgeText] = $statusBadge($ch->status);
-                    $streamUrl = $streamBase . "/streams/{$ch->id}/hls/stream.m3u8";
-                @endphp
-                <div style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
-                    <div style="min-width:0;flex:1;display:flex;align-items:center;gap:10px;">
-                        <div style="font-weight:900;max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $ch->name }}</div>
-                        <span class="fox-badge {{ $badgeColor }}">{{ $badgeText }}</span>
-                        <span class="fox-badge blue">ID: {{ $ch->id }}</span>
-                        <div style="min-width:0;flex:1;font-size:12px;color:#666;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $streamUrl }}</div>
-                    </div>
-                    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;flex-shrink:0;">
-                        <a class="dash-link" style="padding:8px 10px;" href="{{ $streamUrl }}" target="_blank" rel="noopener">Open Stream</a>
-                        <a class="dash-link" style="padding:8px 10px;" href="{{ route('vod-channels.playlist', $ch) }}">Playlist</a>
-                        <a class="dash-link" style="padding:8px 10px;" href="{{ route('vod-channels.settings', $ch) }}">Settings</a>
-                    </div>
+    <div style="padding:16px;display:flex;flex-direction:column;gap:12px;">
+        @forelse($actionChannels as $ch)
+            @php
+                [$badgeColor, $badgeText] = $statusBadge($ch->status);
+                $streamUrl = $streamBase . "/streams/{$ch->id}/hls/stream.m3u8";
+            @endphp
+            <div style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                <div style="min-width:0;flex:1;display:flex;align-items:center;gap:10px;">
+                    <div style="font-weight:900;max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $ch->name }}</div>
+                    <span class="fox-badge {{ $badgeColor }}">{{ $badgeText }}</span>
+                    <span class="fox-badge blue">ID: {{ $ch->id }}</span>
+                    <div style="min-width:0;flex:1;font-size:12px;color:#666;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $streamUrl }}</div>
                 </div>
-            @empty
-                <div style="color:#999;">No channels found.</div>
-            @endforelse
-        </div>
-
-        <div style="padding:16px;border-left:1px solid var(--border-color);display:flex;flex-direction:column;gap:10px;">
-            <div class="dash-section-title" style="margin:0;">Integrations</div>
-            <div style="font-size:12px;color:#666;word-break:break-all;">
-                Master M3U: <span style="font-weight:700;color:#111;">{{ $masterM3uUrl }}</span>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;flex-shrink:0;">
+                    <a class="dash-link" style="padding:8px 10px;" href="{{ $streamUrl }}" target="_blank" rel="noopener">Open Stream</a>
+                    <a class="dash-link" style="padding:8px 10px;" href="{{ route('vod-channels.playlist', $ch) }}">Playlist</a>
+                    <a class="dash-link" style="padding:8px 10px;" href="{{ route('vod-channels.settings', $ch) }}">Settings</a>
+                </div>
             </div>
-        </div>
+        @empty
+            <div style="color:#999;">No channels found.</div>
+        @endforelse
     </div>
 </div>
 
