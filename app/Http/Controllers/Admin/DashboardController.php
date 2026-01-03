@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\EncodingJob;
 use App\Models\LiveChannel;
 use App\Services\SystemMonitorService;
 use Illuminate\Support\Facades\DB;
@@ -71,6 +72,7 @@ class DashboardController extends Controller
 
         // Encoding jobs (optional: only if table exists)
         $jobs = collect();
+        $nowEncodingJobs = collect();
         $jobsStats = [
             'queued'  => null,
             'running' => null,
@@ -83,14 +85,24 @@ class DashboardController extends Controller
             $hasJobsTable = DB::getSchemaBuilder()->hasTable('encoding_jobs');
 
             if ($hasJobsTable) {
-                $jobsStats['queued']  = DB::table('encoding_jobs')->where('status', 'queued')->count();
-                $jobsStats['running'] = DB::table('encoding_jobs')->where('status', 'running')->count();
+                // Be tolerant to multiple status vocabularies used across the app.
+                $jobsStats['queued']  = DB::table('encoding_jobs')->whereIn('status', ['queued', 'pending'])->count();
+                $jobsStats['running'] = DB::table('encoding_jobs')->whereIn('status', ['running', 'processing'])->count();
                 $jobsStats['failed']  = DB::table('encoding_jobs')->where('status', 'failed')->count();
 
                 $jobs = DB::table('encoding_jobs')
                     ->orderByDesc('id')
                     ->limit(8)
                     ->get(['id', 'vod_channel_id', 'status', 'progress', 'created_at', 'updated_at']);
+
+                $nowEncodingJobs = EncodingJob::with([
+                        'channel:id,name',
+                        'video:id,title',
+                    ])
+                    ->whereIn('status', ['running', 'processing'])
+                    ->orderByDesc('updated_at')
+                    ->limit(8)
+                    ->get();
             }
         } catch (\Throwable $e) {
             // Keep dashboard resilient; do not fail if schema/table is missing
@@ -139,12 +151,114 @@ class DashboardController extends Controller
             'ok'       => $okCount,
         ];
 
+        $systemState = 'ok';
+        if (count($alertSummary['critical']) > 0) {
+            $systemState = 'critical';
+        } elseif (count($alertSummary['warning']) > 0) {
+            $systemState = 'warning';
+        }
+
+        $systemSummaryText = count($alertSummary['critical']) . ' critical, ' . count($alertSummary['warning']) . ' warning';
+
         // ===== SYSTEM METRICS (REAL DATA) =====
         $cpuUsage = SystemMonitorService::getCpuUsage();
         $ramUsage = SystemMonitorService::getSystemMemoryUsage();
         $networkStats = SystemMonitorService::getNetworkStats();
         $uptime = SystemMonitorService::getUptime();
         $diskStats = SystemMonitorService::getDiskSpace();
+
+        $loadAvg = @sys_getloadavg();
+        $load1 = is_array($loadAvg) && isset($loadAvg[0]) ? (float) $loadAvg[0] : null;
+        $cores = 1;
+        try {
+            $cores = (int) trim((string) @shell_exec('nproc 2>/dev/null')) ?: 1;
+        } catch (\Throwable $e) {
+            $cores = 1;
+        }
+
+        // Channels needing attention (dashboard table)
+        $channelsNeedingAttention = LiveChannel::query()
+            ->select(['id', 'name', 'status', 'enabled', 'logo_path', 'encoded_output_path', 'hls_output_path', 'updated_at'])
+            ->where(function ($q) {
+                $q->where('enabled', 0)
+                    ->orWhere('status', 'error')
+                    ->orWhereNull('encoded_output_path')
+                    ->orWhere('encoded_output_path', '')
+                    ->orWhereNull('hls_output_path')
+                    ->orWhere('hls_output_path', '');
+            })
+            ->orderByDesc('updated_at')
+            ->limit(10)
+            ->get();
+
+        $quickLinks = [
+            ['label' => 'VOD Channels', 'url' => route('vod-channels.index')],
+            ['label' => 'Encoding Jobs', 'url' => route('encoding-jobs.index')],
+            ['label' => 'Import Media', 'url' => route('media.import')],
+            ['label' => 'Video Categories', 'url' => route('video-categories.index')],
+            ['label' => 'TMDb Settings', 'url' => route('settings.tmdb')],
+        ];
+
+        // Health summary rows with drill-down "Fix" links
+        $healthRows = [];
+
+        if (is_numeric($diskUsedPct) && $diskUsedPct >= 90) {
+            $healthRows[] = [
+                'severity' => 'critical',
+                'issue' => "Disk usage at {$diskUsedPct}%",
+                'impact' => 'Encoding/streaming may become unstable due to low free space.',
+                'action_label' => 'Open File Browser',
+                'action_url' => route('file-browser.index'),
+            ];
+        } elseif (is_numeric($diskUsedPct) && $diskUsedPct >= 75) {
+            $healthRows[] = [
+                'severity' => 'warning',
+                'issue' => "Disk usage at {$diskUsedPct}%",
+                'impact' => 'Consider freeing space to avoid future failures.',
+                'action_label' => 'Open File Browser',
+                'action_url' => route('file-browser.index'),
+            ];
+        }
+
+        if ($channelsMissingOutput > 0) {
+            $healthRows[] = [
+                'severity' => 'critical',
+                'issue' => "{$channelsMissingOutput} channels missing outputs",
+                'impact' => 'Streams may not start (missing HLS/TS output paths).',
+                'action_label' => 'View affected channels',
+                'action_url' => route('vod-channels.index', ['filter' => 'missing-outputs']),
+            ];
+        }
+
+        if ($failedJobs > 0) {
+            $healthRows[] = [
+                'severity' => 'critical',
+                'issue' => "{$failedJobs} failed encoding jobs",
+                'impact' => 'Content remains unencoded until jobs are retried/fixed.',
+                'action_label' => 'Open failed jobs',
+                'action_url' => route('encoding-jobs.index', ['status' => 'failed']),
+            ];
+        }
+
+        if ($channelsMissingLogo > 0) {
+            $healthRows[] = [
+                'severity' => 'warning',
+                'issue' => "{$channelsMissingLogo} channels missing logo",
+                'impact' => 'Branding is incomplete for those channels.',
+                'action_label' => 'View affected channels',
+                'action_url' => route('vod-channels.index', ['filter' => 'missing-logo']),
+            ];
+        }
+
+        if ($runningChannels === 0 && $totalChannels > 0) {
+            $healthRows[] = [
+                'severity' => 'warning',
+                'issue' => 'No channels running',
+                'impact' => 'Users will not have any live streams available.',
+                'action_label' => 'View channels',
+                'action_url' => route('vod-channels.index'),
+            ];
+        }
 
         return view('admin.dashboard', [
             'totalChannels'        => $totalChannels,
@@ -161,12 +275,20 @@ class DashboardController extends Controller
             'jobsStats'            => $jobsStats,
             'jobs'                 => $jobs,
             'alertSummary'         => $alertSummary,
+            'systemState'          => $systemState,
+            'systemSummaryText'    => $systemSummaryText,
+            'quickLinks'           => $quickLinks,
+            'healthRows'           => $healthRows,
+            'channelsNeedingAttention' => $channelsNeedingAttention,
+            'nowEncodingJobs'      => $nowEncodingJobs,
             // System metrics
             'cpuUsage'             => $cpuUsage,
             'ramUsage'             => $ramUsage,
             'networkStats'         => $networkStats,
             'uptime'               => $uptime,
             'diskStats'            => $diskStats,
+            'load1'                => $load1,
+            'cores'                => $cores,
         ]);
     }
 }

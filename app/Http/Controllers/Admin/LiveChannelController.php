@@ -160,10 +160,55 @@ class LiveChannelController extends Controller
 
     public function index()
     {
-        $perPage = request()->get('per_page', 60);
-        $channels = LiveChannel::with(['playlistItems.video', 'encodeProfile'])
-            ->orderBy('id', 'desc')
-            ->paginate($perPage);
+        $perPage = (int) request()->get('per_page', 60);
+        $filter = (string) request()->get('filter', '');
+
+        $query = LiveChannel::with(['playlistItems.video', 'encodeProfile'])
+            ->orderBy('id', 'desc');
+
+        // Lightweight filters used by Dashboard "Fix" links.
+        // Keep these DB-only (no /proc checks) so they stay fast.
+        switch ($filter) {
+            case 'disabled':
+                $query->where('enabled', false);
+                break;
+            case 'running':
+                $query->whereIn('status', ['running', 'live']);
+                break;
+            case 'not-running':
+                $query->where(function ($q) {
+                    $q->whereNull('status')->orWhereNotIn('status', ['running', 'live']);
+                });
+                break;
+            case 'error':
+                $query->where('status', 'error');
+                break;
+            case 'missing-outputs':
+                $query->where(function ($q) {
+                    $q->whereNull('encoded_output_path')
+                        ->orWhere('encoded_output_path', '')
+                        ->orWhereNull('hls_output_path')
+                        ->orWhere('hls_output_path', '');
+                });
+                break;
+            case 'missing-logo':
+                $query->where(function ($q) {
+                    $q->whereNull('logo_path')->orWhere('logo_path', '');
+                });
+                break;
+            case 'attention':
+                $query->where(function ($q) {
+                    $q->where('enabled', false)
+                        ->orWhere('status', 'error')
+                        ->orWhereNull('encoded_output_path')
+                        ->orWhere('encoded_output_path', '')
+                        ->orWhereNull('hls_output_path')
+                        ->orWhere('hls_output_path', '');
+                });
+                break;
+        }
+
+        $channels = $query->paginate($perPage)->withQueryString();
 
         $redisStatus = $this->getRedisStatusLabel();
 
@@ -213,6 +258,7 @@ class LiveChannelController extends Controller
             'enabledChannels' => $enabledChannels,
             'totalVideos' => $totalVideos,
             'diskStats' => $diskStats,
+            'activeFilter' => $filter,
         ]);
     }
 

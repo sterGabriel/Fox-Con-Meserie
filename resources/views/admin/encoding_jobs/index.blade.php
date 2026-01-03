@@ -1,97 +1,120 @@
-@extends('layouts.app')
+@extends('layouts.panel')
 
 @section('content')
-    <div class="container mt-4">
+@php
+    $statusFilter = (string) ($statusFilter ?? '');
 
-        <h1 class="mb-3">
-            Encoding Queue
-        </h1>
+    $tabs = [
+        ['label' => 'All', 'status' => ''],
+        ['label' => 'Running', 'status' => 'running,processing'],
+        ['label' => 'Queued', 'status' => 'queued,pending'],
+        ['label' => 'Failed', 'status' => 'failed'],
+    ];
 
-        <p class="text-muted mb-4">
-            Aici vezi toate joburile de encodare (un film după altul). Mai târziu de aici vom porni / opri manual
-            encodarea și vom vedea progresul în timp real.
-        </p>
+    $badgeForStatus = function ($status) {
+        $st = strtolower((string) $status);
+        return match ($st) {
+            'running', 'processing' => ['yellow', strtoupper($st)],
+            'queued', 'pending'     => ['blue', strtoupper($st)],
+            'failed'                => ['red', strtoupper($st)],
+            'done', 'completed'     => ['green', strtoupper($st)],
+            default                 => ['blue', strtoupper($st ?: 'UNKNOWN')],
+        };
+    };
+@endphp
 
-        @if (session('success'))
-            <div class="alert alert-success">
-                {{ session('success') }}
-            </div>
-        @endif
-
-        @if (session('error'))
-            <div class="alert alert-danger">
-                {{ session('error') }}
-            </div>
-        @endif
-
-        <div class="card">
-            <div class="card-header">
-                Encoding Jobs
-            </div>
-            <div class="card-body p-0">
-                <table class="table table-striped mb-0 table-sm">
-                    <thead>
-                    <tr>
-                        <th style="width: 60px">ID</th>
-                        <th>Channel</th>
-                        <th>Video</th>
-                        <th style="width: 120px">Status</th>
-                        <th style="width: 80px">Progress</th>
-                        <th style="width: 180px">Created</th>
-                        <th style="width: 180px">Started</th>
-                        <th style="width: 180px">Finished</th>
-                        <th>Error</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    @forelse($jobs as $job)
-                        <tr>
-                            <td>{{ $job->id }}</td>
-                            <td>
-                                @if ($job->channel)
-                                    [#{{ $job->channel->id }}] {{ $job->channel->name }}
-                                @else
-                                    <span class="text-muted">—</span>
-                                @endif
-                            </td>
-                            <td>
-                                @if ($job->video)
-                                    [#{{ $job->video->id }}] {{ $job->video->title }}
-                                @else
-                                    <span class="text-muted">—</span>
-                                @endif
-                            </td>
-                            <td>
-                                <span class="badge bg-secondary">
-                                    {{ strtoupper($job->status) }}
-                                </span>
-                            </td>
-                            <td>
-                                {{ $job->progress }}%
-                            </td>
-                            <td>{{ $job->created_at }}</td>
-                            <td>{{ $job->started_at ?? '—' }}</td>
-                            <td>{{ $job->finished_at ?? '—' }}</td>
-                            <td class="text-danger" style="max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                                {{ $job->error_message ?? '' }}
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="9" class="text-center py-3 text-muted">
-                                No encoding jobs yet.
-                            </td>
-                        </tr>
-                    @endforelse
-                    </tbody>
-                </table>
-            </div>
-
-            @if (method_exists($jobs, 'links'))
-                <div class="card-footer">
-                    {{ $jobs->links() }}
-                </div>
-            @endif
-        </div>
+<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px;">
+    <div>
+        <h1 style="margin:0;font-size:22px;font-weight:900;color:var(--text-primary);">Encoding Jobs</h1>
+        <div style="margin-top:6px;font-size:12px;color:var(--text-muted);">Queue and status overview for encoding tasks.</div>
     </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        @foreach($tabs as $t)
+            @php
+                $isActive = ($t['status'] === '' && $statusFilter === '') || ($t['status'] !== '' && $t['status'] === $statusFilter);
+                $url = $t['status'] === ''
+                    ? route('encoding-jobs.index')
+                    : route('encoding-jobs.index', ['status' => $t['status']]);
+            @endphp
+            <a href="{{ $url }}" class="fox-badge {{ $isActive ? 'green' : 'blue' }}" style="text-decoration:none;">{{ $t['label'] }}</a>
+        @endforeach
+    </div>
+</div>
+
+@if (session('success'))
+    <div class="fox-table-container" style="padding:12px 14px;margin-bottom:12px;border-left:4px solid var(--fox-green);">
+        <div style="font-weight:700;color:var(--text-primary);">{{ session('success') }}</div>
+    </div>
+@endif
+
+@if (session('error'))
+    <div class="fox-table-container" style="padding:12px 14px;margin-bottom:12px;border-left:4px solid var(--fox-red);">
+        <div style="font-weight:700;color:var(--text-primary);">{{ session('error') }}</div>
+    </div>
+@endif
+
+<div class="fox-table-container">
+    <div style="padding:14px 16px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div style="font-size:12px;font-weight:900;color:#666;letter-spacing:.04em;text-transform:uppercase;">Jobs</div>
+        <div style="font-size:12px;color:#666;">{{ method_exists($jobs, 'total') ? $jobs->total() : count($jobs) }} total</div>
+    </div>
+
+    <div style="overflow:auto;">
+        <table class="fox-table">
+            <thead>
+            <tr>
+                <th style="width:70px;">ID</th>
+                <th>Channel</th>
+                <th>Video</th>
+                <th style="width:140px;">Status</th>
+                <th style="width:90px;">Progress</th>
+                <th style="width:190px;">Created</th>
+                <th style="width:190px;">Started</th>
+                <th style="width:190px;">Finished</th>
+                <th>Error</th>
+            </tr>
+            </thead>
+            <tbody>
+            @forelse($jobs as $job)
+                @php
+                    [$badgeColor, $badgeText] = $badgeForStatus($job->status);
+                @endphp
+                <tr>
+                    <td style="font-variant-numeric:tabular-nums;">{{ $job->id }}</td>
+                    <td>
+                        @if ($job->channel)
+                            <a href="{{ route('vod-channels.settings', $job->channel) }}" style="color:var(--fox-blue);text-decoration:none;font-weight:700;">[#{{ $job->channel->id }}] {{ $job->channel->name }}</a>
+                        @else
+                            <span style="color:#999;">—</span>
+                        @endif
+                    </td>
+                    <td>
+                        @if ($job->video)
+                            <span style="font-weight:600;">[#{{ $job->video->id }}] {{ $job->video->title }}</span>
+                        @else
+                            <span style="color:#999;">—</span>
+                        @endif
+                    </td>
+                    <td><span class="fox-badge {{ $badgeColor }}">{{ $badgeText }}</span></td>
+                    <td style="font-variant-numeric:tabular-nums;">{{ (int) ($job->progress ?? 0) }}%</td>
+                    <td style="font-variant-numeric:tabular-nums;">{{ $job->created_at }}</td>
+                    <td style="font-variant-numeric:tabular-nums;">{{ $job->started_at ?? '—' }}</td>
+                    <td style="font-variant-numeric:tabular-nums;">{{ $job->finished_at ?? ($job->completed_at ?? '—') }}</td>
+                    <td style="max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#b91c1c;">{{ $job->error_message ?? '' }}</td>
+                </tr>
+            @empty
+                <tr>
+                    <td colspan="9" style="padding:18px;color:#999;text-align:center;">No encoding jobs yet.</td>
+                </tr>
+            @endforelse
+            </tbody>
+        </table>
+    </div>
+
+    @if (method_exists($jobs, 'links'))
+        <div style="padding:12px 16px;border-top:1px solid #f0f0f0;">
+            {{ $jobs->links() }}
+        </div>
+    @endif
+</div>
 @endsection

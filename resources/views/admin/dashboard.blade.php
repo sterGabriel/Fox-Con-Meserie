@@ -2,87 +2,102 @@
 
 @section('content')
 @php
-    $diskUsedText = is_numeric($diskUsedPct) ? ($diskUsedPct . '%') : '—';
-    $cpuText = $cpuUsage !== null ? (round($cpuUsage, 1) . '%') : '—';
+    $fmtPct = function ($value): string {
+        if (!is_numeric($value)) return '—';
+        return number_format((float) $value, 1, '.', '') . '%';
+    };
 
-    $ramText = '—';
-    if (is_array($ramUsage) && isset($ramUsage['percent'])) {
-        $ramText = round((float) $ramUsage['percent'], 1) . '%';
-    } elseif (is_numeric($ramUsage)) {
-        $ramText = round((float) $ramUsage, 1) . '%';
+    $diskFreePctText = '—';
+    if (is_array($diskStats) && isset($diskStats['free_pct'])) {
+        $diskFreePctText = $fmtPct($diskStats['free_pct']);
+    } elseif (is_numeric($diskUsedPct)) {
+        $diskFreePctText = $fmtPct(max(0, 100 - (float) $diskUsedPct));
     }
+
+    $cpuText = $cpuUsage !== null ? $fmtPct($cpuUsage) : '—';
+    $ramText = is_numeric($ramUsage) ? $fmtPct($ramUsage) : '—';
 
     $uptimeText = is_string($uptime) ? $uptime : '—';
 
-    $formatUptimeDDHHMM = function (string $raw): string {
+    $uptimeSecondsFromRaw = function (string $raw): ?int {
         $raw = trim($raw);
-        if ($raw === '' || $raw === 'N/A') return '—';
+        if ($raw === '' || $raw === 'N/A') return null;
 
-        $seconds = null;
-
-        // If /proc/uptime style: "12345.67 890.12"
+        // /proc/uptime style: "12345.67 890.12"
         if (preg_match('/^\d+(?:\.\d+)?\s+\d+(?:\.\d+)?$/', $raw)) {
-            $seconds = (int) floor((float) explode(' ', $raw)[0]);
+            return (int) floor((float) explode(' ', $raw)[0]);
         }
 
         // uptime -p style: "up 3 weeks, 2 days, 19 hours, 39 minutes"
-        if ($seconds === null) {
-            $raw2 = preg_replace('/^up\s+/i', '', $raw);
-            $chunks = preg_split('/,\s*/', $raw2);
-            $unitSeconds = [
-                'week' => 604800,
-                'weeks' => 604800,
-                'day' => 86400,
-                'days' => 86400,
-                'hour' => 3600,
-                'hours' => 3600,
-                'minute' => 60,
-                'minutes' => 60,
-            ];
+        $raw2 = preg_replace('/^up\s+/i', '', $raw);
+        $chunks = preg_split('/,\s*/', (string) $raw2);
+        $unitSeconds = [
+            'week' => 604800,
+            'weeks' => 604800,
+            'day' => 86400,
+            'days' => 86400,
+            'hour' => 3600,
+            'hours' => 3600,
+            'minute' => 60,
+            'minutes' => 60,
+        ];
 
-            $acc = 0;
-            $matched = false;
-            foreach ($chunks as $chunk) {
-                if (preg_match('/(\d+)\s+([a-zA-Z]+)/', $chunk, $m)) {
-                    $n = (int) $m[1];
-                    $u = strtolower($m[2]);
-                    if (isset($unitSeconds[$u])) {
-                        $acc += $n * $unitSeconds[$u];
-                        $matched = true;
-                    }
+        $acc = 0;
+        $matched = false;
+        foreach ($chunks as $chunk) {
+            if (preg_match('/(\d+)\s+([a-zA-Z]+)/', (string) $chunk, $m)) {
+                $n = (int) $m[1];
+                $u = strtolower($m[2]);
+                if (isset($unitSeconds[$u])) {
+                    $acc += $n * $unitSeconds[$u];
+                    $matched = true;
                 }
             }
-            if ($matched) {
-                $seconds = $acc;
-            }
         }
 
-        if (!is_int($seconds)) {
-            return '—';
-        }
+        return $matched ? $acc : null;
+    };
 
+    $formatUptimeHuman = function (?int $seconds): string {
+        if (!is_int($seconds) || $seconds < 0) return '—';
         $days = intdiv($seconds, 86400);
         $seconds %= 86400;
         $hours = intdiv($seconds, 3600);
         $seconds %= 3600;
         $minutes = intdiv($seconds, 60);
-
-        return sprintf('%02d:%02d:%02d', $days, $hours, $minutes);
+        if ($days > 0) return $days . ' days ' . $hours . ' hours';
+        if ($hours > 0) return $hours . ' hours ' . $minutes . ' min';
+        return $minutes . ' min';
     };
 
-    $uptimeDDHHMM = is_string($uptimeText) ? $formatUptimeDDHHMM($uptimeText) : '—';
+    $uptimeHuman = $formatUptimeHuman($uptimeSecondsFromRaw((string) $uptimeText));
+
+    $loadText = (is_numeric($load1) && is_numeric($cores))
+        ? number_format((float) $load1, 2, '.', '') . ' / ' . (int) $cores
+        : '—';
+
+    $state = (string) ($systemState ?? 'ok');
+    $stateBadge = match ($state) {
+        'critical' => ['red', 'CRITICAL'],
+        'warning'  => ['yellow', 'WARNING'],
+        default    => ['green', 'OK'],
+    };
 
     $cards = [
-        ['icon' => '📺', 'label' => 'Total Channels',   'value' => $totalChannels,   'variant' => 'blue'],
-        ['icon' => '✅', 'label' => 'Enabled',          'value' => $enabledChannels, 'variant' => 'green'],
-        ['icon' => '▶',  'label' => 'Running',          'value' => $runningChannels, 'variant' => 'green'],
-        ['icon' => '⚠️', 'label' => 'Errors',           'value' => $errorChannels,   'variant' => 'red'],
-        ['icon' => '⏸',  'label' => 'Idle',             'value' => $idleChannels,    'variant' => 'yellow'],
-        ['icon' => '💽', 'label' => 'Disk Used',         'value' => $diskUsedText,    'variant' => 'yellow'],
-        ['icon' => '🧠', 'label' => 'CPU',              'value' => $cpuText,         'variant' => 'blue'],
-        ['icon' => '🧬', 'label' => 'RAM',              'value' => $ramText,         'variant' => 'purple'],
-        ['icon' => '⏱',  'label' => 'Uptime',           'value' => $uptimeDDHHMM,    'variant' => 'blue'],
+        ['label' => 'Total Channels', 'value' => (int) $totalChannels, 'variant' => 'blue'],
+        ['label' => 'Enabled', 'value' => (int) $enabledChannels, 'variant' => 'green'],
+        ['label' => 'Running', 'value' => (int) $runningChannels, 'variant' => 'green'],
+        ['label' => 'Error', 'value' => (int) $errorChannels, 'variant' => 'red'],
+        ['label' => 'Encoding Running', 'value' => (int) ($jobsStats['running'] ?? 0), 'variant' => 'yellow'],
+        ['label' => 'Encoding Queued', 'value' => (int) ($jobsStats['queued'] ?? 0), 'variant' => 'blue'],
+        ['label' => 'Encoding Failed', 'value' => (int) ($jobsStats['failed'] ?? 0), 'variant' => 'red'],
+        ['label' => 'Disk Free', 'value' => $diskFreePctText, 'variant' => 'yellow'],
+        ['label' => 'CPU', 'value' => $cpuText, 'variant' => 'blue', 'subtitle' => $loadText !== '—' ? ('Load/Cores: ' . $loadText) : null],
+        ['label' => 'RAM', 'value' => $ramText, 'variant' => 'purple'],
+        ['label' => 'Uptime', 'value' => $uptimeHuman, 'variant' => 'blue'],
     ];
+
+    $healthRowsSafe = $healthRows ?? [];
 
     $statusBadge = function ($status) {
         $status = (string) ($status ?? 'unknown');
@@ -109,160 +124,285 @@
     $pageNowTs = now()->timestamp;
 @endphp
 
-<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px;">
-    <h1 style="margin:0;font-size:24px;font-weight:800;">Dashboard</h1>
+<style>
+    .dash-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:16px; }
+    .dash-title { margin:0; font-size:24px; font-weight:900; color:var(--text-primary); }
+    .dash-sub { margin-top:6px; font-size:12px; color:var(--text-muted); }
+    .dash-links { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+    .dash-link { display:inline-flex; align-items:center; justify-content:center; padding:10px 12px; border-radius:6px; border:1px solid var(--border-color); background:var(--card-bg); color:var(--text-primary); font-size:12px; font-weight:800; text-decoration:none; }
+    .dash-link.primary { background:var(--fox-blue); border-color:rgba(37,99,235,.35); color:#fff; }
+    .dash-link:hover { filter: brightness(0.98); }
+    .dash-section-title { font-size:12px; font-weight:900; color:#666; letter-spacing:.04em; text-transform:uppercase; }
+</style>
+
+<div class="dash-header">
+    <div>
+        <h1 class="dash-title">Dashboard</h1>
+        <div class="dash-sub">System status: {{ $systemSummaryText ?? '' }}</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        @php
+            [$stateColor, $stateText] = $stateBadge;
+        @endphp
+        <span class="fox-badge {{ $stateColor }}">{{ $stateText }}</span>
+        <div class="dash-links">
+            @foreach(($quickLinks ?? []) as $l)
+                <a class="dash-link" href="{{ $l['url'] }}">{{ $l['label'] }}</a>
+            @endforeach
+        </div>
+    </div>
 </div>
 
-{{-- Alerts summary --}}
-<div class="fox-table-container" style="padding:16px;margin-bottom:16px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-        <div style="font-size:12px;font-weight:800;color:#666;letter-spacing:.04em;text-transform:uppercase;">Alerts</div>
+{{-- Health Summary --}}
+<div class="fox-table-container" style="margin-bottom:16px;">
+    <div style="padding:14px 16px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div class="dash-section-title">Health Summary</div>
         <div style="display:flex;gap:8px;align-items:center;">
-            <span class="fox-badge red">CRITICAL: {{ count($alertSummary['critical'] ?? []) }}</span>
-            <span class="fox-badge yellow">WARNING: {{ count($alertSummary['warning'] ?? []) }}</span>
+            <span class="fox-badge red">Critical: {{ count($alertSummary['critical'] ?? []) }}</span>
+            <span class="fox-badge yellow">Warning: {{ count($alertSummary['warning'] ?? []) }}</span>
             <span class="fox-badge green">OK: {{ (int)($alertSummary['ok'] ?? 0) }}</span>
         </div>
     </div>
 
-    @php
-        $criticalList = $alertSummary['critical'] ?? [];
-        $warningList = $alertSummary['warning'] ?? [];
-    @endphp
-
-    @if(count($criticalList) === 0 && count($warningList) === 0)
-        <div style="margin-top:10px;font-size:13px;color:#16a34a;font-weight:600;">All systems OK.</div>
-    @else
-        <ul style="margin:10px 0 0 0;padding-left:18px;font-size:13px;color:#333;">
-            @foreach($criticalList as $item)
-                <li><span style="color:#dc2626;font-weight:700;">CRITICAL</span> — {{ $item }}</li>
-            @endforeach
-            @foreach($warningList as $item)
-                <li><span style="color:#d97706;font-weight:700;">WARNING</span> — {{ $item }}</li>
-            @endforeach
-        </ul>
-    @endif
+    <div style="overflow:auto;">
+        <table class="fox-table">
+            <thead>
+            <tr>
+                <th style="width:120px;">Severity</th>
+                <th>Issue</th>
+                <th>Impact</th>
+                <th style="width:180px;">Action</th>
+            </tr>
+            </thead>
+            <tbody>
+            @forelse($healthRowsSafe as $row)
+                @php
+                    $sev = (string) ($row['severity'] ?? 'warning');
+                    $sevBadge = match ($sev) {
+                        'critical' => ['red', 'CRITICAL'],
+                        'warning'  => ['yellow', 'WARNING'],
+                        default    => ['blue', strtoupper($sev)],
+                    };
+                @endphp
+                <tr>
+                    <td><span class="fox-badge {{ $sevBadge[0] }}">{{ $sevBadge[1] }}</span></td>
+                    <td style="font-weight:700;">{{ $row['issue'] ?? '' }}</td>
+                    <td style="color:#555;">{{ $row['impact'] ?? '' }}</td>
+                    <td>
+                        @if(!empty($row['action_url']))
+                            <a class="dash-link primary" style="padding:8px 10px;" href="{{ $row['action_url'] }}">{{ $row['action_label'] ?? 'Open' }}</a>
+                        @else
+                            <span style="color:#999;">—</span>
+                        @endif
+                    </td>
+                </tr>
+            @empty
+                <tr>
+                    <td colspan="4" style="padding:18px;color:#999;text-align:center;">All systems OK.</td>
+                </tr>
+            @endforelse
+            </tbody>
+        </table>
+    </div>
 </div>
 
-{{-- Metrics --}}
-<div class="fox-cards-grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));align-items:stretch;">
+{{-- KPIs --}}
+<div class="fox-cards-grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));align-items:stretch;">
     @foreach($cards as $card)
-        <div class="fox-card {{ $card['variant'] }}" style="min-height:120px;">
-            <div class="fox-card-icon">{{ $card['icon'] }}</div>
+        <div class="fox-card {{ $card['variant'] }}" style="min-height:110px;">
             <div class="fox-card-label">{{ $card['label'] }}</div>
             <div class="fox-card-value">{{ $card['value'] }}</div>
+            @if(!empty($card['subtitle']))
+                <div class="fox-card-subtitle">{{ $card['subtitle'] }}</div>
+            @endif
         </div>
     @endforeach
 </div>
 
-{{-- Playlists --}}
+{{-- Action Center + Integrations --}}
 @php
-  $masterM3uUrl = url('/streams/all.m3u8');
+    $masterM3uUrl = url('/streams/all.m3u8');
+    $actionChannels = collect($recentChannels ?? [])->take(3);
 @endphp
 
-<div class="fox-table-container" style="padding:16px;margin-top:16px;">
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-    <div style="font-size:12px;font-weight:800;color:#666;letter-spacing:.04em;text-transform:uppercase;">Playlists</div>
-    <a href="{{ $masterM3uUrl }}" style="display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;background:#2563eb;color:#fff;font-size:12px;font-weight:800;text-decoration:none;">⬇ Download M3U</a>
-  </div>
-  <div style="margin-top:10px;font-size:12px;color:#666;word-break:break-all;">
-    URL: <span style="font-weight:700;color:#111;">{{ $masterM3uUrl }}</span>
-  </div>
-</div>
-
-{{-- Recent channels --}}
-<div class="fox-table-container" style="margin-top:16px;">
-    <div style="padding:14px 16px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between;gap:12px;">
-        <div style="font-size:12px;font-weight:800;color:#666;letter-spacing:.04em;text-transform:uppercase;">Recent Channels</div>
-        <a href="{{ route('vod-channels.index') }}" style="font-size:12px;font-weight:700;color:#2563eb;text-decoration:none;">View all</a>
-    </div>
-
-    <div style="padding:16px;">
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;">
-            @forelse($recentChannels as $ch)
+<div style="display:grid;grid-template-columns:1.2fr .8fr;gap:16px;align-items:start;">
+    <div class="fox-table-container">
+        <div style="padding:14px 16px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div class="dash-section-title">Action Center</div>
+            <a class="dash-link" style="padding:8px 10px;" href="{{ route('vod-channels.index') }}">View all channels</a>
+        </div>
+        <div style="padding:16px;display:flex;flex-direction:column;gap:12px;">
+            @forelse($actionChannels as $ch)
                 @php
                     [$badgeColor, $badgeText] = $statusBadge($ch->status);
-                    $isRunning = in_array((string) ($ch->status ?? ''), ['running', 'live'], true);
-
-                    $startedAtTs = null;
-                    $onlineSeconds = null;
-                    if ($isRunning && !empty($ch->started_at)) {
-                        try {
-                            $startedAtTs = \Carbon\Carbon::parse($ch->started_at)->timestamp;
-                            $onlineSeconds = max(0, $pageNowTs - $startedAtTs);
-                        } catch (\Throwable $e) {
-                            $startedAtTs = null;
-                            $onlineSeconds = null;
-                        }
-                    }
-
-                    $playlistCount = (int) ($ch->playlist_items_count ?? 0);
                     $streamUrl = $streamBase . "/streams/{$ch->id}/hls/stream.m3u8";
-                    $hasOutputs = !empty($ch->encoded_output_path) && !empty($ch->hls_output_path);
                 @endphp
-
-                <div style="background:#fff;border:1px solid #eee;border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px;">
-                    <div style="display:flex;align-items:center;gap:12px;">
-                        <div style="width:44px;height:44px;border-radius:12px;background:#f3f4f6;display:flex;align-items:center;justify-content:center;overflow:hidden;flex:0 0 auto;">
-                            @if(!empty($ch->logo_path))
-                                <img src="{{ route('vod-channels.logo.preview', $ch) }}?v={{ urlencode((string) optional($ch->updated_at)->timestamp) }}" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'" />
-                            @else
-                                <span style="font-size:18px;opacity:.55;">📺</span>
-                            @endif
+                <div style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                    <div style="min-width:0;">
+                        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                            <div style="font-weight:900;max-width:360px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $ch->name }}</div>
+                            <span class="fox-badge {{ $badgeColor }}">{{ $badgeText }}</span>
+                            <span class="fox-badge blue">ID: {{ $ch->id }}</span>
                         </div>
-
-                        <div style="min-width:0;flex:1;">
-                            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
-                                <div style="font-weight:900;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $ch->name }}</div>
-                                <span class="fox-badge {{ $badgeColor }}" style="flex:0 0 auto;">{{ $badgeText }}</span>
-                            </div>
-                            <div style="margin-top:4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                                <span class="fox-badge blue">ID: {{ $ch->id }}</span>
-                                @if((int) $ch->enabled === 1)
-                                    <span class="fox-badge green">ENABLED</span>
-                                @else
-                                    <span class="fox-badge red">DISABLED</span>
-                                @endif
-                                @if($hasOutputs)
-                                    <span class="fox-badge green">OUTPUT OK</span>
-                                @else
-                                    <span class="fox-badge yellow">OUTPUT?</span>
-                                @endif
-                            </div>
-                        </div>
+                        <div style="margin-top:6px;font-size:12px;color:#666;word-break:break-all;">{{ $streamUrl }}</div>
                     </div>
-
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-                        <div style="background:#f9fafb;border:1px solid #f0f0f0;border-radius:12px;padding:10px;">
-                            <div style="font-size:11px;font-weight:900;color:#6b7280;letter-spacing:.04em;text-transform:uppercase;">Online For</div>
-                            <div style="margin-top:4px;font-size:13px;font-weight:900;color:#111;">
-                                @if($startedAtTs !== null)
-                                    <span class="js-online-hhmm" data-started-at="{{ $startedAtTs }}">{{ $formatHHMM($onlineSeconds) }}</span>
-                                @else
-                                    —
-                                @endif
-                            </div>
-                        </div>
-                        <div style="background:#f9fafb;border:1px solid #f0f0f0;border-radius:12px;padding:10px;">
-                            <div style="font-size:11px;font-weight:900;color:#6b7280;letter-spacing:.04em;text-transform:uppercase;">Playlist Items</div>
-                            <div style="margin-top:4px;font-size:13px;font-weight:900;color:#111;">{{ $playlistCount }}</div>
-                        </div>
-                    </div>
-
-                    <div style="background:#f9fafb;border:1px solid #f0f0f0;border-radius:12px;padding:10px;">
-                        <div style="font-size:11px;font-weight:900;color:#6b7280;letter-spacing:.04em;text-transform:uppercase;">Stream URL (HLS)</div>
-                        <div style="margin-top:4px;font-size:12px;color:#111;word-break:break-all;">{{ $streamUrl }}</div>
-                    </div>
-
-                    <div style="display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;">
-                        <button type="button" data-copy-text="{{ $streamUrl }}" onclick="copyTextFromButton(this)" style="display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;background:#fff;color:#111;border:1px solid #e5e7eb;font-size:12px;font-weight:800;">📋 Copy Playlist</button>
-                                                <a href="{{ $streamUrl }}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;background:#2563eb;color:#fff;font-size:12px;font-weight:800;text-decoration:none;">▶ Open Stream</a>
-                                                <a href="{{ route('vod-channels.playlist', $ch) }}" style="display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;background:#111;color:#fff;font-size:12px;font-weight:800;text-decoration:none;">▶ Playlist</a>
-                                                <a href="{{ route('vod-channels.settings', $ch) }}" style="display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;background:#fff;color:#111;border:1px solid #e5e7eb;font-size:12px;font-weight:800;text-decoration:none;">⚙ Settings</a>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+                        <a class="dash-link" style="padding:8px 10px;" href="{{ $streamUrl }}" target="_blank" rel="noopener">Open Stream</a>
+                        <a class="dash-link" style="padding:8px 10px;" href="{{ route('vod-channels.playlist', $ch) }}">Playlist</a>
+                        <a class="dash-link" style="padding:8px 10px;" href="{{ route('vod-channels.settings', $ch) }}">Settings</a>
                     </div>
                 </div>
             @empty
-                <div style="color:#666;">No channels found.</div>
+                <div style="color:#999;">No channels found.</div>
             @endforelse
+        </div>
+    </div>
+
+    <div class="fox-table-container">
+        <div style="padding:14px 16px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div class="dash-section-title">Integrations</div>
+        </div>
+        <div style="padding:16px;display:flex;flex-direction:column;gap:10px;">
+            <div style="font-size:12px;color:#666;word-break:break-all;">
+                Master M3U: <span style="font-weight:700;color:#111;">{{ $masterM3uUrl }}</span>
+            </div>
+            <a class="dash-link primary" href="{{ $masterM3uUrl }}">Download Master M3U</a>
+        </div>
+    </div>
+</div>
+
+{{-- Operational Tables --}}
+<div style="display:grid;grid-template-columns:1fr;gap:16px;margin-top:16px;">
+    <div class="fox-table-container">
+        <div style="padding:14px 16px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div class="dash-section-title">Channels Needing Attention</div>
+            <a class="dash-link" style="padding:8px 10px;" href="{{ route('vod-channels.index', ['filter' => 'attention']) }}">Open list</a>
+        </div>
+        <div style="overflow:auto;">
+            <table class="fox-table">
+                <thead>
+                <tr>
+                    <th>Channel</th>
+                    <th style="width:140px;">Status</th>
+                    <th>Issues</th>
+                    <th style="width:160px;">Action</th>
+                </tr>
+                </thead>
+                <tbody>
+                @forelse(($channelsNeedingAttention ?? []) as $ch)
+                    @php
+                        [$badgeColor, $badgeText] = $statusBadge($ch->status);
+                        $issues = [];
+                        if ((int) ($ch->enabled ?? 0) !== 1) $issues[] = 'DISABLED';
+                        $hasOutputs = !empty($ch->encoded_output_path) && !empty($ch->hls_output_path);
+                        if (!$hasOutputs) $issues[] = 'MISSING OUTPUTS';
+                        if (empty($ch->logo_path)) $issues[] = 'MISSING LOGO';
+                    @endphp
+                    <tr>
+                        <td style="font-weight:800;">{{ $ch->name }}</td>
+                        <td><span class="fox-badge {{ $badgeColor }}">{{ $badgeText }}</span></td>
+                        <td>
+                            @if(empty($issues))
+                                <span style="color:#999;">—</span>
+                            @else
+                                @foreach($issues as $i)
+                                    <span class="fox-badge yellow">{{ $i }}</span>
+                                @endforeach
+                            @endif
+                        </td>
+                        <td>
+                            <a class="dash-link" style="padding:8px 10px;" href="{{ route('vod-channels.settings', $ch) }}">Open Settings</a>
+                        </td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="4" style="padding:18px;color:#999;text-align:center;">No channels need attention.</td>
+                    </tr>
+                @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="fox-table-container">
+        <div style="padding:14px 16px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div class="dash-section-title">Now Encoding</div>
+            <a class="dash-link" style="padding:8px 10px;" href="{{ route('encoding-jobs.index', ['status' => 'running,processing']) }}">Open queue</a>
+        </div>
+        <div style="overflow:auto;">
+            <table class="fox-table">
+                <thead>
+                <tr>
+                    <th style="width:80px;">Job</th>
+                    <th>Channel</th>
+                    <th>Video</th>
+                    <th style="width:120px;">Status</th>
+                    <th style="width:110px;">Progress</th>
+                    <th style="width:200px;">Updated</th>
+                </tr>
+                </thead>
+                <tbody>
+                @forelse(($nowEncodingJobs ?? []) as $j)
+                    <tr>
+                        <td style="font-variant-numeric:tabular-nums;">#{{ $j->id }}</td>
+                        <td>
+                            @if($j->channel)
+                                <a href="{{ route('vod-channels.encoding-now', $j->channel) }}" style="color:var(--fox-blue);text-decoration:none;font-weight:700;">{{ $j->channel->name }}</a>
+                            @else
+                                <span style="color:#999;">—</span>
+                            @endif
+                        </td>
+                        <td>{{ $j->video?->title ?? '—' }}</td>
+                        <td><span class="fox-badge yellow">{{ strtoupper((string) $j->status) }}</span></td>
+                        <td style="font-variant-numeric:tabular-nums;">{{ (int) ($j->progress ?? 0) }}%</td>
+                        <td style="font-variant-numeric:tabular-nums;">{{ $j->updated_at ?? '—' }}</td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="6" style="padding:18px;color:#999;text-align:center;">No encoding is currently running.</td>
+                    </tr>
+                @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="fox-table-container">
+        <div style="padding:14px 16px;border-bottom:1px solid #f0e0f0;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div class="dash-section-title">Recently Changed</div>
+            <a class="dash-link" style="padding:8px 10px;" href="{{ route('vod-channels.index') }}">Open channels</a>
+        </div>
+        <div style="overflow:auto;">
+            <table class="fox-table">
+                <thead>
+                <tr>
+                    <th>Channel</th>
+                    <th style="width:140px;">Status</th>
+                    <th style="width:220px;">Updated</th>
+                    <th style="width:220px;">Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                @forelse(($recentChannels ?? []) as $ch)
+                    @php
+                        [$badgeColor, $badgeText] = $statusBadge($ch->status);
+                    @endphp
+                    <tr>
+                        <td style="font-weight:800;">{{ $ch->name }}</td>
+                        <td><span class="fox-badge {{ $badgeColor }}">{{ $badgeText }}</span></td>
+                        <td style="font-variant-numeric:tabular-nums;">{{ $ch->updated_at }}</td>
+                        <td>
+                            <a class="dash-link" style="padding:8px 10px;" href="{{ route('vod-channels.playlist', $ch) }}">Playlist</a>
+                            <a class="dash-link" style="padding:8px 10px;" href="{{ route('vod-channels.settings', $ch) }}">Settings</a>
+                        </td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="4" style="padding:18px;color:#999;text-align:center;">No channels found.</td>
+                    </tr>
+                @endforelse
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
@@ -301,7 +441,7 @@
         const text = btn?.getAttribute('data-copy-text') || '';
         const original = btn.textContent;
         const ok = await copyToClipboard(text);
-        btn.textContent = ok ? '✓ Copied' : 'Copy failed';
+        btn.textContent = ok ? 'Copied' : 'Copy failed';
         setTimeout(() => { btn.textContent = original; }, 1200);
     }
 

@@ -14,14 +14,24 @@ class EncodingJobController extends Controller
     /**
      * Listă joburi de encodare.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $jobs = EncodingJob::with(['channel', 'video'])
-            ->orderByDesc('created_at')
-            ->paginate(50);
+        $query = EncodingJob::with(['channel', 'video'])
+            ->orderByDesc('created_at');
+
+        $statusParam = (string) $request->query('status', '');
+        if ($statusParam !== '') {
+            $statuses = array_values(array_filter(array_map('trim', explode(',', $statusParam)), fn ($v) => $v !== ''));
+            if (!empty($statuses)) {
+                $query->whereIn('status', $statuses);
+            }
+        }
+
+        $jobs = $query->paginate(50)->withQueryString();
 
         return view('admin.encoding_jobs.index', [
             'jobs' => $jobs,
+            'statusFilter' => $statusParam,
         ]);
     }
 
