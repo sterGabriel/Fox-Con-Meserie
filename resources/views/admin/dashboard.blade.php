@@ -225,12 +225,16 @@
     $actionChannels = collect($recentChannels ?? [])->take(3);
 @endphp
 
-<div style="display:grid;grid-template-columns:1.2fr .8fr;gap:16px;align-items:start;">
-    <div class="fox-table-container">
-        <div style="padding:14px 16px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between;gap:12px;">
-            <div class="dash-section-title">Action Center</div>
+<div class="fox-table-container">
+    <div style="padding:14px 16px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div class="dash-section-title">Action Center</div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
             <a class="dash-link" style="padding:8px 10px;" href="{{ route('vod-channels.index') }}">View all channels</a>
+            <a class="dash-link primary" style="padding:8px 10px;" href="{{ $masterM3uUrl }}">Download Master M3U</a>
         </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1.25fr .75fr;gap:0;align-items:stretch;">
         <div style="padding:16px;display:flex;flex-direction:column;gap:12px;">
             @forelse($actionChannels as $ch)
                 @php
@@ -238,15 +242,13 @@
                     $streamUrl = $streamBase . "/streams/{$ch->id}/hls/stream.m3u8";
                 @endphp
                 <div style="border:1px solid var(--border-color);background:var(--card-bg);border-radius:6px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
-                    <div style="min-width:0;">
-                        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                            <div style="font-weight:900;max-width:360px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $ch->name }}</div>
-                            <span class="fox-badge {{ $badgeColor }}">{{ $badgeText }}</span>
-                            <span class="fox-badge blue">ID: {{ $ch->id }}</span>
-                        </div>
-                        <div style="margin-top:6px;font-size:12px;color:#666;word-break:break-all;">{{ $streamUrl }}</div>
+                    <div style="min-width:0;flex:1;display:flex;align-items:center;gap:10px;">
+                        <div style="font-weight:900;max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $ch->name }}</div>
+                        <span class="fox-badge {{ $badgeColor }}">{{ $badgeText }}</span>
+                        <span class="fox-badge blue">ID: {{ $ch->id }}</span>
+                        <div style="min-width:0;flex:1;font-size:12px;color:#666;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $streamUrl }}</div>
                     </div>
-                    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;flex-shrink:0;">
                         <a class="dash-link" style="padding:8px 10px;" href="{{ $streamUrl }}" target="_blank" rel="noopener">Open Stream</a>
                         <a class="dash-link" style="padding:8px 10px;" href="{{ route('vod-channels.playlist', $ch) }}">Playlist</a>
                         <a class="dash-link" style="padding:8px 10px;" href="{{ route('vod-channels.settings', $ch) }}">Settings</a>
@@ -256,17 +258,12 @@
                 <div style="color:#999;">No channels found.</div>
             @endforelse
         </div>
-    </div>
 
-    <div class="fox-table-container">
-        <div style="padding:14px 16px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between;gap:12px;">
-            <div class="dash-section-title">Integrations</div>
-        </div>
-        <div style="padding:16px;display:flex;flex-direction:column;gap:10px;">
+        <div style="padding:16px;border-left:1px solid var(--border-color);display:flex;flex-direction:column;gap:10px;">
+            <div class="dash-section-title" style="margin:0;">Integrations</div>
             <div style="font-size:12px;color:#666;word-break:break-all;">
                 Master M3U: <span style="font-weight:700;color:#111;">{{ $masterM3uUrl }}</span>
             </div>
-            <a class="dash-link primary" href="{{ $masterM3uUrl }}">Download Master M3U</a>
         </div>
     </div>
 </div>
