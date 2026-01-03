@@ -2,11 +2,6 @@
 
 @section('content')
 <style>
-  /* Full width: hide left sidebar */
-  body > div > aside { display: none !important; }
-  body > div > main { flex: 1 1 100% !important; }
-  .animate-slideIn { max-width: 100% !important; margin: 0 !important; }
-
   .page-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:16px; }
   .page-title { font-size:22px; font-weight:900; color:var(--text-primary); margin:0; }
   .page-subtitle { font-size:12px; color:var(--text-muted); margin-top:6px; }

@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Force preserve enterprise classes */
+@layer components {
+
+    /* Dummy rules to force Tailwind to keep patterns */
+    .g-preserve,
+    .fox-preserve {
+        @apply block;
+    }
+}
+
 /* === Grafana-like theme tokens === */
 :root {
     --g-bg: #0b1220;

@@ -9,6 +9,12 @@ export default {
         './resources/views/**/*.blade.php',
     ],
 
+    safelist: [
+        {
+            pattern: /^(g|fox)-/,
+        },
+    ],
+
     theme: {
         extend: {
             fontFamily: {

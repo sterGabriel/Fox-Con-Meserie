@@ -1,180 +1,151 @@
 @extends('layouts.panel')
 
-@section('full_width')
-@endsection
+@section('full_width', true)
 
 @section('content')
 
-<div style="padding: 24px;">
-
 <style>
-html, body { overflow-x: hidden; }
+/* Clean modern styles */
 * { box-sizing: border-box; }
 
-.page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; gap: 16px; }
-.page-title { font-size: 28px; font-weight: 800; margin: 0; color: #1a1a1a; }
-.server-highlight { color: #f1c40f; font-weight: 900; }
-.page-subtitle { font-size: 13px; color: #6b7280; margin: 6px 0 0; }
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; }
+.page-title { font-size: 28px; font-weight: 800; margin: 0; color: #111827; }
+.server-highlight { color: #dc2626; font-weight: 900; }
 
-.btn-new { background: var(--fox-blue); color: #fff; border: 0; padding: 10px 16px; border-radius: 8px; font-weight: 700; cursor: pointer; }
-.btn-new:hover { filter: brightness(0.95); }
+.btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; border: 0; padding: 12px 24px; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 14px; box-shadow: 0 4px 12px rgba(102,126,234,0.3); transition: transform 0.2s; }
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(102,126,234,0.4); }
 
-/* KPI Grid */
-.kpi-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-bottom: 24px; }
-@media (max-width: 1200px) { .kpi-grid { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 720px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+/* KPI Grid - 2 rows x 3 cols */
+.kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 28px; }
+.kpi-card { background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%); border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,.04); border: 1px solid #e5e7eb; position: relative; overflow: hidden; }
+.kpi-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: linear-gradient(180deg, #667eea 0%, #764ba2 100%); }
+.kpi-title { font-size: 11px; color: #6b7280; text-transform: uppercase; font-weight: 700; letter-spacing: 0.8px; margin-bottom: 10px; padding-left: 12px; }
+.kpi-value { font-size: 32px; font-weight: 900; color: #111827; padding-left: 12px; }
 
-.kpi-card { background: #fff; border-radius: 12px; padding: 18px; box-shadow: 0 2px 8px rgba(0,0,0,.06); position: relative; }
-.kpi-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: #2563eb; border-radius: 12px 0 0 12px; }
-.kpi-title { font-size: 12px; color: #6b7280; text-transform: uppercase; font-weight: 700; letter-spacing: 0.4px; margin-bottom: 8px; }
-.kpi-value { font-size: 24px; font-weight: 800; color: #1a1a1a; }
-
-/* Card */
-.card { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.06); padding: 18px; margin-bottom: 16px; }
-
-/* Server dropdown */
-.server-bar { background: #fbf8e9; }
-.field-label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; color: rgba(0,0,0,.55); margin-bottom: 8px; letter-spacing: 0.4px; }
-.input-field { width: 100%; padding: 10px 12px; border: 1px solid rgba(0,0,0,.15); border-radius: 8px; font-size: 14px; }
-.input-field:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
-
-/* Toolbar */
-.toolbar { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
-.btn-toolbar { border: 0; padding: 10px 14px; border-radius: 8px; font-weight: 700; color: #fff; cursor: pointer; font-size: 14px; }
-.btn-stop { background: var(--btn-stop); }
-.btn-start { background: var(--btn-start); }
-.btn-epg { background: var(--btn-epg); }
-.btn-fast { background: var(--btn-stop); }
-.btn-msg { background: var(--btn-msg); }
-
-/* Warning */
-.warning { background: #3f4a58; color: #fff; border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; position: relative; }
-.warning::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: #f1c40f; border-radius: 8px 0 0 8px; }
-.warning-hl { color: #f1c40f; font-weight: 900; }
+/* Table card */
+.table-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.06); padding: 24px; overflow: hidden; }
 
 /* Table controls */
-.table-controls { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 16px; }
-.left-controls { display: flex; align-items: center; gap: 10px; }
-.right-controls { display: flex; justify-content: flex-end; }
-.muted { color: rgba(0,0,0,.5); font-size: 13px; }
-.input-search { width: 280px; }
+.table-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 16px; flex-wrap: wrap; }
+.input-field { padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px; outline: none; transition: all 0.2s; }
+.input-field:focus { border-color: #667eea; box-shadow: 0 0 0 3px rgba(102,126,234,.1); }
+.input-search { width: 300px; }
 
 /* Table */
-.table-fox { width: 100%; border-collapse: collapse; }
-.table-fox thead { background: #f3f4f6; }
-.table-fox th { font-weight: 700; text-transform: uppercase; font-size: 12px; padding: 14px 12px; text-align: left; letter-spacing: 0.4px; color: #1a1a1a; border-bottom: 1px solid #e5e7eb; }
-.table-fox td { padding: 14px 12px; border-bottom: 1px solid #f3f4f6; }
+.table-wrapper { overflow-x: auto; border-radius: 8px; border: 1px solid #e5e7eb; }
+.table-fox { width: 100%; border-collapse: collapse; min-width: 1200px; }
+.table-fox thead { background: linear-gradient(180deg, #f9fafb 0%, #f3f4f6 100%); }
+.table-fox th { font-weight: 700; text-transform: uppercase; font-size: 11px; padding: 16px 12px; text-align: left; letter-spacing: 0.6px; color: #374151; border-bottom: 2px solid #e5e7eb; white-space: nowrap; }
+.table-fox td { padding: 14px 12px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
+.table-fox tbody tr { transition: background 0.15s; }
 .table-fox tbody tr:hover { background: #f9fafb; }
 
-.name-cell { font-weight: 700; }
+.channel-name-wrap { display: flex; align-items: center; gap: 12px; min-width: 200px; }
+.channel-logo-box { width: 64px; height: 36px; border-radius: 6px; border: 1px solid #e5e7eb; background: #f9fafb; flex: 0 0 auto; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.channel-logo-box img { width: 100%; height: 100%; object-fit: contain; }
+.channel-name { font-weight: 600; color: #111827; font-size: 14px; }
 
-.channel-name-wrap { display: flex; align-items: center; gap: 10px; min-width: 220px; }
-.channel-logo-box { width: 64px; height: 36px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--border-light); flex: 0 0 auto; overflow: hidden; }
-.channel-logo-box img { width: 100%; height: 100%; object-fit: contain; object-position: center; display: block; }
+.pill { display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 10px; border-radius: 6px; font-weight: 600; font-size: 12px; white-space: nowrap; }
+.pill-blue { background: #dbeafe; color: #1e40af; }
+.pill-pink { background: #fce7f3; color: #be185d; }
+.pill-yellow { background: #fef3c7; color: #92400e; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+.pill-gray { background: #f3f4f6; color: #374151; }
+.pill-green { background: #d1fae5; color: #065f46; }
 
-.pill { display: inline-flex; align-items: center; justify-content: center; height: 22px; padding: 0 8px; border-radius: 999px; font-weight: 700; font-size: 12px; border: 1px solid; }
-.pill-blue { background: #dbeafe; color: #1e40af; border-color: #bfdbfe; }
-.pill-pink { background: #fce7f3; color: #be185d; border-color: #fbcfe8; }
-.pill-yellow { background: #fef3c7; color: #7c2d12; border-color: #fcd34d; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pill-gray { background: #f3f4f6; color: #374151; border-color: #d1d5db; }
+.pill-row { display: flex; gap: 6px; flex-wrap: wrap; }
 
-.pill-row { display: flex; gap: 6px; }
+.status-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+.dot-active { background: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,.2); }
+.dot-inactive { background: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,.2); }
 
-.status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-.dot-active { background: #16a34a; box-shadow: 0 0 0 3px rgba(22,163,74,.2); }
-.dot-inactive { background: #dc2626; box-shadow: 0 0 0 3px rgba(220,38,38,.2); }
+.mono { font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums; color: #6b7280; font-size: 13px; }
 
-.epg-badge { display: inline-flex; align-items: center; justify-content: center; height: 22px; padding: 0 10px; border-radius: 999px; font-weight: 700; font-size: 12px; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+/* Action buttons */
+.actions-row { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+.action-btn { width: 34px; height: 34px; border: 0; border-radius: 8px; cursor: pointer; font-size: 16px; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s; font-weight: 600; }
+.action-btn:hover { transform: translateY(-2px); }
+.btn-start { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: #fff; box-shadow: 0 2px 8px rgba(17,153,142,0.3); }
+.btn-start:hover { box-shadow: 0 4px 12px rgba(17,153,142,0.4); }
+.btn-stop { background: linear-gradient(135deg, #fc4a1a 0%, #f7b733 100%); color: #fff; box-shadow: 0 2px 8px rgba(252,74,26,0.3); }
+.btn-stop:hover { box-shadow: 0 4px 12px rgba(252,74,26,0.4); }
+.btn-edit { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; box-shadow: 0 2px 8px rgba(102,126,234,0.3); }
+.btn-edit:hover { box-shadow: 0 4px 12px rgba(102,126,234,0.4); }
+.btn-settings { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: #fff; box-shadow: 0 2px 8px rgba(240,147,251,0.3); }
+.btn-settings:hover { box-shadow: 0 4px 12px rgba(240,147,251,0.4); }
+.btn-delete { background: linear-gradient(135deg, #434343 0%, #000000 100%); color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+.btn-delete:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
 
-.mono { font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums; }
-
-/* Actions */
-.actions-row { display: flex; gap: 6px; justify-content: flex-end; }
-
-/* Dropdown (FOX) */
-.dropdown-item-btn { width: 100%; text-align: left; padding: 10px 14px; border: 0; background: #fff; cursor: pointer; font-weight: 500; font-size: 12px; color: #666; border-bottom: 1px solid var(--border-light); }
-.dropdown-item-btn:last-child { border-bottom: 0; }
-.dropdown-item-btn:hover { background: #f8f8f8; color: var(--fox-red); }
+/* Dropdown */
+.fox-dropdown { position: relative; display: inline-block; }
+.fox-dropdown-btn { background: #f3f4f6; border: 1px solid #e5e7eb; padding: 8px 14px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; color: #374151; transition: all 0.2s; }
+.fox-dropdown-btn:hover { background: #e5e7eb; }
+.fox-dropdown-menu { position: absolute; top: 100%; right: 0; margin-top: 6px; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.12); min-width: 200px; z-index: 100; opacity: 0; visibility: hidden; transform: translateY(-10px); transition: all 0.2s; }
+.fox-dropdown-menu.is-open { opacity: 1; visibility: visible; transform: translateY(0); }
+.dropdown-item-btn { width: 100%; text-align: left; padding: 12px 16px; border: 0; background: #fff; cursor: pointer; font-weight: 500; font-size: 13px; color: #374151; border-bottom: 1px solid #f3f4f6; transition: all 0.15s; }
+.dropdown-item-btn:first-child { border-radius: 10px 10px 0 0; }
+.dropdown-item-btn:last-child { border-bottom: 0; border-radius: 0 0 10px 10px; }
+.dropdown-item-btn:hover { background: #f9fafb; color: #667eea; padding-left: 20px; }
 </style>
+
+<div style="padding: 28px; background: #f9fafb; min-height: 100vh;">
 
 <!-- PAGE HEADER -->
 <div class="page-header">
   <div>
-
+    <h1 class="page-title">VOD Channels <span class="server-highlight">[Server 1]</span></h1>
+    <p style="font-size: 14px; color: #6b7280; margin: 6px 0 0;">Manage all your streaming channels</p>
   </div>
-    <h1 class="page-title">
-      Vod Channels <span class="server-highlight">[Server 1]</span>
-    </h1>
-    <p class="page-subtitle">Manage all your streaming channels</p>
-  </div>
-  <button class="btn-new" onclick="location.href='{{ route('vod-channels.create-new') }}'">+ New Channel</button>
+  <button class="btn-primary" onclick="location.href='{{ route('vod-channels.create-new') }}'">+ New Channel</button>
 </div>
 
-<!-- KPI STATS (6 cards) -->
+<!-- KPI STATS -->
 <div class="kpi-grid">
   <div class="kpi-card">
-    <div class="kpi-title">Total Channels</div>
+    <div class="kpi-title">📺 Total Channels</div>
     <div class="kpi-value">{{ $totalChannels ?? 0 }}</div>
   </div>
   <div class="kpi-card">
-    <div class="kpi-title">Active Channels</div>
+    <div class="kpi-title">✅ Active Channels</div>
     <div class="kpi-value">{{ $enabledChannels ?? 0 }}</div>
   </div>
   <div class="kpi-card">
-    <div class="kpi-title">Passive Channels</div>
+    <div class="kpi-title">⏸ Passive Channels</div>
     <div class="kpi-value">{{ ($totalChannels ?? 0) - ($enabledChannels ?? 0) }}</div>
   </div>
   <div class="kpi-card">
-    <div class="kpi-title">Total Video</div>
+    <div class="kpi-title">🎬 Total Video</div>
     <div class="kpi-value">{{ $totalVideos ?? 0 }}</div>
   </div>
   <div class="kpi-card">
-    <div class="kpi-title">Total Space</div>
+    <div class="kpi-title">💾 Total Space</div>
     <div class="kpi-value">{{ $diskStats['total_gb'] ?? 0 }} TB</div>
   </div>
   <div class="kpi-card">
-    <div class="kpi-title">Free Space</div>
+    <div class="kpi-title">📊 Free Space</div>
     <div class="kpi-value">{{ $diskStats['free_gb'] ?? 0 }} TB</div>
   </div>
 </div>
 
-<!-- SERVER DROPDOWN -->
-<div class="card server-bar">
-  <label class="field-label" for="serverSelect">Server</label>
-  <select id="serverSelect" class="input-field">
-    <option value="1">Server 1</option>
-  </select>
-</div>
-
-<!-- MAIN CARD -->
-<div class="card">
-
-  <!-- TOOLBAR -->
-  <div class="toolbar">
-    <button type="button" class="btn-toolbar btn-stop" onclick="handleAction('stop-all')" title="Stop ALL channels (bulk action on this server). Not wired on this page yet.">Stop</button>
-    <button type="button" class="btn-toolbar btn-start" onclick="handleAction('start-all')" title="Start ALL channels (bulk action on this server). Not wired on this page yet.">Start</button>
-    <button type="button" class="btn-toolbar btn-epg" onclick="handleAction('channels-epg')" title="Open Channels EPG (Electronic Program Guide). Not wired on this page yet.">Channels Epg</button>
-    <button type="button" class="btn-toolbar btn-fast" onclick="handleAction('fast-channel')" title="Fast Channel (quick-start/fast mode). Not wired on this page yet.">Fast Channel</button>
-    <button type="button" class="btn-toolbar btn-msg" onclick="handleAction('send-message')" title="Send a message/announcement to channels. Not wired on this page yet.">Send Message</button>
-  </div>
+<!-- MAIN TABLE CARD -->
+<div class="table-card">
 
   <!-- TABLE CONTROLS -->
   <div class="table-controls">
-    <div class="left-controls">
-      <select id="pageSize" class="input-field" style="width: 80px;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <select id="pageSize" class="input-field" style="width: 100px;">
         <option>60</option>
         <option>30</option>
         <option>100</option>
       </select>
-      <span class="muted">records per page</span>
+      <span style="color: #6b7280; font-size: 13px;">records per page</span>
     </div>
-    <div class="right-controls">
-      <input id="searchInput" class="input-field input-search" type="text" placeholder="Search..." />
+    <div>
+      <input id="searchInput" class="input-field input-search" type="text" placeholder="🔍 Search channels..." />
     </div>
   </div>
 
   <!-- TABLE -->
-  <div style="overflow-x: auto;">
+  <div class="table-wrapper">
     <table class="table-fox">
       <thead>
         <tr>
@@ -189,7 +160,6 @@ html, body { overflow-x: hidden; }
           <th>Epg</th>
           <th>Size</th>
           <th>Total Time</th>
-          <th>Events</th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -231,61 +201,46 @@ html, body { overflow-x: hidden; }
           @endphp
 
           <tr>
-            <td class="name-cell">
+            <td>
               <div class="channel-name-wrap">
-                <span class="channel-logo-box" aria-hidden="true">
+                <span class="channel-logo-box">
                   @if(!empty($channel->logo_path))
-                    <img src="{{ route('vod-channels.logo.preview', $channel) }}?v={{ urlencode((string) optional($channel->updated_at)->timestamp) }}" alt="" loading="lazy" decoding="async" onerror="this.style.visibility='hidden'" />
+                    <img src="{{ route('vod-channels.logo.preview', $channel) }}?v={{ urlencode((string) optional($channel->updated_at)->timestamp) }}" alt="" loading="lazy" onerror="this.style.visibility='hidden'" />
                   @endif
                 </span>
-                <span>{{ $channel->name }}</span>
+                <span class="channel-name">{{ $channel->name }}</span>
               </div>
             </td>
             <td>
               <div class="pill-row">
-                <span class="pill pill-blue">{{ $videos->count() }}</span>
-                <span class="pill pill-blue">{{ $videos->where('format', 'mp4')->count() }}</span>
-                <span class="pill pill-pink">{{ $videos->where('format', 'mkv')->count() }}</span>
+                <span class="pill pill-blue" title="Total videos">{{ $videos->count() }}</span>
+                <span class="pill pill-blue" title="MP4 videos">{{ $videos->where('format', 'mp4')->count() }}</span>
+                <span class="pill pill-pink" title="MKV videos">{{ $videos->where('format', 'mkv')->count() }}</span>
               </div>
             </td>
-            <td><span class="pill pill-yellow" title="{{ $videos->first()?->title }}">{{ substr($videos->first()?->title ?? '-', 0, 20) }}</span></td>
+            <td><span class="pill pill-yellow" title="{{ $videos->first()?->title ?? 'No video' }}">{{ substr($videos->first()?->title ?? '-', 0, 20) }}</span></td>
             <td><span class="pill pill-gray">{{ $targetBitrateK }}k</span></td>
             <td><span class="pill pill-gray">{{ $channel->runtime_speed ?? '—' }}</span></td>
             <td><span class="pill pill-gray">{{ $channel->runtime_redis ?? '—' }}</span></td>
-            <td><span class="pill pill-gray">{{ $uptimeStr }}</span></td>
-            <td><span class="status-dot {{ $isRunning ? 'dot-active' : 'dot-inactive' }}"></span></td>
-            <td><span class="epg-badge">OPEN</span></td>
+            <td class="mono">{{ $uptimeStr }}</td>
+            <td style="text-align: center;"><span class="status-dot {{ $isRunning ? 'dot-active' : 'dot-inactive' }}"></span></td>
+            <td><span class="pill pill-green">EPG</span></td>
             <td class="mono">{{ $sizeStr }}</td>
-            <td class="mono">{{ $hours }}h {{ $minutes }}m {{ $seconds }}s</td>
-            <td>
-              <div class="fox-dropdown">
-                <button type="button" class="fox-dropdown-btn" onclick="toggleDropdown(this)">Actions ▼</button>
-                <div class="fox-dropdown-menu">
-                  <button type="button" class="dropdown-item-btn" onclick="handleRowAction('create-video', {{ $channel->id }})">Create Video</button>
-                  <button type="button" class="dropdown-item-btn" onclick="handleRowAction('edit-playlist', {{ $channel->id }})">Edit Playlist ({{ $videos->count() }})</button>
-                  <button type="button" class="dropdown-item-btn" onclick="handleRowAction('encoding', {{ $channel->id }})">Encoding / Import</button>
-                  <button type="button" class="dropdown-item-btn" onclick="handleRowAction('edit-video-epg', {{ $channel->id }})">Edit Video Epg</button>
-                  <button type="button" class="dropdown-item-btn" onclick="handleRowAction('epg-link', {{ $channel->id }})">Channel Epg Link</button>
-                  <button type="button" class="dropdown-item-btn" onclick="handleRowAction('converted-videos', {{ $channel->id }})">Converted Videos</button>
-                  <button type="button" class="dropdown-item-btn" onclick="handleRowAction('send-message', {{ $channel->id }})">Send Message</button>
-                  <button type="button" class="dropdown-item-btn" onclick="handleRowAction('error-videos', {{ $channel->id }})">Error Videos</button>
-                </div>
-              </div>
-            </td>
+            <td class="mono">{{ $hours }}h {{ $minutes }}m</td>
             <td>
               <div class="actions-row">
-                <button type="button" class="fox-action-btn start" onclick="handleRowAction('start', {{ $channel->id }})" title="Start this channel stream (sends engine start).">▶</button>
-                <button type="button" class="fox-action-btn stop" onclick="handleRowAction('stop', {{ $channel->id }})" title="Stop this channel stream (sends engine stop).">⏹</button>
-                <button type="button" class="fox-action-btn edit" onclick="handleRowAction('edit-playlist', {{ $channel->id }})" title="Open Playlist editor for this channel.">📋</button>
-                <button type="button" class="fox-action-btn edit" onclick="handleRowAction('encoding', {{ $channel->id }})" title="Open Encoding / Import page for this channel.">⚙</button>
-                <button type="button" class="fox-action-btn edit" onclick="handleRowAction('edit', {{ $channel->id }})" title="Open Settings for this channel.">✎</button>
-                <button type="button" class="fox-action-btn delete" onclick="handleRowAction('delete', {{ $channel->id }})" title="Delete this channel.">✕</button>
+                <button type="button" class="action-btn btn-start" onclick="handleRowAction('start', {{ $channel->id }})" title="Start channel">▶</button>
+                <button type="button" class="action-btn btn-stop" onclick="handleRowAction('stop', {{ $channel->id }})" title="Stop channel">■</button>
+                <button type="button" class="action-btn btn-edit" onclick="handleRowAction('edit-playlist', {{ $channel->id }})" title="Playlist">📋</button>
+                <button type="button" class="action-btn btn-settings" onclick="handleRowAction('encoding', {{ $channel->id }})" title="Encoding">⚙</button>
+                <button type="button" class="action-btn btn-edit" onclick="handleRowAction('edit', {{ $channel->id }})" title="Settings">⚡</button>
+                <button type="button" class="action-btn btn-delete" onclick="handleRowAction('delete', {{ $channel->id }})" title="Delete channel">✕</button>
               </div>
             </td>
           </tr>
         @empty
           <tr>
-            <td colspan="11" style="text-align: center; padding: 32px; color: #6b7280;">
+            <td colspan="12" style="text-align: center; padding: 32px; color: #6b7280;">
               No channels found
             </td>
           </tr>

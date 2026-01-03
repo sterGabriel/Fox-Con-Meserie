@@ -1,0 +1,4 @@
+/* Enterprise components wrapped in @layer to prevent Tailwind purge */
+@layer components {
+    /* All .g-* and .fox-* classes will be preserved */
+}

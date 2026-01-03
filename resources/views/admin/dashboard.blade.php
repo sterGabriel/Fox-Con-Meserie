@@ -1,6 +1,7 @@
 @extends('layouts.panel')
 
 @section('content')
+<div style="max-width: 1400px; margin: 0 auto;">
 @php
     $diskUsedText = is_numeric($diskUsedPct) ? ($diskUsedPct . '%') : '—';
     $cpuText = $cpuUsage !== null ? (round($cpuUsage, 1) . '%') : '—';
@@ -72,16 +73,18 @@
 
     $uptimeDDHHMM = is_string($uptimeText) ? $formatUptimeDDHHMM($uptimeText) : '—';
 
-    $cards = [
+    $channelCards = [
         ['icon' => '📺', 'label' => 'Total Channels',   'value' => $totalChannels,   'variant' => 'blue'],
         ['icon' => '✅', 'label' => 'Enabled',          'value' => $enabledChannels, 'variant' => 'green'],
         ['icon' => '▶',  'label' => 'Running',          'value' => $runningChannels, 'variant' => 'green'],
         ['icon' => '⚠️', 'label' => 'Errors',           'value' => $errorChannels,   'variant' => 'red'],
         ['icon' => '⏸',  'label' => 'Idle',             'value' => $idleChannels,    'variant' => 'yellow'],
+    ];
+
+    $hardwareCards = [
         ['icon' => '💽', 'label' => 'Disk Used',         'value' => $diskUsedText,    'variant' => 'yellow'],
         ['icon' => '🧠', 'label' => 'CPU',              'value' => $cpuText,         'variant' => 'blue'],
         ['icon' => '🧬', 'label' => 'RAM',              'value' => $ramText,         'variant' => 'purple'],
-        ['icon' => '⏱',  'label' => 'Uptime',           'value' => $uptimeDDHHMM,    'variant' => 'blue'],
     ];
 
     $statusBadge = function ($status) {
@@ -109,49 +112,71 @@
     $pageNowTs = now()->timestamp;
 @endphp
 
-<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px;">
-    <h1 style="margin:0;font-size:24px;font-weight:800;">Dashboard</h1>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px;">
+    <h1 style="margin:0;font-size:28px;font-weight:800;color:#111827;">Dashboard</h1>
 </div>
 
-{{-- Alerts summary --}}
-<div class="fox-table-container" style="padding:16px;margin-bottom:16px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-        <div style="font-size:12px;font-weight:800;color:#666;letter-spacing:.04em;text-transform:uppercase;">Alerts</div>
-        <div style="display:flex;gap:8px;align-items:center;">
-            <span class="fox-badge red">CRITICAL: {{ count($alertSummary['critical'] ?? []) }}</span>
-            <span class="fox-badge yellow">WARNING: {{ count($alertSummary['warning'] ?? []) }}</span>
-            <span class="fox-badge green">OK: {{ (int)($alertSummary['ok'] ?? 0) }}</span>
+{{-- Metrics Grid: 2 Cards Side by Side --}}
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px;">
+    
+    {{-- Channel Metrics --}}
+    <div style="background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+        <h3 style="font-size: 16px; font-weight: 700; color: #111827; margin: 0 0 20px 0; display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 20px;">📊</span> Channel Status
+        </h3>
+        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; text-align: center;">
+            <div style="padding: 16px; border-right: 1px solid #f3f4f6;">
+                <div style="font-size: 11px; color: #6b7280; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">📺 Total</div>
+                <div style="font-size: 32px; font-weight: 900; color: #667eea;">{{ $totalChannels }}</div>
+            </div>
+            <div style="padding: 16px; border-right: 1px solid #f3f4f6;">
+                <div style="font-size: 11px; color: #6b7280; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">✅ Enabled</div>
+                <div style="font-size: 32px; font-weight: 900; color: #11998e;">{{ $enabledChannels }}</div>
+            </div>
+            <div style="padding: 16px; border-right: 1px solid #f3f4f6;">
+                <div style="font-size: 11px; color: #6b7280; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">▶ Running</div>
+                <div style="font-size: 32px; font-weight: 900; color: #10b981;">{{ $runningChannels }}</div>
+            </div>
+            <div style="padding: 16px; border-right: 1px solid #f3f4f6;">
+                <div style="font-size: 11px; color: #6b7280; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">⚠️ Errors</div>
+                <div style="font-size: 32px; font-weight: 900; color: #ef4444;">{{ $errorChannels }}</div>
+            </div>
+            <div style="padding: 16px;">
+                <div style="font-size: 11px; color: #6b7280; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">⏸ Idle</div>
+                <div style="font-size: 32px; font-weight: 900; color: #f59e0b;">{{ $idleChannels }}</div>
+            </div>
         </div>
     </div>
 
-    @php
-        $criticalList = $alertSummary['critical'] ?? [];
-        $warningList = $alertSummary['warning'] ?? [];
-    @endphp
-
-    @if(count($criticalList) === 0 && count($warningList) === 0)
-        <div style="margin-top:10px;font-size:13px;color:#16a34a;font-weight:600;">All systems OK.</div>
-    @else
-        <ul style="margin:10px 0 0 0;padding-left:18px;font-size:13px;color:#333;">
-            @foreach($criticalList as $item)
-                <li><span style="color:#dc2626;font-weight:700;">CRITICAL</span> — {{ $item }}</li>
+    {{-- Hardware Metrics --}}
+    <div style="background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+        <h3 style="font-size: 16px; font-weight: 700; color: #111827; margin: 0 0 20px 0; display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 20px;">💻</span> Hardware Resources
+        </h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px;">
+            @foreach($hardwareCards as $card)
+            @php
+                $gradients = [
+                    'blue'   => ['from' => '#667eea', 'to' => '#764ba2', 'shadow' => 'rgba(102,126,234,0.3)'],
+                    'green'  => ['from' => '#11998e', 'to' => '#38ef7d', 'shadow' => 'rgba(17,153,142,0.3)'],
+                    'red'    => ['from' => '#fc4a1a', 'to' => '#f7b733', 'shadow' => 'rgba(252,74,26,0.3)'],
+                    'yellow' => ['from' => '#f093fb', 'to' => '#f5576c', 'shadow' => 'rgba(240,147,251,0.3)'],
+                    'purple' => ['from' => '#a8edea', 'to' => '#fed6e3', 'shadow' => 'rgba(168,237,234,0.3)'],
+                ];
+                $grad = $gradients[$card['variant']] ?? $gradients['blue'];
+                $textColor = ($card['variant'] === 'purple') ? '#111827' : '#ffffff';
+                $labelColor = ($card['variant'] === 'purple') ? 'rgba(31,41,55,0.8)' : 'rgba(255,255,255,0.9)';
+                $descColor = ($card['variant'] === 'purple') ? 'rgba(55,65,81,0.8)' : 'rgba(255,255,255,0.8)';
+            @endphp
+            <div style="position: relative; background: linear-gradient(135deg, {{ $grad['from'] }} 0%, {{ $grad['to'] }} 100%); border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px {{ $grad['shadow'] }}; overflow: hidden; min-height: 110px;">
+                <div style="position: absolute; top: -15px; right: -15px; font-size: 60px; opacity: 0.15;">{{ $card['icon'] }}</div>
+                <div style="font-size: 11px; color: {{ $labelColor }}; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">{{ $card['label'] }}</div>
+                <div style="font-size: 36px; font-weight: 900; color: {{ $textColor }}; line-height: 1;">{{ $card['value'] }}</div>
+            </div>
             @endforeach
-            @foreach($warningList as $item)
-                <li><span style="color:#d97706;font-weight:700;">WARNING</span> — {{ $item }}</li>
-            @endforeach
-        </ul>
-    @endif
-</div>
-
-{{-- Metrics --}}
-<div class="fox-cards-grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));align-items:stretch;">
-    @foreach($cards as $card)
-        <div class="fox-card {{ $card['variant'] }}" style="min-height:120px;">
-            <div class="fox-card-icon">{{ $card['icon'] }}</div>
-            <div class="fox-card-label">{{ $card['label'] }}</div>
-            <div class="fox-card-value">{{ $card['value'] }}</div>
         </div>
-    @endforeach
+    </div>
+
 </div>
 
 {{-- Playlists --}}
@@ -329,5 +354,6 @@
     updateOnlineTimers();
     setInterval(updateOnlineTimers, 15000);
 </script>
+</div>
 @endsection
 

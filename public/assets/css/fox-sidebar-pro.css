@@ -1,0 +1,230 @@
+/* ============================================================
+   GRAFANA PRO ENTERPRISE - SIDEBAR
+   Professional dark sidebar navigation
+   ============================================================ */
+
+:root {
+    --fox-bg: #1a1d23;
+    --fox-bg2: #15171c;
+    --fox-red: #e30613;
+    --fox-text: #e9eef5;
+    --fox-muted: #b7c0cc;
+    --fox-line: rgba(148, 163, 184, 0.12);
+}
+
+.fox-sidebar {
+    width: 260px;
+    background: linear-gradient(180deg, var(--fox-bg) 0%, var(--fox-bg2) 100%);
+    border-right: 1px solid var(--fox-line);
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    position: sticky;
+    top: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
+}
+
+/* BRAND */
+.fox-brand {
+    padding: 20px 18px;
+    border-bottom: 1px solid var(--fox-line);
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.fox-brand-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.fox-brand-text {
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--fox-text);
+    letter-spacing: 0.5px;
+}
+
+.fox-logo {
+    width: 26px;
+    height: 26px;
+    display: inline-block;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #ff7a18, #af002d 60%, #319197);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, .25);
+}
+
+.fox-burger {
+    background: transparent;
+    border: 0;
+    color: var(--fox-muted);
+    cursor: pointer;
+    padding: 6px;
+    font-size: 18px;
+}
+
+/* NAVIGATION */
+.fox-nav {
+    flex: 1;
+    padding: 12px 8px;
+    overflow-y: auto;
+}
+
+.fox-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    margin-bottom: 4px;
+    border-radius: 8px;
+    color: #9ca3af;
+    background: transparent;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    width: 100%;
+    text-align: left;
+}
+
+.fox-item:hover {
+    background: rgba(59, 130, 246, 0.1);
+    color: #e5e7eb;
+    border-color: rgba(59, 130, 246, 0.2);
+}
+
+.fox-item.is-active {
+    background: rgba(59, 130, 246, 0.15);
+    color: #3b82f6;
+    border-color: rgba(59, 130, 246, 0.3);
+    font-weight: 600;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.05);
+}
+
+.fox-item.is-active .fox-ico {
+    color: #3b82f6;
+}
+
+.fox-ico {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+}
+
+.fox-label {
+    flex: 1;
+}
+
+.fox-caret {
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.15s ease-in-out;
+}
+
+.fox-caret::after {
+    content: '▸';
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.fox-parent.is-open .fox-caret {
+    transform: rotate(90deg);
+}
+
+/* SUBMENU */
+.fox-sub {
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: all 0.25s ease-in-out;
+    padding-left: 32px;
+}
+
+.fox-sub.is-open {
+    max-height: 500px;
+    opacity: 1;
+    margin-bottom: 8px;
+}
+
+.fox-subitem {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    margin-bottom: 2px;
+    border-radius: 4px;
+    color: #6b7280;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.fox-subitem:hover {
+    background: rgba(59, 130, 246, 0.08);
+    color: #e5e7eb;
+    padding-left: 16px;
+}
+
+.fox-subitem.is-active {
+    background: rgba(59, 130, 246, 0.12);
+    color: #3b82f6;
+    font-weight: 600;
+    padding-left: 16px;
+}
+
+.fox-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #6b7280;
+    flex-shrink: 0;
+}
+
+.fox-sublabel {
+    flex: 1;
+}
+
+.fox-subitem.is-active .fox-dot {
+    background: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+/* ICONS */
+.ico-home::before {
+    content: '🏠';
+}
+
+.ico-folder::before {
+    content: '📁';
+}
+
+.ico-settings::before {
+    content: '⚙️';
+}
+
+/* SCROLLBAR */
+.fox-sidebar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.fox-sidebar::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.2);
+    border-radius: 3px;
+}
+
+.fox-sidebar::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.3);
+}
