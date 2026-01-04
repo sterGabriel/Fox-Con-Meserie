@@ -37,13 +37,6 @@
       <span>Dashboard</span>
     </a>
 
-    {{-- Users --}}
-    <a href="{{ route('fox.users') }}"
-       class="sidebar-link" style="background: {{ $isActive('users*') ? '#b31217' : 'transparent' }};">
-      <span class="sidebar-icon">👥</span>
-      <span>Users</span>
-    </a>
-
     {{-- VOD Section Header --}}
     <div style="margin-top: 16px; padding: 0 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; color: #64748b;">VOD</div>
 
@@ -115,6 +108,13 @@
     {{-- Tools Section Header --}}
     <div style="margin-top: 16px; padding: 0 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; color: #64748b;">TOOLS</div>
 
+    {{-- Tools: Stream Monitor --}}
+    <a href="{{ route('tools.stream-monitor.index') }}"
+       class="sidebar-link" style="background: {{ $isActive('tools/stream-monitor*') ? '#b31217' : 'transparent' }};">
+      <span class="sidebar-icon">📡</span>
+      <span>Stream Monitor</span>
+    </a>
+
     {{-- Series: Rename MUZICA --}}
     <a href="{{ route('fox.series.rename-muzica') }}"
        class="sidebar-link" style="background: {{ $isActive('series/rename-muzica') ? '#b31217' : 'transparent' }};">
@@ -134,6 +134,12 @@
        class="sidebar-link" style="background: {{ $isActive('series/rename-vod/sub') ? '#b31217' : 'transparent' }};">
       <span class="sidebar-icon">📝</span>
       <span>VOD Sub</span>
+    </a>
+
+    <a href="{{ route('tools.ip-table') }}"
+       class="sidebar-link" style="background: {{ $isActive('tools/ip-table') ? '#b31217' : 'transparent' }};">
+      <span class="sidebar-icon">🛡️</span>
+      <span>IP Table</span>
     </a>
   </nav>
 

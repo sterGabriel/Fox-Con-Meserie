@@ -22,7 +22,7 @@
             <div style="font-size:22px; font-weight:900; color:var(--text-primary);">TMDB Settings</div>
             <div style="font-size:12px; color:var(--text-muted); margin-top:6px;">Cheia este folosită pentru postere/imagine la filme în Import VOD.</div>
         </div>
-        <a class="btn btn-save" style="text-decoration:none;" href="/vod-channels">Back</a>
+        <a class="btn btn-save" style="text-decoration:none;" href="{{ route('settings.index') }}">Back</a>
     </div>
 
     @if(session('success'))

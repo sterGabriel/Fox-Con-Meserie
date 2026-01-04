@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Models\UserLoginEvent;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -16,8 +17,17 @@ class ProfileController extends Controller
      */
     public function edit(Request $request): View
     {
-        return view('profile.edit', [
-            'user' => $request->user(),
+        $user = $request->user();
+
+        $loginEvents = UserLoginEvent::query()
+            ->where('user_id', $user->id)
+            ->orderByDesc('logged_in_at')
+            ->limit(100)
+            ->get();
+
+        return view('admin.profile.edit', [
+            'user' => $user,
+            'loginEvents' => $loginEvents,
         ]);
     }
 

@@ -11,7 +11,7 @@ class EpgController extends Controller
 {
     public function all(Request $request)
     {
-        $domain = rtrim((string) config('app.streaming_domain', ''), '/');
+        $domain = rtrim((string) \App\Models\AppSetting::getValue('streaming_domain', (string) config('app.streaming_domain', '')), '/');
         if ($domain === '' || str_contains($domain, 'localhost')) {
             $domain = rtrim((string) $request->getSchemeAndHttpHost(), '/');
         }

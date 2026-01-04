@@ -7,7 +7,7 @@
     <a class="fox-topnav-item {{ str_starts_with($currentRoute, 'dashboard') ? 'is-active' : '' }}" href="{{ route('dashboard') }}">
       Dashboard
     </a>
-    <a class="fox-topnav-item {{ str_starts_with($currentRoute, 'settings.tmdb') ? 'is-active' : '' }}" href="{{ route('settings.tmdb') }}">
+    <a class="fox-topnav-item {{ str_starts_with($currentRoute, 'settings') ? 'is-active' : '' }}" href="{{ route('settings.index') }}">
       Settings
     </a>
     <a class="fox-topnav-item {{ str_starts_with($currentRoute, 'video-categories') ? 'is-active' : '' }}" href="{{ route('video-categories.index') }}">
@@ -43,7 +43,7 @@
       </button>
       <div class="fox-user-menu" id="userMenu">
         <a href="#">Profile</a>
-        <a href="{{ route('settings.tmdb') }}">Settings</a>
+        <a href="{{ route('settings.index') }}">Settings</a>
         <form method="POST" action="{{ route('logout') }}" style="margin:0;">
           @csrf
           <button type="submit" style="width:100%; text-align:left; background:none; border:none; padding:10px 16px; color:#666; cursor:pointer;">

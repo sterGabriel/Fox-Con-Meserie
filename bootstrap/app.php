@@ -14,6 +14,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             \App\Http\Middleware\AutoDatabaseBackup::class,
         ]);
+
+        $middleware->alias([
+            'ip.track' => \App\Http\Middleware\TrackIpAddress::class,
+            'ip.enforce' => \App\Http\Middleware\EnforceIpRules::class,
+            'stream.track' => \App\Http\Middleware\TrackStreamAccess::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

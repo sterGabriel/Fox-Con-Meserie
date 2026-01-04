@@ -18,7 +18,10 @@ use App\Http\Controllers\Api\VideoApiController;
 use App\Http\Controllers\Api\EncodingJobApiController;
 use App\Http\Controllers\Api\LiveChannelApiController;
 use App\Http\Controllers\Admin\TmdbSettingsController;
+use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\SeriesRenameController;
+use App\Http\Controllers\Admin\IpTableController;
+use App\Http\Controllers\Admin\StreamMonitorController;
 use App\Http\Controllers\EpgController;
 
 // ROOT → redirect to dashboard
@@ -39,7 +42,7 @@ Route::get('/vod-channels/{channel}/logo-preview', [LiveChannelController::class
 
 // Master M3U8 playlist (all VOD channels) for external players / Xtream apps
 Route::get('/streams/all.m3u8', function () {
-    $domain = rtrim((string) config('app.streaming_domain', ''), '/');
+    $domain = rtrim((string) \App\Models\AppSetting::getValue('streaming_domain', (string) config('app.streaming_domain', '')), '/');
     if ($domain === '' || str_contains($domain, 'localhost')) {
         $domain = rtrim((string) request()->getSchemeAndHttpHost(), '/');
     }
@@ -61,7 +64,7 @@ Route::get('/streams/all.m3u8', function () {
         'Pragma' => 'no-cache',
         'Access-Control-Allow-Origin' => '*',
     ]);
-});
+})->middleware(['ip.enforce']);
 
 // Streaming outputs (TS + HLS)
 // Compatibility: many players hit stream.ts directly. Serving a growing TS file as a static file
@@ -73,7 +76,7 @@ Route::get('/streams/{channel}/stream.ts', function ($channel) {
         'Pragma' => 'no-cache',
         'Access-Control-Allow-Origin' => '*',
     ]);
-});
+})->middleware(['ip.enforce', 'stream.track']);
 
 // Convenience alias: /streams/{channel}/stream.m3u8 -> /streams/{channel}/hls/stream.m3u8
 Route::get('/streams/{channel}/stream.m3u8', function ($channel) {
@@ -83,7 +86,7 @@ Route::get('/streams/{channel}/stream.m3u8', function ($channel) {
         'Pragma' => 'no-cache',
         'Access-Control-Allow-Origin' => '*',
     ]);
-});
+})->middleware(['ip.enforce', 'stream.track']);
 
 Route::get('/streams/{channel}/{file}', function ($channel, $file) {
     $path = storage_path("app/streams/{$channel}/{$file}");
@@ -99,7 +102,7 @@ Route::get('/streams/{channel}/{file}', function ($channel, $file) {
         ]);
     }
     abort(404);
-});
+})->middleware(['ip.enforce', 'stream.track']);
 
 // HLS segments in subdirectories
 Route::get('/streams/{channel}/{subdir}/{file}', function ($channel, $subdir, $file) {
@@ -116,14 +119,14 @@ Route::get('/streams/{channel}/{subdir}/{file}', function ($channel, $subdir, $f
         ]);
     }
     abort(404);
-});
+})->middleware(['ip.enforce', 'stream.track']);
 
 // XMLTV EPG (All channels) — dynamic 7-day rolling window
 Route::get('/epg/all.xml', [EpgController::class, 'all'])
     ->name('epg.all');
 
 
-Route::middleware(['auth', 'verified'])->group(function () {
+Route::middleware(['auth', 'verified', 'ip.track', 'ip.enforce'])->group(function () {
 
     // DASHBOARD
     Route::get('/dashboard', [DashboardController::class, 'index'])
@@ -166,6 +169,41 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Tools: VOD Sub (under Rename VOD)
     Route::get('/series/rename-vod/sub', [VodSubController::class, 'index'])
         ->name('fox.series.rename-vod.sub');
+
+    // Tools: IP Table
+    Route::get('/tools/ip-table', [IpTableController::class, 'index'])
+        ->name('tools.ip-table');
+
+    Route::get('/tools/ip-table/live', [IpTableController::class, 'live'])
+        ->name('tools.ip-table.live');
+
+    // Tools: Stream Monitor (dedicated page)
+    Route::get('/tools/stream-monitor', [StreamMonitorController::class, 'index'])
+        ->name('tools.stream-monitor.index');
+
+    Route::get('/tools/stream-monitor/live', [StreamMonitorController::class, 'live'])
+        ->name('tools.stream-monitor.live');
+
+    Route::post('/tools/ip-table/{ipAddress}/label', [IpTableController::class, 'updateLabel'])
+        ->name('tools.ip-table.label');
+
+    Route::post('/tools/ip-table/{ipAddress}/allow', [IpTableController::class, 'allow'])
+        ->name('tools.ip-table.allow');
+
+    Route::post('/tools/ip-table/{ipAddress}/block', [IpTableController::class, 'block'])
+        ->name('tools.ip-table.block');
+
+    Route::post('/tools/ip-table/{ipAddress}/clear', [IpTableController::class, 'clearRule'])
+        ->name('tools.ip-table.clear');
+
+    Route::post('/tools/ip-table/rule/allow', [IpTableController::class, 'allowIp'])
+        ->name('tools.ip-table.rule.allow');
+
+    Route::post('/tools/ip-table/rule/block', [IpTableController::class, 'blockIp'])
+        ->name('tools.ip-table.rule.block');
+
+    Route::post('/tools/ip-table/rule/clear', [IpTableController::class, 'clearIp'])
+        ->name('tools.ip-table.rule.clear');
 
     // ───────────── VOD CHANNELS ─────────────
 
@@ -414,6 +452,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     // SETTINGS
+    Route::get('/settings', [SettingsController::class, 'edit'])
+        ->name('settings.index');
+    Route::post('/settings', [SettingsController::class, 'update'])
+        ->name('settings.update');
+
     Route::get('/settings/tmdb', [TmdbSettingsController::class, 'edit'])
         ->name('settings.tmdb');
     Route::post('/settings/tmdb', [TmdbSettingsController::class, 'update'])

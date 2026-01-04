@@ -71,12 +71,6 @@
         <span>Dashboard</span>
       </a>
 
-      {{-- Users --}}
-      <a href="{{ route('fox.users') }}" class="sidebar-link" style="background: {{ $isActive('users*') ? '#b31217' : 'transparent' }};">
-        <span class="sidebar-icon">👥</span>
-        <span>Users</span>
-      </a>
-
       {{-- VOD Section --}}
       <div style="margin-top: 16px; padding: 0 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; color: #64748b;">VOD</div>
 
@@ -130,6 +124,11 @@
       {{-- Tools Section --}}
       <div style="margin-top: 16px; padding: 0 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; color: #64748b;">TOOLS</div>
 
+      <a href="{{ route('tools.stream-monitor.index') }}" class="sidebar-link" style="background: {{ $isActive('tools/stream-monitor*') ? '#b31217' : 'transparent' }};">
+        <span class="sidebar-icon">📡</span>
+        <span>Stream Monitor</span>
+      </a>
+
       <a href="{{ route('fox.series.rename-muzica') }}" class="sidebar-link" style="background: {{ $isActive('series/rename-muzica') ? '#b31217' : 'transparent' }};">
         <span class="sidebar-icon">✏️</span>
         <span>Rename MUZICA</span>
@@ -144,6 +143,11 @@
         <span class="sidebar-icon">📝</span>
         <span>VOD Sub</span>
       </a>
+
+      <a href="{{ route('tools.ip-table') }}" class="sidebar-link" style="background: {{ $isActive('tools/ip-table') ? '#b31217' : 'transparent' }};">
+        <span class="sidebar-icon">🛡️</span>
+        <span>IP Table</span>
+      </a>
     </nav>
 
     {{-- Red highlight bar --}}
@@ -157,7 +161,7 @@
     <nav class="fox-topnav">
       <div class="fox-topnav-left">
         <a class="fox-topnav-item {{ str_starts_with($currentRoute, 'dashboard') ? 'is-active' : '' }}" href="{{ route('dashboard') }}">Dashboard</a>
-        <a class="fox-topnav-item {{ str_starts_with($currentRoute, 'settings.tmdb') ? 'is-active' : '' }}" href="{{ route('settings.tmdb') }}">Settings</a>
+        <a class="fox-topnav-item {{ str_starts_with($currentRoute, 'settings') ? 'is-active' : '' }}" href="{{ route('settings.index') }}">Settings</a>
         <a class="fox-topnav-item {{ str_starts_with($currentRoute, 'video-categories') ? 'is-active' : '' }}" href="{{ route('video-categories.index') }}">Category</a>
         <a class="fox-topnav-item {{ str_starts_with($currentRoute, 'videos') ? 'is-active' : '' }}" href="{{ route('videos.index') }}">Movies - Musics</a>
         <a class="fox-topnav-item {{ str_starts_with($currentRoute, 'encoding-jobs') ? 'is-active' : '' }}" href="{{ route('encoding-jobs.index') }}">Log Management</a>
@@ -182,8 +186,8 @@
             <span class="fox-dropdown-caret">▼</span>
           </button>
           <div class="fox-user-menu" id="userMenu">
-            <a href="#">Profile</a>
-            <a href="{{ route('settings.tmdb') }}">Settings</a>
+            <a href="{{ route('profile.edit') }}">Profile</a>
+            <a href="{{ route('settings.index') }}">Settings</a>
             <form method="POST" action="{{ route('logout') }}" style="margin:0;">
               @csrf
               <button type="submit" style="width:100%; text-align:left; background:none; border:none; padding:10px 16px; color:#666; cursor:pointer;">Logout</button>

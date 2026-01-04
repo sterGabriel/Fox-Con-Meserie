@@ -512,6 +512,7 @@ class ChannelEngineService
                 'status' => 'live',
                 'encoder_pid' => $pidNow,
                 'started_at' => Carbon::now(),
+                'last_started_at' => Carbon::now(),
             ]);
 
             Log::info("Channel {$this->channel->id} started with PID {$pidNow}");
@@ -647,6 +648,7 @@ class ChannelEngineService
                 'status' => 'idle',
                 'encoder_pid' => null,
                 'started_at' => null,
+                'last_stopped_at' => Carbon::now(),
             ]);
 
             // Update job(s)
