@@ -56,6 +56,13 @@ class MuzicaRenameService
             if ($name === '' || str_starts_with($name, '.')) {
                 continue;
             }
+
+            // Hide MV folder from MUZICA browser (e.g. "MV" or "M V").
+            $normalized = strtoupper(preg_replace('/\s+/', '', $name) ?? '');
+            if ($normalized === 'MV') {
+                continue;
+            }
+
             $out[] = [
                 'name' => $name,
                 'path' => $subdir,
@@ -258,7 +265,15 @@ class MuzicaRenameService
         $current = $realBase;
         foreach (explode(DIRECTORY_SEPARATOR, $relative) as $part) {
             if ($part === '') continue;
+
+            // Hide MV segment in breadcrumb (e.g. "MV" or "M V").
+            $normalized = strtoupper(preg_replace('/\s+/', '', $part) ?? '');
             $current .= DIRECTORY_SEPARATOR . $part;
+
+            if ($normalized === 'MV') {
+                continue;
+            }
+
             $breadcrumb[] = [
                 'name' => $part,
                 'path' => $current,
