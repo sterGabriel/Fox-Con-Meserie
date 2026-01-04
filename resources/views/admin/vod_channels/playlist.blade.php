@@ -2,6 +2,20 @@
 
 @section('content')
 <style>
+  /* Alias variables used by this view to the enterprise theme tokens.
+     Fixes invisible buttons when custom vars are undefined. */
+  :root {
+    --card-bg: var(--bg-secondary);
+    --border-color: var(--border-default);
+    --text-muted: var(--text-secondary);
+
+    --fox-blue: var(--color-info);
+    --fox-green: var(--color-success);
+    --fox-red: var(--color-error);
+    --btn-start: var(--color-success);
+    --btn-stop: var(--color-error);
+  }
+
   .page-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:16px; }
   .page-title { font-size:22px; font-weight:900; color:var(--text-primary); margin:0; }
   .page-subtitle { font-size:12px; color:var(--text-muted); margin-top:6px; }

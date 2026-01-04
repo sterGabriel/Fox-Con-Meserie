@@ -17,7 +17,7 @@
       Movies - Musics
     </a>
     <a class="fox-topnav-item {{ str_starts_with($currentRoute, 'encoding-jobs') ? 'is-active' : '' }}" href="{{ route('encoding-jobs.index') }}">
-      Log Management
+      Encoding Queue
     </a>
     <a class="fox-topnav-item {{ str_starts_with($currentRoute, 'fox.fonts') ? 'is-active' : '' }}" href="{{ route('fox.fonts') }}">
       Fonts

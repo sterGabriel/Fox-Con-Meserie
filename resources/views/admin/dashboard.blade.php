@@ -1,7 +1,7 @@
 @extends('layouts.panel')
 
 @section('content')
-<div style="max-width: 1400px; margin: 0 auto;">
+<div style="width: 100%; max-width: none; margin: 0;">
 @php
     $diskUsedText = is_numeric($diskUsedPct) ? ($diskUsedPct . '%') : '—';
     $cpuText = $cpuUsage !== null ? (round($cpuUsage, 1) . '%') : '—';

@@ -164,7 +164,7 @@
         <a class="fox-topnav-item {{ str_starts_with($currentRoute, 'settings') ? 'is-active' : '' }}" href="{{ route('settings.index') }}">Settings</a>
         <a class="fox-topnav-item {{ str_starts_with($currentRoute, 'video-categories') ? 'is-active' : '' }}" href="{{ route('video-categories.index') }}">Category</a>
         <a class="fox-topnav-item {{ str_starts_with($currentRoute, 'videos') ? 'is-active' : '' }}" href="{{ route('videos.index') }}">Movies - Musics</a>
-        <a class="fox-topnav-item {{ str_starts_with($currentRoute, 'encoding-jobs') ? 'is-active' : '' }}" href="{{ route('encoding-jobs.index') }}">Log Management</a>
+        <a class="fox-topnav-item {{ str_starts_with($currentRoute, 'encoding-jobs') ? 'is-active' : '' }}" href="{{ route('encoding-jobs.index') }}">Encoding Queue</a>
         <a class="fox-topnav-item {{ str_starts_with($currentRoute, 'fox.fonts') ? 'is-active' : '' }}" href="{{ route('fox.fonts') }}">Fonts</a>
         <a class="fox-topnav-item {{ str_starts_with($currentRoute, 'fox.advertisements') ? 'is-active' : '' }}" href="{{ route('fox.advertisements') }}">Advertisements</a>
         <a class="fox-topnav-item {{ str_starts_with($currentRoute, 'fox.broadcast') ? 'is-active' : '' }}" href="{{ route('fox.broadcast') }}">Broadcast</a>
